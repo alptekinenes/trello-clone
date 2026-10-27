@@ -29,4 +29,12 @@ describe('UsersController', () => {
     await controller.updateMe(CURRENT, { name: 'Yeni Ad' });
     expect(users.update).toHaveBeenCalledWith('user-1', { name: 'Yeni Ad' });
   });
+
+  it('updateMe fails with 401 when the account no longer exists', async () => {
+    const { controller, users } = setup();
+    users.update.mockResolvedValue(null);
+    await expect(controller.updateMe(CURRENT, { name: 'Yeni Ad' })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
 });

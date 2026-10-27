@@ -7,8 +7,7 @@ import { createTestApp } from './utils/create-test-app.js';
 /*
  * HTTP-layer auth checks that never reach the database:
  * validation, missing/invalid tokens, cookie handling and rate limiting.
- * Flows that need stored users (register -> me, refresh rotation) are
- * covered by unit tests until a test database is available.
+ * Flows that need stored users are in auth-flow.e2e-spec.ts.
  */
 
 interface FieldError {

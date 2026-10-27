@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { UpdateMeRequest, UserDto } from '@trello/contracts';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** Public user fields. passwordHash is never selected here. */
@@ -36,7 +37,15 @@ export class UsersService {
     });
   }
 
-  update(id: string, data: UpdateMeRequest): Promise<UserDto> {
-    return this.prisma.user.update({ where: { id }, data, select: USER_SELECT });
+  /** Returns null when the user no longer exists. */
+  async update(id: string, data: UpdateMeRequest): Promise<UserDto | null> {
+    try {
+      return await this.prisma.user.update({ where: { id }, data, select: USER_SELECT });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return null;
+      }
+      throw error;
+    }
   }
 }

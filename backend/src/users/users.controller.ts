@@ -18,7 +18,9 @@ export class UsersController {
   }
 
   @Patch('me')
-  updateMe(@CurrentUser() current: AuthUser, @Body() body: UpdateMeDto): Promise<UserDto> {
-    return this.users.update(current.id, body);
+  async updateMe(@CurrentUser() current: AuthUser, @Body() body: UpdateMeDto): Promise<UserDto> {
+    const user = await this.users.update(current.id, body);
+    if (!user) throw invalidAccessToken();
+    return user;
   }
 }

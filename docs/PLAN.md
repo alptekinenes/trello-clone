@@ -8,10 +8,10 @@
 | Faz | Durum | Not |
 |---|---|---|
 | 0 – Kurulum | ✅ Bitti | Seed yok (DB gerekiyor). |
-| 1 – Auth | 🟡 DB bekliyor | Kod, unit testler ve DB'siz e2e testleri hazır. **Eksik:** gerçek test DB'si ile e2e — kayıt→`/users/me`, yanlış parola 401, refresh rotasyonu, eski refresh'in tekrar kullanımında aile iptali, `PATCH /users/me`; Playwright ile kayıt→giriş→çıkış akışı. |
+| 1 – Auth | ✅ Bitti | DB'li e2e (`test/auth-flow.e2e-spec.ts`) ve Playwright kayıt→çıkış→giriş akışı (`e2e/auth.spec.ts`) dahil. |
 | 2–8 | ⏳ Başlamadı | |
 
-**Ortam:** Bu makinede henüz PostgreSQL yok (Docker/WSL da yok). DB kurulunca: `npm run prisma:deploy -w backend`, ardından eksik e2e testleri yazılıp Faz 1 kapatılır.
+**Ortam:** PostgreSQL 17 yerel olarak kurulu (Windows servisi, sadece localhost). `trello` kullanıcısı; `trello` (dev) ve `trello_test` (e2e) veritabanları. Docker yok.
 
 **Not (prod):** Reverse proxy arkasında rate limit'in doğru IP'yi görmesi için Express `trust proxy` ayarı gerekecek (Faz 8).
 

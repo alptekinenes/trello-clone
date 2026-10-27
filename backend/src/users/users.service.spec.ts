@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { normalizeEmail, UsersService } from './users.service.js';
 
@@ -48,5 +49,24 @@ describe('UsersService', () => {
       data: { name: 'Yeni Ad' },
       select: PUBLIC_SELECT,
     });
+  });
+
+  it('update returns null when the user no longer exists', async () => {
+    const { service, user } = createService();
+    user.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+    await expect(service.update('gone', { name: 'Yeni Ad' })).resolves.toBeNull();
+  });
+
+  it('update rethrows other errors', async () => {
+    const { service, user } = createService();
+    user.update.mockRejectedValue(new Error('database unavailable'));
+    await expect(service.update('user-1', { name: 'Yeni Ad' })).rejects.toThrow(
+      'database unavailable',
+    );
   });
 });

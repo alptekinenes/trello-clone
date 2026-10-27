@@ -14,9 +14,18 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'npm run dev',
-    url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
-  },
+  // The backend uses the dev database from backend/.env (migrations applied).
+  webServer: [
+    {
+      command: 'npm run start -w backend',
+      cwd: '..',
+      url: 'http://localhost:3000/api/v1/health',
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run dev',
+      url: BASE_URL,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });

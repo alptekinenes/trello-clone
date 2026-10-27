@@ -177,8 +177,9 @@ trello-clone/
 # Kurulum (kökte; contracts'ı derler ve Prisma client'ı üretir)
 npm install
 cp backend/.env.example backend/.env
-docker compose up -d                         # PostgreSQL (Docker kuruluysa)
-npm run prisma:deploy -w backend             # migration'ları uygula
+docker compose up -d                         # PostgreSQL (Docker kuruluysa; bu makinede PostgreSQL 17 yerel servis olarak kurulu)
+npm run prisma:deploy -w backend             # migration'ları dev DB'ye uygula
+# e2e DB'si için: backend klasöründe DATABASE_URL=<TEST_DATABASE_URL> npx prisma migrate deploy
 
 # Geliştirme
 npm run dev:backend                          # http://localhost:3000/api/v1
@@ -188,8 +189,8 @@ npm run dev:frontend                         # http://localhost:5173 (/api → 3
 npm run build
 npm test                                     # tüm unit testler
 npm run lint
-npm run test:e2e -w backend                  # Supertest
-npm run test:e2e -w frontend                 # Playwright (dev server'ı kendisi açar)
+npm run test:e2e -w backend                  # Supertest (trello_test DB'sini her testte sıfırlar)
+npm run test:e2e -w frontend                 # Playwright (backend + frontend'i kendisi açar; dev DB'yi kullanır)
 npm run typecheck -w backend
 npm run typecheck -w frontend
 
