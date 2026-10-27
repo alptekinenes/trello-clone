@@ -41,16 +41,16 @@ describe('RegisterPage', () => {
       http.post('*/api/v1/auth/register', () =>
         HttpResponse.json({ accessToken: 'token', user: testUser }, { status: 201 }),
       ),
-      http.get('*/api/v1/health', () => HttpResponse.json({ status: 'ok' })),
+      http.get('*/api/v1/boards', () => HttpResponse.json([])),
     );
     const { router } = renderApp('/register');
 
     await fillAndSubmit({ name: 'Ayşe Yılmaz', email: 'ayse@example.com', password: 'secret-password' });
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Panolarına hoş geldin' }),
+      await screen.findByRole('heading', { level: 1, name: 'Panolarım' }),
     ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/');
+    expect(router.state.location.pathname).toBe('/boards');
     expect(useAuthStore.getState().status).toBe('authenticated');
   });
 

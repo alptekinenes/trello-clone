@@ -90,9 +90,11 @@ trello-clone/
     │   ├── common/            # Guard, filter, interceptor, decorator, pipe
     │   ├── generated/prisma/  # Üretilen Prisma client (git'te yok; `npm install` üretir)
     │   ├── prisma/            # PrismaService / PrismaModule
+    │   ├── access/            # Board yetkisi: BoardAccessService, BoardAccessGuard, @BoardRole()
     │   ├── auth/
     │   ├── users/
     │   ├── boards/
+    │   ├── members/
     │   ├── lists/
     │   ├── cards/
     │   └── realtime/          # Socket.io gateway
@@ -124,6 +126,7 @@ trello-clone/
 - **API çağrıları**: `shared/lib/http.ts` içindeki `apiRequest` ile. Access token'ı kendisi ekler, 401'de oturumu bir kez yeniler ve isteği tekrarlar. Access token sadece bellekte (`features/auth` store'u); localStorage'a yazılmaz.
 - **Testler**: `src/test/render.tsx` içindeki `renderWithProviders` (tek component) veya `renderApp(path)` (gerçek route'larla tüm uygulama) ile render et; giriş yapmış kullanıcı için `useAuthStore.getState().setSession(...)`; ağ istekleri MSW ile (`server.use(...)`), handler'sız istek testi düşürür. Sorgularda `getByRole`/`getByLabelText` öncelikli.
 - **Performans**: gereksiz `useEffect` yazma (türetilebilen değeri render'da hesapla); liste öğelerinde stabil `key`; ölçülmüş bir sorun yoksa erken `memo`/`useMemo` kullanma.
+- **Ortak UI** (`shared/ui`): `Dialog` (native `<dialog>` + `showModal`; sadece açıkken render edilir, Escape ile kapanır, odağı açana geri verir), `ConfirmDialog`, `InlineEdit`, `Avatar`/`AvatarStack`, `Button` (`primary`, `secondary`, `ghost`, `danger`, `on-board`). Board arka plan sınıfları `shared/lib/board-background.ts`'te. jsdom `showModal`'ı desteklemediği için `src/test/setup.ts`'te küçük bir yerine-geçen var.
 - **Güvenlik**: `dangerouslySetInnerHTML` kullanma (zorunluysa sanitize et).
 - **Erişilebilirlik**: semantik HTML, klavye ile kullanılabilirlik, görünür odak, ARIA etiketleri, modal'larda odak tuzağı, sürükle-bırak için klavye alternatifi ve ekran okuyucu duyuruları.
 
@@ -132,7 +135,7 @@ trello-clone/
 - Tüm input'lar `class-validator` DTO'ları ile doğrulanır; global `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })`.
 - İş mantığı service'te, controller ince kalır. Veritabanı erişimi sadece `PrismaService` üzerinden.
 - Parolalar **yalnızca argon2** (`argon2id`) ile hash'lenir; bcrypt vb. kullanılmaz.
-- Her endpoint'te yetkilendirme: kullanıcının ilgili board'a erişimi var mı kontrol edilir.
+- Her endpoint'te yetkilendirme: kullanıcının ilgili board'a erişimi var mı kontrol edilir. Board route'larında `@BoardRole('MEMBER' | 'ADMIN' | 'OWNER')` kullanılır (guard `:boardId` param'ını okur); rol `@CurrentBoardRole()` ile alınır. Üye olmayana **404**, rolü yetersize **403**.
 - Sıralama (position) için kesirli/aralıklı sayı stratejisi; çoklu yazma işlemleri `prisma.$transaction` içinde.
 - REST: `/api/v1/...`, doğru HTTP status kodları, tutarlı hata gövdesi (global exception filter).
 - WebSocket: kullanıcılar `board:<id>` room'una katılır; değişiklikler başarılı DB yazımından **sonra** yayınlanır. Event adları `entity:action` formatında (`card:moved`, `list:created`).
@@ -191,6 +194,9 @@ npm test                                     # tüm unit testler
 npm run lint
 npm run test:e2e -w backend                  # Supertest (trello_test DB'sini her testte sıfırlar)
 npm run test:e2e -w frontend                 # Playwright (backend + frontend'i kendisi açar; dev DB'yi kullanır)
+# Not: Playwright çok sayıda kayıt yapar. Çalışan bir dev backend'i yeniden kullanıyorsa
+# backend/.env'de AUTH_RATE_LIMIT_PER_MINUTE yüksek olmalı (ör. 1000); aksi halde 10/dk sınırına takılır.
+# Dev backend .env değişikliklerini izlemez; .env değişince yeniden başlat.
 npm run typecheck -w backend
 npm run typecheck -w frontend
 

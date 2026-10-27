@@ -7,14 +7,15 @@ import { server } from '../test/msw-server';
 import { renderApp } from '../test/render';
 
 describe('routes', () => {
-  it('renders the home page at / for a signed-in user', async () => {
+  it('sends a signed-in user from / to the boards page', async () => {
     useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
-    server.use(http.get('*/api/v1/health', () => HttpResponse.json({ status: 'ok' })));
-    renderApp('/');
+    server.use(http.get('*/api/v1/boards', () => HttpResponse.json([])));
+    const { router } = renderApp('/');
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Panolarına hoş geldin' }),
+      await screen.findByRole('heading', { level: 1, name: 'Panolarım' }),
     ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/boards');
     expect(screen.getByRole('link', { name: 'Trello Clone' })).toBeInTheDocument();
   });
 

@@ -1,0 +1,65 @@
+import { BOARD_LIMITS, type BoardDetailDto } from '@trello/contracts';
+import { AvatarStack } from '../../../shared/ui/avatar';
+import { Button } from '../../../shared/ui/button';
+import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
+import { InlineEdit } from '../../../shared/ui/inline-edit';
+import { useBoardActions } from '../hooks/use-board-actions';
+
+const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board';
+
+export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
+  const { board, members } = detail;
+  const actions = useBoardActions(board.id, board.myRole);
+  const people = members.map((member) => ({ ...member, id: member.userId }));
+
+  return (
+    <header className="flex flex-wrap items-center gap-3 bg-board-bar px-4 py-2">
+      <h1 className="min-w-0 max-w-full">
+        {actions.canRename ? (
+          <InlineEdit
+            value={board.title}
+            label="Pano adı"
+            editHint="Pano adını düzenle"
+            maxLength={BOARD_LIMITS.TITLE_MAX}
+            onSave={actions.rename}
+            className={`${TITLE} hover:bg-board-control-hover`}
+            inputClassName={`${TITLE} bg-surface text-fg`}
+          />
+        ) : (
+          <span className={`block truncate ${TITLE}`}>{board.title}</span>
+        )}
+      </h1>
+
+      {actions.renameError && (
+        <p role="alert" className="rounded-md bg-danger-subtle px-2 py-1 text-sm text-danger">
+          {actions.renameError}
+        </p>
+      )}
+
+      <div className="ml-auto flex items-center gap-3">
+        <AvatarStack people={people} label="Pano üyeleri" />
+        {actions.canDelete && (
+          <Button variant="on-board" className="h-8 px-3" onClick={actions.askDelete}>
+            Panoyu sil
+          </Button>
+        )}
+      </div>
+
+      {actions.confirmingDelete && (
+        <ConfirmDialog
+          title="Pano silinsin mi?"
+          confirmLabel="Panoyu sil"
+          onConfirm={actions.confirmDelete}
+          onCancel={actions.cancelDelete}
+          pending={actions.isDeleting}
+          error={actions.deleteError}
+        >
+          <p>
+            <strong className="text-fg">{board.title}</strong> panosu ve içindeki tüm listeler ile
+            kartlar kalıcı olarak silinecek. Bu işlem geri alınamaz.
+          </p>
+        </ConfirmDialog>
+      )}
+    </header>
+  );
+}

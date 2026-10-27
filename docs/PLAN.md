@@ -9,7 +9,8 @@
 |---|---|---|
 | 0 – Kurulum | ✅ Bitti | Seed yok (DB gerekiyor). |
 | 1 – Auth | ✅ Bitti | DB'li e2e (`test/auth-flow.e2e-spec.ts`) ve Playwright kayıt→çıkış→giriş akışı (`e2e/auth.spec.ts`) dahil. |
-| 2–8 | ⏳ Başlamadı | |
+| 2 – Board + Üyeler | ✅ Bitti | Board CRUD, varsayılan 6 etiket, `@BoardRole` + `BoardAccessGuard` (`src/access/`), üye listeleme/rol değiştirme/çıkarma/ayrılma. FE: `/boards` (liste + oluşturma diyaloğu), `/boards/:id` (başlık yeniden adlandırma, üye avatarları, sahip için silme). **Plandan farklar:** `BoardDetailDto` şimdilik `{ board, members, labels }`; `lists`/`cards` Faz 3–4'te eklenecek. Üye yönetimi arayüzü (rol değiştirme, çıkarma, ayrılma) davetlerle birlikte Faz 6'da; arka plan değiştirme arayüzü Faz 8'de (API hazır). |
+| 3–8 | ⏳ Başlamadı | |
 
 **Ortam:** PostgreSQL 17 yerel olarak kurulu (Windows servisi, sadece localhost). `trello` kullanıcısı; `trello` (dev) ve `trello_test` (e2e) veritabanları. Docker yok.
 

@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/auth-store';
 
 function signIn() {
   useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
-  server.use(http.get('*/api/v1/health', () => HttpResponse.json({ status: 'ok' })));
+  server.use(http.get('*/api/v1/boards', () => HttpResponse.json([])));
 }
 
 describe('route guards', () => {
@@ -31,9 +31,9 @@ describe('route guards', () => {
     const { router } = renderApp('/register');
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Panolarına hoş geldin' }),
+      await screen.findByRole('heading', { level: 1, name: 'Panolarım' }),
     ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/');
+    expect(router.state.location.pathname).toBe('/boards');
   });
 
   it('logs out from the header and returns to login', async () => {

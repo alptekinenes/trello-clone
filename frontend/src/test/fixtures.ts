@@ -1,4 +1,10 @@
-import type { ErrorCode, UserDto } from '@trello/contracts';
+import type {
+  BoardDetailDto,
+  BoardRole,
+  BoardSummaryDto,
+  ErrorCode,
+  UserDto,
+} from '@trello/contracts';
 import { HttpResponse } from 'msw';
 
 export const testUser: UserDto = {
@@ -14,4 +20,35 @@ export function apiError(status: number, code: ErrorCode, message = 'Error') {
     { statusCode: status, code, message, path: '/api/v1/test', timestamp: '2026-01-01T00:00:00.000Z' },
     { status },
   );
+}
+
+export const BOARD_ID = '22222222-2222-4222-8222-222222222222';
+
+export function boardSummary(overrides: Partial<BoardSummaryDto> = {}): BoardSummaryDto {
+  return {
+    id: BOARD_ID,
+    title: 'Yol haritası',
+    background: 'green',
+    myRole: 'OWNER',
+    updatedAt: '2026-10-27T09:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** Board detail with the test user as the only member, in the given role. */
+export function boardDetail(myRole: BoardRole = 'OWNER', title = 'Yol haritası'): BoardDetailDto {
+  return {
+    board: boardSummary({ myRole, title }),
+    members: [
+      {
+        userId: testUser.id,
+        name: testUser.name,
+        email: testUser.email,
+        avatarUrl: null,
+        role: myRole,
+        joinedAt: '2026-10-27T09:00:00.000Z',
+      },
+    ],
+    labels: [],
+  };
 }

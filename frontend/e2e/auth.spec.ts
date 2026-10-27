@@ -12,13 +12,13 @@ test('a new user registers, signs out and signs back in', async ({ page }) => {
   await page.getByLabel('Parola').fill(password);
   await page.getByRole('button', { name: 'Kayıt ol' }).click();
 
-  await expect(page).toHaveURL('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Panolarına hoş geldin' })).toBeVisible();
+  await expect(page).toHaveURL('/boards');
+  await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible();
   await expect(page.getByText('Deneme Kullanıcı')).toBeVisible();
 
   // The session survives a reload through the refresh cookie.
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: 'Panolarına hoş geldin' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Çıkış yap' }).click();
   await expect(page).toHaveURL('/login');
@@ -35,7 +35,7 @@ test('a new user registers, signs out and signs back in', async ({ page }) => {
 
   await page.getByLabel('Parola').fill(password);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/boards');
   await expect(page.getByText('Deneme Kullanıcı')).toBeVisible();
 });
 

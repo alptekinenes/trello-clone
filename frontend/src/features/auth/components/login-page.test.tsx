@@ -11,8 +11,8 @@ function signedOut() {
   useAuthStore.getState().clearSession();
 }
 
-function healthOk() {
-  server.use(http.get('*/api/v1/health', () => HttpResponse.json({ status: 'ok' })));
+function noBoards() {
+  server.use(http.get('*/api/v1/boards', () => HttpResponse.json([])));
 }
 
 async function fillAndSubmit(email: string, password: string) {
@@ -49,7 +49,7 @@ describe('LoginPage', () => {
 
   it('signs in and returns to the page the user wanted', async () => {
     signedOut();
-    healthOk();
+    noBoards();
     let body: unknown;
     server.use(
       http.post('*/api/v1/auth/login', async ({ request }) => {
@@ -64,9 +64,9 @@ describe('LoginPage', () => {
     await fillAndSubmit('  ayse@example.com ', 'secret-password');
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Panolarına hoş geldin' }),
+      await screen.findByRole('heading', { level: 1, name: 'Panolarım' }),
     ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/');
+    expect(router.state.location.pathname).toBe('/boards');
     expect(body).toEqual({ email: 'ayse@example.com', password: 'secret-password' });
     expect(screen.getByText(testUser.name)).toBeInTheDocument();
     expect(useAuthStore.getState()).toMatchObject({ status: 'authenticated', accessToken: 'token' });

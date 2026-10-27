@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router';
+import { Navigate, type RouteObject } from 'react-router';
 import { GuestRoute, LoginPage, ProtectedRoute, RegisterPage } from '../features/auth';
 import { NotFoundPage } from './not-found-page';
 import { RootLayout } from './root-layout';
@@ -11,11 +11,19 @@ export const routes: RouteObject[] = [
       {
         element: <ProtectedRoute />,
         children: [
+          { index: true, element: <Navigate to="/boards" replace /> },
           {
-            index: true,
+            path: 'boards',
             lazy: async () => {
-              const { HomePage } = await import('../features/home');
-              return { Component: HomePage };
+              const { BoardsPage } = await import('../features/boards');
+              return { Component: BoardsPage };
+            },
+          },
+          {
+            path: 'boards/:boardId',
+            lazy: async () => {
+              const { BoardPage } = await import('../features/board-detail');
+              return { Component: BoardPage };
             },
           },
         ],

@@ -25,6 +25,8 @@
   --color-primary-hover: var(--ui-primary-hover);
   --color-on-primary: var(--ui-on-primary);
   --color-danger: var(--ui-danger);
+  --color-danger-hover: var(--ui-danger-hover);
+  --color-on-danger: var(--ui-on-danger);
   --color-danger-subtle: var(--ui-danger-subtle);
   --color-warning: var(--ui-warning);
   --color-warning-subtle: var(--ui-warning-subtle);
@@ -54,6 +56,9 @@
   --color-board-sky: var(--ui-board-sky);
   --color-board-grey: var(--ui-board-grey);
   --color-on-board: var(--ui-on-board);
+  --color-board-bar: var(--ui-board-bar);
+  --color-board-control: var(--ui-board-control);
+  --color-board-control-hover: var(--ui-board-control-hover);
 
   --shadow-card: var(--ui-shadow-card);
   --shadow-raised: var(--ui-shadow-raised);

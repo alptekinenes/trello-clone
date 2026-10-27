@@ -28,6 +28,8 @@
   --ui-primary-hover: #0055cc;
   --ui-on-primary: #ffffff;
   --ui-danger: #c9372c;
+  --ui-danger-hover: #ae2e24;
+  --ui-on-danger: #ffffff;
   --ui-danger-subtle: #ffeceb;
   --ui-warning: #a54800;
   --ui-warning-subtle: #fff7d6;
@@ -59,6 +61,10 @@
   --ui-board-sky: #227d9b;
   --ui-board-grey: #626f86;
   --ui-on-board: #ffffff;
+  /* Translucent bar and controls on top of a board background */
+  --ui-board-bar: rgb(0 0 0 / 0.24);
+  --ui-board-control: rgb(255 255 255 / 0.2);
+  --ui-board-control-hover: rgb(255 255 255 / 0.32);
 
   /* Elevation */
   --ui-shadow-card: 0 1px 1px rgb(9 30 66 / 0.25), 0 0 1px rgb(9 30 66 / 0.31);
@@ -83,6 +89,8 @@
     --ui-primary-hover: #85b8ff;
     --ui-on-primary: #1d2125;
     --ui-danger: #f87168;
+    --ui-danger-hover: #fd9891;
+    --ui-on-danger: #1d2125;
     --ui-danger-subtle: #42221f;
     --ui-warning: #f5cd47;
     --ui-warning-subtle: #332e1b;
@@ -111,6 +119,8 @@
   --ui-primary-hover: #85b8ff;
   --ui-on-primary: #1d2125;
   --ui-danger: #f87168;
+  --ui-danger-hover: #fd9891;
+  --ui-on-danger: #1d2125;
   --ui-danger-subtle: #42221f;
   --ui-warning: #f5cd47;
   --ui-warning-subtle: #332e1b;

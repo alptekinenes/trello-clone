@@ -16,7 +16,7 @@ export function RootLayout() {
         </Link>
         <UserMenu />
       </header>
-      <main id="main" className="flex-1">
+      <main id="main" className="flex flex-1 flex-col">
         <Outlet />
       </main>
     </div>
