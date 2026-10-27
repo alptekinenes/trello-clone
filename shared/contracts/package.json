@@ -1,0 +1,25 @@
+{
+  "name": "@trello/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Types and constants shared by backend and frontend.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.12"
+  }
+}

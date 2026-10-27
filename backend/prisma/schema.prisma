@@ -1,0 +1,212 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BoardRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum LabelColor {
+  GREEN
+  YELLOW
+  ORANGE
+  RED
+  PURPLE
+  BLUE
+  SKY
+  LIME
+  PINK
+  BLACK
+}
+
+model User {
+  id              String         @id @default(uuid()) @db.Uuid
+  /// Stored trimmed and lowercased.
+  email           String         @unique @db.VarChar(254)
+  /// argon2id hash.
+  passwordHash    String
+  name            String         @db.VarChar(100)
+  avatarUrl       String?        @db.VarChar(2048)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  refreshTokens   RefreshToken[]
+  memberships     BoardMember[]
+  sentInvitations Invitation[]   @relation("InvitationInvitedBy")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  /// sha256 of the opaque token; the raw token is never stored.
+  tokenHash    String    @unique
+  /// Rotation chain; reuse of a rotated token revokes the whole family.
+  familyId     String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  userAgent    String?   @db.VarChar(512)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model Board {
+  id          String        @id @default(uuid()) @db.Uuid
+  title       String        @db.VarChar(100)
+  /// Theme token key, validated against BOARD_BACKGROUNDS.
+  background  String        @default("blue") @db.VarChar(32)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members     BoardMember[]
+  invitations Invitation[]
+  lists       List[]
+  cards       Card[]
+  labels      Label[]
+}
+
+model BoardMember {
+  boardId  String    @db.Uuid
+  userId   String    @db.Uuid
+  role     BoardRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  board    Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id          String           @id @default(uuid()) @db.Uuid
+  boardId     String           @db.Uuid
+  /// Stored lowercased.
+  email       String           @db.VarChar(254)
+  role        BoardRole        @default(MEMBER)
+  /// sha256 of the invitation token; the raw token is never stored.
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  invitedById String           @db.Uuid
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  board       Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  invitedBy   User             @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, email])
+  @@index([email])
+}
+
+model List {
+  id         String    @id @default(uuid()) @db.Uuid
+  boardId    String    @db.Uuid
+  title      String    @db.VarChar(100)
+  position   Float
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards      Card[]
+
+  @@index([boardId, position])
+}
+
+model Card {
+  id          String      @id @default(uuid()) @db.Uuid
+  /// Denormalized from List for single-query access checks and room lookup.
+  boardId     String      @db.Uuid
+  listId      String      @db.Uuid
+  title       String      @db.VarChar(512)
+  description String?     @db.Text
+  dueDate     DateTime?
+  dueComplete Boolean     @default(false)
+  position    Float
+  archivedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  board       Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list        List        @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels      CardLabel[]
+  checklists  Checklist[]
+
+  @@index([listId, position])
+  @@index([boardId])
+}
+
+model Label {
+  id        String      @id @default(uuid()) @db.Uuid
+  boardId   String      @db.Uuid
+  name      String      @default("") @db.VarChar(50)
+  color     LabelColor
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     CardLabel[]
+
+  @@index([boardId])
+}
+
+model CardLabel {
+  cardId     String   @db.Uuid
+  labelId    String   @db.Uuid
+  assignedAt DateTime @default(now())
+
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label      Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+}
+
+model Checklist {
+  id        String          @id @default(uuid()) @db.Uuid
+  cardId    String          @db.Uuid
+  title     String          @db.VarChar(200)
+  position  Float
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+
+  @@index([cardId, position])
+}
+
+model ChecklistItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  checklistId String    @db.Uuid
+  content     String    @db.VarChar(500)
+  isCompleted Boolean   @default(false)
+  position    Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId, position])
+}

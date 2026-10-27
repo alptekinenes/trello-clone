@@ -1,0 +1,21 @@
+{
+  "name": "trello-clone",
+  "private": true,
+  "workspaces": [
+    "shared/contracts",
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": "^22.12.0",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "postinstall": "npm run build -w @trello/contracts",
+    "dev:backend": "npm run start:dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}

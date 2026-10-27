@@ -1,0 +1,31 @@
+export const ErrorCode = {
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
+  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  EMAIL_TAKEN: 'EMAIL_TAKEN',
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  INVALID_REFRESH: 'INVALID_REFRESH',
+  POSITION_CONFLICT: 'POSITION_CONFLICT',
+  INVALID_TARGET: 'INVALID_TARGET',
+  ALREADY_MEMBER: 'ALREADY_MEMBER',
+  CANNOT_CHANGE_OWNER: 'CANNOT_CHANGE_OWNER',
+  OWNER_CANNOT_LEAVE: 'OWNER_CANNOT_LEAVE',
+  LABEL_NOT_IN_BOARD: 'LABEL_NOT_IN_BOARD',
+  EMAIL_MISMATCH: 'EMAIL_MISMATCH',
+  INVITATION_EXPIRED: 'INVITATION_EXPIRED',
+} as const;
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/** Error body returned by every failing API request. */
+export interface ApiErrorBody {
+  statusCode: number;
+  code: ErrorCode;
+  message: string;
+  details?: unknown;
+  path: string;
+  timestamp: string;
+}
