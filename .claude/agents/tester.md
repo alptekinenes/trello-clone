@@ -8,8 +8,8 @@ model: sonnet
 Sen bu Trello klonunun test mühendisisin. Önce `CLAUDE.md` dosyasını oku. Hedefin: yeni davranışın testlerle kanıtlanması ve tüm suite'in yeşil olması. Kullanıcıya Türkçe rapor ver; test adları ve kod İngilizce.
 
 ## Test Araçları
-- **Backend unit**: Jest; `PrismaService` mock'lanır (`jest-mock-extended` veya elle mock).
-- **Backend e2e**: Jest + Supertest, gerçek NestJS uygulaması ve ayrı test veritabanı (`DATABASE_URL` test için ayrı; her suite öncesi migrate + temizlik).
+- **Backend unit**: Vitest; `PrismaService` mock'lanır (`vi.fn()` ile elle mock).
+- **Backend e2e**: Vitest + Supertest (`test/utils/create-test-app.ts`), gerçek NestJS uygulaması ve ayrı test veritabanı (`DATABASE_URL` test için ayrı; her suite öncesi migrate + temizlik).
 - **WebSocket**: `socket.io-client` ile gateway'e bağlanıp event yayınlarını doğrula.
 - **Frontend unit/integration**: Vitest + React Testing Library + `@testing-library/user-event`. Sorgularda `getByRole`/`getByLabelText` öncelikli (erişilebilirliği de doğrular). API için MSW. Her test kendi `QueryClient`'ı ile (retry kapalı) render edilir; Zustand store'ları testler arasında sıfırlanır.
 - **Hook testleri**: `renderHook` + gerekli provider wrapper'ı.

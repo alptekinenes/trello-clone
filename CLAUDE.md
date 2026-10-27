@@ -36,22 +36,29 @@ Trello'nun bilinen düzenine yakın, **modern ve minimal** bir tasarım dili:
 | Veritabanı | PostgreSQL + Prisma ORM |
 | Gerçek zamanlı | Socket.io (`@nestjs/websockets` + `socket.io-client`) |
 | Auth | JWT (access + refresh token), parola hash için **sadece argon2** |
-| Test | Frontend: Vitest + React Testing Library + Playwright · Backend: Jest unit + Supertest e2e |
+| Test | Frontend: Vitest + React Testing Library + MSW + Playwright · Backend: Vitest unit + Supertest e2e |
+| Lint | oxlint (her iki tarafta) |
 
-### Sürümler
-- Node: **22 LTS** (`.nvmrc` ve `package.json` `engines` alanında sabitlenir).
-- React, Vite, NestJS: kurulum anındaki **güncel kararlı** sürümler. _Kurulumdan sonra kesin sürüm numaralarını buraya yaz._
-  - React: `TBD`
-  - Vite: `TBD`
-  - NestJS: `TBD`
+### Sürümler (Faz 0 kurulumu, 2026-10-27)
+- Node **22 LTS** (`.nvmrc`, kök `package.json` `engines`), npm **11+**.
+- React 19.3 · Vite 8.3 · React Router 8.5 · TanStack Query 5.105 · Zustand 5.0 · dnd-kit core 6.3 / sortable 10.0 · React Hook Form 7.91 · Zod 4.6 · Tailwind CSS 4.3 · Vitest 4.1 · Playwright 1.64 · MSW 2.15
+- NestJS 12.3 · Prisma 7.10 (`@prisma/adapter-pg`) · TypeScript 6.0 (backend, contracts) / 7.0 (frontend)
+
+### Ortam notları
+- **npm 11 gerekli.** Node 22 ile gelen npm 10.9, bu projenin bağımlılıklarında `Cannot read properties of null (reading 'edgesOut')` hatasıyla çöküyor. npm 11 yoksa `npx -y npm@11 install` kullan.
+- npm 11, Prisma'nın install script'lerini onaysız çalıştırmaz; gerekmiyor (`prisma generate` ve `migrate diff` script'ler olmadan çalışıyor).
+- Bu makinede `C:\Program Files\nodejs` altında ayrıca Node 26 kurulu ve PATH'te nvm'den önce geliyor. Node 22'yi kullanmak için PATH sırasını düzelt ya da komutlardan önce nvm'in Node 22 klasörünü PATH'in başına ekle.
 
 ## Klasör Yapısı
 
 ```
 trello-clone/
 ├── CLAUDE.md
+├── package.json               # npm workspaces: shared/contracts, backend, frontend
+├── docker-compose.yml         # Yerel PostgreSQL (dev: trello, test: trello_test)
 ├── .claude/agents/            # Subagent tanımları
-├── docs/                      # Plan ve tasarım dokümanları
+├── docs/                      # Plan ve tasarım dokümanları (docs/PLAN.md)
+├── shared/contracts/          # @trello/contracts: ortak tipler, enum'lar, hata kodları, position.ts
 ├── frontend/                  # React + Vite uygulaması
 │   ├── e2e/                   # Playwright testleri
 │   └── src/
@@ -69,13 +76,19 @@ trello-clone/
 │       │   ├── ui/
 │       │   ├── hooks/
 │       │   └── lib/           # http client, socket client, query client, utils
-│       └── styles/            # Tema token'ları (CSS custom properties), Tailwind girişi
+│       ├── styles/tokens.css  # Tema token'ları (tek ham renk kaynağı, açık + koyu)
+│       ├── index.css          # Tailwind girişi + @theme eşlemesi
+│       └── test/              # Vitest setup, MSW server, renderWithProviders
 └── backend/                   # NestJS uygulaması
+    ├── prisma.config.ts       # Prisma 7 yapılandırması (DATABASE_URL buradan)
     ├── prisma/
     │   ├── schema.prisma
     │   └── migrations/
     ├── src/
+    │   ├── app.setup.ts       # main.ts ve e2e testlerin paylaştığı HTTP kurulumu
+    │   ├── config/            # Env doğrulama
     │   ├── common/            # Guard, filter, interceptor, decorator, pipe
+    │   ├── generated/prisma/  # Üretilen Prisma client (git'te yok; `npm install` üretir)
     │   ├── prisma/            # PrismaService / PrismaModule
     │   ├── auth/
     │   ├── users/
@@ -107,7 +120,8 @@ trello-clone/
 - **Sürükle-bırak (dnd-kit)**: `DndContext` + `SortableContext`; listeler arası taşıma `onDragOver`/`onDragEnd` ile. Pointer + keyboard sensor zorunlu; `DragOverlay` ile önizleme. Yeni position değeri komşu öğelerden hesaplanır.
 - **Formlar**: React Hook Form + `zodResolver`; Zod şemaları tek doğruluk kaynağı, tipler `z.infer` ile türetilir.
 - **Routing**: React Router; sayfa seviyesinde lazy loading (`lazy`), korumalı route'lar için auth guard bileşeni/loader.
-- **Stil**: Tailwind utility'leri, renkler/boşluklar/gölgeler tema token'larına (CSS custom properties) bağlı Tailwind teması üzerinden. Sabit hex/rgb renk veya keyfi değer (`bg-[#123456]`) yazma.
+- **Stil**: Tailwind v4 utility'leri. Ham renkler sadece `src/styles/tokens.css` içinde (`--ui-*`); `index.css`'teki `@theme inline` bunları semantik sınıflara bağlar (`bg-surface`, `bg-surface-sunken`, `text-fg-muted`, `border-line`, `bg-primary`, `shadow-card`, `bg-label-green`, `bg-board-blue` ...). Tailwind'in varsayılan paleti kapalı (`bg-blue-500` çalışmaz). Sabit hex/rgb veya keyfi değer (`bg-[#123456]`) yazma; yeni renk gerekiyorsa token ekle.
+- **Testler**: `src/test/render.tsx` içindeki `renderWithProviders` ile render et; ağ istekleri MSW ile (`server.use(...)`), handler'sız istek testi düşürür. Sorgularda `getByRole`/`getByLabelText` öncelikli.
 - **Performans**: gereksiz `useEffect` yazma (türetilebilen değeri render'da hesapla); liste öğelerinde stabil `key`; ölçülmüş bir sorun yoksa erken `memo`/`useMemo` kullanma.
 - **Güvenlik**: `dangerouslySetInnerHTML` kullanma (zorunluysa sanitize et).
 - **Erişilebilirlik**: semantik HTML, klavye ile kullanılabilirlik, görünür odak, ARIA etiketleri, modal'larda odak tuzağı, sürükle-bırak için klavye alternatifi ve ekran okuyucu duyuruları.
@@ -121,7 +135,11 @@ trello-clone/
 - Sıralama (position) için kesirli/aralıklı sayı stratejisi; çoklu yazma işlemleri `prisma.$transaction` içinde.
 - REST: `/api/v1/...`, doğru HTTP status kodları, tutarlı hata gövdesi (global exception filter).
 - WebSocket: kullanıcılar `board:<id>` room'una katılır; değişiklikler başarılı DB yazımından **sonra** yayınlanır. Event adları `entity:action` formatında (`card:moved`, `list:created`).
-- Şema değişikliği = Prisma migration (`prisma migrate dev --name <açıklama>`); migration dosyalarını elle düzenleme.
+- Şema değişikliği = Prisma migration (`npm run prisma:migrate -w backend -- --name <açıklama>`); migration dosyalarını elle düzenleme. DB yokken migration SQL'i `prisma migrate diff` ile üretilebilir.
+- Prisma 7: client `src/generated/prisma/client.js`'ten import edilir (`@prisma/client`'tan değil); bağlantı `@prisma/adapter-pg` ile.
+- Hata fırlatırken domain kodu ver: `throw new ConflictException({ code: ErrorCode.EMAIL_TAKEN, message: '...' })`. Global filter her hatayı `ApiErrorBody` şekline çevirir; bilinmeyen hatalar 500 + genel mesaj olur.
+- Backend ESM (`"type": "module"`, `nodenext`): göreli import'larda `.js` uzantısı zorunlu.
+- E2E testleri `test/utils/create-test-app.ts` ile uygulamayı production'daki aynı kurulumla (`configureApp`) başlatır.
 
 ### Git
 - Conventional Commits, İngilizce: `feat:`, `fix:`, `test:`, `refactor:`, `chore:`, `docs:`.
@@ -150,16 +168,29 @@ trello-clone/
 
 Önerilen akış: **architect → backend-nest / frontend-react (+ ui-designer) → tester → code-reviewer**.
 
-## Komutlar (kurulumdan sonra güncellenecek)
+## Komutlar
 
 ```bash
-# Backend
-cd backend && npm run start:dev
-cd backend && npm test && npm run test:e2e
-cd backend && npx prisma migrate dev
+# Kurulum (kökte; contracts'ı derler ve Prisma client'ı üretir)
+npm install
+cp backend/.env.example backend/.env
+docker compose up -d                         # PostgreSQL (Docker kuruluysa)
+npm run prisma:deploy -w backend             # migration'ları uygula
 
-# Frontend
-cd frontend && npm run dev
-cd frontend && npm test            # Vitest
-cd frontend && npx playwright test
+# Geliştirme
+npm run dev:backend                          # http://localhost:3000/api/v1
+npm run dev:frontend                         # http://localhost:5173 (/api → 3000 proxy)
+
+# Kontroller (kökten hepsi, ya da -w <workspace>)
+npm run build
+npm test                                     # tüm unit testler
+npm run lint
+npm run test:e2e -w backend                  # Supertest
+npm run test:e2e -w frontend                 # Playwright (dev server'ı kendisi açar)
+npm run typecheck -w backend
+npm run typecheck -w frontend
+
+# Prisma
+npm run prisma:migrate -w backend -- --name <açıklama>
+npm run prisma:generate -w backend
 ```

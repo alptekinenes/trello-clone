@@ -5,6 +5,14 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    setupFiles: ['reflect-metadata'],
+    include: ['test/**/*.e2e-spec.ts'],
+    // Fixed env so e2e tests do not depend on a local .env file.
+    env: {
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgresql://trello:trello@localhost:5432/trello_test?schema=public',
+      CORS_ORIGIN: 'http://localhost:5173',
+      JWT_ACCESS_SECRET: 'test-secret-that-is-at-least-32-characters-long',
+    },
   },
 });

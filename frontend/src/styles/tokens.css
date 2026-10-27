@@ -1,0 +1,124 @@
+/*
+ * Design tokens. The only place where raw color values live.
+ * Components use the semantic Tailwind utilities mapped in index.css
+ * (bg-surface, text-fg-muted, shadow-card ...), never raw colors.
+ *
+ * Direction: Trello-like layout, modern and minimal. Neutral greys,
+ * one accent color, color only where it carries meaning.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --ui-canvas: #f7f8f9;
+  --ui-surface: #ffffff;
+  --ui-surface-sunken: #f1f2f4;
+  --ui-surface-hover: #e9ebee;
+  --ui-overlay: rgb(9 30 66 / 0.54);
+  --ui-line: #dcdfe4;
+
+  /* Text */
+  --ui-fg: #172b4d;
+  --ui-fg-muted: #626f86;
+  --ui-fg-subtle: #8590a2;
+
+  /* Accent and status */
+  --ui-primary: #0c66e4;
+  --ui-primary-hover: #0055cc;
+  --ui-on-primary: #ffffff;
+  --ui-danger: #c9372c;
+  --ui-danger-subtle: #ffeceb;
+  --ui-warning: #a54800;
+  --ui-warning-subtle: #fff7d6;
+  --ui-success: #216e4e;
+  --ui-success-subtle: #dcfff1;
+  --ui-focus: #388bff;
+
+  /* Card labels (LabelColor) */
+  --ui-label-green: #4bce97;
+  --ui-label-yellow: #f5cd47;
+  --ui-label-orange: #fea362;
+  --ui-label-red: #f87168;
+  --ui-label-purple: #9f8fef;
+  --ui-label-blue: #579dff;
+  --ui-label-sky: #6cc3e0;
+  --ui-label-lime: #94c748;
+  --ui-label-pink: #e774bb;
+  --ui-label-black: #8590a2;
+  --ui-on-label: #172b4d;
+
+  /* Board backgrounds (BOARD_BACKGROUNDS) */
+  --ui-board-blue: #0c66e4;
+  --ui-board-green: #1f845a;
+  --ui-board-orange: #c25100;
+  --ui-board-red: #c9372c;
+  --ui-board-purple: #6e5dc6;
+  --ui-board-pink: #ae4787;
+  --ui-board-lime: #5b7f24;
+  --ui-board-sky: #227d9b;
+  --ui-board-grey: #626f86;
+  --ui-on-board: #ffffff;
+
+  /* Elevation */
+  --ui-shadow-card: 0 1px 1px rgb(9 30 66 / 0.25), 0 0 1px rgb(9 30 66 / 0.31);
+  --ui-shadow-raised: 0 4px 8px -2px rgb(9 30 66 / 0.25), 0 0 1px rgb(9 30 66 / 0.31);
+  --ui-shadow-drag: 0 12px 24px -6px rgb(9 30 66 / 0.35), 0 0 1px rgb(9 30 66 / 0.31);
+}
+
+/* Dark theme: follows the OS unless the user picked light explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ui-canvas: #1d2125;
+    --ui-surface: #22272b;
+    --ui-surface-sunken: #161a1d;
+    --ui-surface-hover: #2c333a;
+    --ui-overlay: rgb(3 4 4 / 0.64);
+    --ui-line: #38414a;
+    --ui-fg: #dee4ea;
+    --ui-fg-muted: #9fadbc;
+    --ui-fg-subtle: #738496;
+    --ui-primary: #579dff;
+    --ui-primary-hover: #85b8ff;
+    --ui-on-primary: #1d2125;
+    --ui-danger: #f87168;
+    --ui-danger-subtle: #42221f;
+    --ui-warning: #f5cd47;
+    --ui-warning-subtle: #332e1b;
+    --ui-success: #4bce97;
+    --ui-success-subtle: #1c3329;
+    --ui-focus: #85b8ff;
+    --ui-on-label: #1d2125;
+    --ui-shadow-card: 0 1px 1px rgb(3 4 4 / 0.5), 0 0 1px rgb(3 4 4 / 0.5);
+    --ui-shadow-raised: 0 4px 8px -2px rgb(3 4 4 / 0.6), 0 0 1px rgb(3 4 4 / 0.6);
+    --ui-shadow-drag: 0 12px 24px -6px rgb(3 4 4 / 0.7), 0 0 1px rgb(3 4 4 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ui-canvas: #1d2125;
+  --ui-surface: #22272b;
+  --ui-surface-sunken: #161a1d;
+  --ui-surface-hover: #2c333a;
+  --ui-overlay: rgb(3 4 4 / 0.64);
+  --ui-line: #38414a;
+  --ui-fg: #dee4ea;
+  --ui-fg-muted: #9fadbc;
+  --ui-fg-subtle: #738496;
+  --ui-primary: #579dff;
+  --ui-primary-hover: #85b8ff;
+  --ui-on-primary: #1d2125;
+  --ui-danger: #f87168;
+  --ui-danger-subtle: #42221f;
+  --ui-warning: #f5cd47;
+  --ui-warning-subtle: #332e1b;
+  --ui-success: #4bce97;
+  --ui-success-subtle: #1c3329;
+  --ui-focus: #85b8ff;
+  --ui-on-label: #1d2125;
+  --ui-shadow-card: 0 1px 1px rgb(3 4 4 / 0.5), 0 0 1px rgb(3 4 4 / 0.5);
+  --ui-shadow-raised: 0 4px 8px -2px rgb(3 4 4 / 0.6), 0 0 1px rgb(3 4 4 / 0.6);
+  --ui-shadow-drag: 0 12px 24px -6px rgb(3 4 4 / 0.7), 0 0 1px rgb(3 4 4 / 0.6);
+}

@@ -546,11 +546,11 @@ trello-clone/
 │   │   ├── mail/                    # MVP: console logger
 │   │   └── realtime/{realtime.module, realtime.gateway, realtime.service, ws-auth.middleware}.ts
 │   └── test/
-│       ├── jest-e2e.json, setup-e2e.ts
+│       ├── utils/create-test-app.ts (vitest.config.e2e.ts backend kökünde)
 │       ├── utils/{create-test-app, factories, auth-helper, socket-client}.ts
 │       └── *.e2e-spec.ts
 └── frontend/
-    ├── index.html, vite.config.ts, tailwind.config.ts, playwright.config.ts
+    ├── index.html, vite.config.ts, playwright.config.ts   # Tailwind 4: config dosyası yok, tema src/index.css içinde
     ├── e2e/{fixtures, auth, boards, board-dnd, card-detail, invitations, realtime}.spec.ts
     └── src/
         ├── main.tsx
@@ -600,7 +600,7 @@ Her fazdaki akış: **backend-nest (API + e2e) → frontend-react (+ ui-designer
 
 ## 9. Test Planı
 
-**Backend unit (Jest, Prisma mock)**
+**Backend unit (Vitest, Prisma mock)**
 - `position.ts`: dört kenar durumu; ~30 ardışık ara eklemeden sonra `needsRebalance` true.
 - `OrderingService`: anchor çözümü, `afterId` önceliği, 409, rebalance sonrası `GAP*(i+1)`, id sıralı kilitleme.
 - `TokenService`: rotasyon, reuse, süresi dolmuş token. `AuthService`: argon2 hash/verify.
