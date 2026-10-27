@@ -1,21 +1,16 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { createMemoryRouter } from 'react-router';
-import { RouterProvider } from 'react-router/dom';
 import { describe, expect, it } from 'vitest';
+import { useAuthStore } from '../features/auth/store/auth-store';
+import { testUser } from '../test/fixtures';
 import { server } from '../test/msw-server';
-import { renderWithProviders } from '../test/render';
-import { routes } from './routes';
-
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return renderWithProviders(<RouterProvider router={router} />);
-}
+import { renderApp } from '../test/render';
 
 describe('routes', () => {
-  it('renders the home page at /', async () => {
+  it('renders the home page at / for a signed-in user', async () => {
+    useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
     server.use(http.get('*/api/v1/health', () => HttpResponse.json({ status: 'ok' })));
-    renderAt('/');
+    renderApp('/');
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Panolarına hoş geldin' }),
@@ -24,7 +19,7 @@ describe('routes', () => {
   });
 
   it('renders the not found page for unknown paths', async () => {
-    renderAt('/yok-boyle-bir-sayfa');
+    renderApp('/yok-boyle-bir-sayfa');
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Sayfa bulunamadı' }),
@@ -33,7 +28,7 @@ describe('routes', () => {
   });
 
   it('offers a skip link to the main content', async () => {
-    renderAt('/yok-boyle-bir-sayfa');
+    renderApp('/yok-boyle-bir-sayfa');
     expect(await screen.findByRole('link', { name: 'İçeriğe geç' })).toHaveAttribute(
       'href',
       '#main',

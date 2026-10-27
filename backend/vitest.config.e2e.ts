@@ -13,6 +13,8 @@ export default defineConfig({
       DATABASE_URL: 'postgresql://trello:trello@localhost:5432/trello_test?schema=public',
       CORS_ORIGIN: 'http://localhost:5173',
       JWT_ACCESS_SECRET: 'test-secret-that-is-at-least-32-characters-long',
+      JWT_ACCESS_TTL_SECONDS: '900',
+      REFRESH_TOKEN_TTL_DAYS: '7',
     },
   },
 });

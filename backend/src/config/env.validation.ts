@@ -27,6 +27,17 @@ export class EnvironmentVariables {
   @IsString()
   @MinLength(32)
   JWT_ACCESS_SECRET: string;
+
+  /** Access token lifetime. Kept short; the refresh token renews it. */
+  @IsInt()
+  @Min(60)
+  @Max(86_400)
+  JWT_ACCESS_TTL_SECONDS: number = 900;
+
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  REFRESH_TOKEN_TTL_DAYS: number = 7;
 }
 
 /** Validates process env on startup; the app refuses to boot with a bad config. */

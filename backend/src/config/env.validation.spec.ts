@@ -11,6 +11,14 @@ describe('validateEnv', () => {
     expect(env.NODE_ENV).toBe(NodeEnv.Development);
     expect(env.PORT).toBe(3000);
     expect(env.CORS_ORIGIN).toBe('http://localhost:5173');
+    expect(env.JWT_ACCESS_TTL_SECONDS).toBe(900);
+    expect(env.REFRESH_TOKEN_TTL_DAYS).toBe(7);
+  });
+
+  it('rejects an access token lifetime below one minute', () => {
+    expect(() => validateEnv({ ...validEnv, JWT_ACCESS_TTL_SECONDS: '10' })).toThrow(
+      /JWT_ACCESS_TTL_SECONDS/,
+    );
   });
 
   it('converts PORT from string to number', () => {

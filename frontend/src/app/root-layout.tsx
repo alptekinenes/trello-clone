@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router';
+import { UserMenu } from '../features/auth';
 
 export function RootLayout() {
   return (
@@ -9,10 +10,11 @@ export function RootLayout() {
       >
         İçeriğe geç
       </a>
-      <header className="flex h-12 items-center border-b border-line bg-surface px-4">
+      <header className="flex h-12 items-center justify-between border-b border-line bg-surface px-4">
         <Link to="/" className="rounded-sm text-base font-semibold text-fg">
           Trello Clone
         </Link>
+        <UserMenu />
       </header>
       <main id="main" className="flex-1">
         <Outlet />

@@ -1,8 +1,78 @@
 import { ErrorCode } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { server } from '../../test/msw-server';
-import { ApiError, apiRequest } from './http';
+import { ApiError, apiRequest, setAuthHandlers } from './http';
+
+describe('apiRequest with auth handlers', () => {
+  it('sends the access token as a Bearer header', async () => {
+    let authorization: string | null = null;
+    server.use(
+      http.get('*/api/v1/me', ({ request }) => {
+        authorization = request.headers.get('Authorization');
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setAuthHandlers({ getAccessToken: () => 'token-1', refreshAccessToken: vi.fn() });
+
+    await apiRequest('/me');
+
+    expect(authorization).toBe('Bearer token-1');
+  });
+
+  it('refreshes once on 401 and retries with the new token', async () => {
+    const seen: (string | null)[] = [];
+    server.use(
+      http.get('*/api/v1/me', ({ request }) => {
+        const header = request.headers.get('Authorization');
+        seen.push(header);
+        return header === 'Bearer fresh'
+          ? HttpResponse.json({ ok: true })
+          : HttpResponse.json({ code: 'UNAUTHORIZED', message: 'x', statusCode: 401 }, { status: 401 });
+      }),
+    );
+    const refreshAccessToken = vi.fn().mockResolvedValue('fresh');
+    setAuthHandlers({ getAccessToken: () => 'expired', refreshAccessToken });
+
+    await expect(apiRequest('/me')).resolves.toEqual({ ok: true });
+    expect(refreshAccessToken).toHaveBeenCalledOnce();
+    expect(seen).toEqual(['Bearer expired', 'Bearer fresh']);
+  });
+
+  it('throws the 401 when the session cannot be refreshed', async () => {
+    let calls = 0;
+    server.use(
+      http.get('*/api/v1/me', () => {
+        calls += 1;
+        return HttpResponse.json({ code: 'UNAUTHORIZED', message: 'x', statusCode: 401 }, { status: 401 });
+      }),
+    );
+    setAuthHandlers({ getAccessToken: () => 'expired', refreshAccessToken: async () => null });
+
+    const error = await apiRequest('/me').catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 401 });
+    expect(calls).toBe(1);
+  });
+
+  it('skipAuth sends no token and never refreshes', async () => {
+    let authorization: string | null = 'unset';
+    server.use(
+      http.post('*/api/v1/auth/login', ({ request }) => {
+        authorization = request.headers.get('Authorization');
+        return HttpResponse.json({ code: 'INVALID_CREDENTIALS', message: 'x', statusCode: 401 }, { status: 401 });
+      }),
+    );
+    const refreshAccessToken = vi.fn();
+    setAuthHandlers({ getAccessToken: () => 'token-1', refreshAccessToken });
+
+    await expect(
+      apiRequest('/auth/login', { method: 'POST', body: '{}' }, { skipAuth: true }),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(authorization).toBeNull();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+});
 
 describe('apiRequest', () => {
   it('returns parsed JSON for a successful response', async () => {

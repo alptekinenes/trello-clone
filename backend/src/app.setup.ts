@@ -5,8 +5,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { createValidationPipe } from './common/pipes/validation.pipe.js';
-
-export const API_PREFIX = 'api/v1';
+import { API_PREFIX } from './app.constants.js';
 
 /** Shared HTTP setup for main.ts and e2e tests, so tests run the real pipeline. */
 export function configureApp(app: INestApplication): void {

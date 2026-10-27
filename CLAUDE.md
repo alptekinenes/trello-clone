@@ -121,7 +121,8 @@ trello-clone/
 - **Formlar**: React Hook Form + `zodResolver`; Zod şemaları tek doğruluk kaynağı, tipler `z.infer` ile türetilir.
 - **Routing**: React Router; sayfa seviyesinde lazy loading (`lazy`), korumalı route'lar için auth guard bileşeni/loader.
 - **Stil**: Tailwind v4 utility'leri. Ham renkler sadece `src/styles/tokens.css` içinde (`--ui-*`); `index.css`'teki `@theme inline` bunları semantik sınıflara bağlar (`bg-surface`, `bg-surface-sunken`, `text-fg-muted`, `border-line`, `bg-primary`, `shadow-card`, `bg-label-green`, `bg-board-blue` ...). Tailwind'in varsayılan paleti kapalı (`bg-blue-500` çalışmaz). Sabit hex/rgb veya keyfi değer (`bg-[#123456]`) yazma; yeni renk gerekiyorsa token ekle.
-- **Testler**: `src/test/render.tsx` içindeki `renderWithProviders` ile render et; ağ istekleri MSW ile (`server.use(...)`), handler'sız istek testi düşürür. Sorgularda `getByRole`/`getByLabelText` öncelikli.
+- **API çağrıları**: `shared/lib/http.ts` içindeki `apiRequest` ile. Access token'ı kendisi ekler, 401'de oturumu bir kez yeniler ve isteği tekrarlar. Access token sadece bellekte (`features/auth` store'u); localStorage'a yazılmaz.
+- **Testler**: `src/test/render.tsx` içindeki `renderWithProviders` (tek component) veya `renderApp(path)` (gerçek route'larla tüm uygulama) ile render et; giriş yapmış kullanıcı için `useAuthStore.getState().setSession(...)`; ağ istekleri MSW ile (`server.use(...)`), handler'sız istek testi düşürür. Sorgularda `getByRole`/`getByLabelText` öncelikli.
 - **Performans**: gereksiz `useEffect` yazma (türetilebilen değeri render'da hesapla); liste öğelerinde stabil `key`; ölçülmüş bir sorun yoksa erken `memo`/`useMemo` kullanma.
 - **Güvenlik**: `dangerouslySetInnerHTML` kullanma (zorunluysa sanitize et).
 - **Erişilebilirlik**: semantik HTML, klavye ile kullanılabilirlik, görünür odak, ARIA etiketleri, modal'larda odak tuzağı, sürükle-bırak için klavye alternatifi ve ekran okuyucu duyuruları.
@@ -140,6 +141,8 @@ trello-clone/
 - Hata fırlatırken domain kodu ver: `throw new ConflictException({ code: ErrorCode.EMAIL_TAKEN, message: '...' })`. Global filter her hatayı `ApiErrorBody` şekline çevirir; bilinmeyen hatalar 500 + genel mesaj olur.
 - Backend ESM (`"type": "module"`, `nodenext`): göreli import'larda `.js` uzantısı zorunlu.
 - E2E testleri `test/utils/create-test-app.ts` ile uygulamayı production'daki aynı kurulumla (`configureApp`) başlatır.
+- **Auth varsayılan olarak açık**: global `JwtAuthGuard` her route'ta access token ister. Açık route'lar `@Public()` ile işaretlenir; kullanıcı `@CurrentUser()` ile alınır (`{ id, email }`). Kimlik bilgisi alan endpoint'lere `@Throttle(...)` ile sıkı limit konur.
+- Refresh token sadece httpOnly `rt` cookie'sinde (path `/api/v1/auth`, SameSite=Strict); response body'sine asla yazılmaz. DB'de sadece sha256 hash'i tutulur.
 
 ### Git
 - Conventional Commits, İngilizce: `feat:`, `fix:`, `test:`, `refactor:`, `chore:`, `docs:`.

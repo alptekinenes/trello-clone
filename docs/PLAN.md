@@ -3,6 +3,18 @@
 > `architect` rolüyle hazırlandı; frontend bölümleri React kararına göre güncellendi.
 > Kurallar için bkz. `CLAUDE.md`. Arayüz metinleri Türkçe.
 
+## İlerleme
+
+| Faz | Durum | Not |
+|---|---|---|
+| 0 – Kurulum | ✅ Bitti | Seed yok (DB gerekiyor). |
+| 1 – Auth | 🟡 DB bekliyor | Kod, unit testler ve DB'siz e2e testleri hazır. **Eksik:** gerçek test DB'si ile e2e — kayıt→`/users/me`, yanlış parola 401, refresh rotasyonu, eski refresh'in tekrar kullanımında aile iptali, `PATCH /users/me`; Playwright ile kayıt→giriş→çıkış akışı. |
+| 2–8 | ⏳ Başlamadı | |
+
+**Ortam:** Bu makinede henüz PostgreSQL yok (Docker/WSL da yok). DB kurulunca: `npm run prisma:deploy -w backend`, ardından eksik e2e testleri yazılıp Faz 1 kapatılır.
+
+**Not (prod):** Reverse proxy arkasında rate limit'in doğru IP'yi görmesi için Express `trust proxy` ayarı gerekecek (Faz 8).
+
 ---
 
 ## 1. Özet & Kapsam
