@@ -9,6 +9,7 @@ import { MembersModule } from './members/members.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
+import { ListsModule } from './lists/lists.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -24,6 +25,7 @@ import { UsersModule } from './users/users.module.js';
     AccessModule,
     BoardsModule,
     MembersModule,
+    ListsModule,
   ],
   providers: [
     // Order matters: rate limiting runs before authentication.

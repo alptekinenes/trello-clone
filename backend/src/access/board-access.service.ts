@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { type BoardRole, hasBoardRole } from '@trello/contracts';
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -21,10 +21,28 @@ export class BoardAccessService {
     return membership?.role ?? null;
   }
 
-  /** Returns the user's role, or throws when it is missing or below `min`. */
-  async requireRole(boardId: string, userId: string, min: BoardRole): Promise<BoardRole> {
-    const role = await this.getRole(boardId, userId);
-    if (!role) throw boardNotFound();
+  /** Board of a list, or null when the list does not exist. */
+  async boardIdOfList(listId: string): Promise<string | null> {
+    if (!isUUID(listId)) return null;
+    const list = await this.prisma.list.findUnique({
+      where: { id: listId },
+      select: { boardId: true },
+    });
+    return list?.boardId ?? null;
+  }
+
+  /**
+   * Returns the user's role, or throws when it is missing or below `min`.
+   * `notFound` is thrown for non-members, so a list route can say "List not found".
+   */
+  async requireRole(
+    boardId: string | null,
+    userId: string,
+    min: BoardRole,
+    notFound: () => HttpException = boardNotFound,
+  ): Promise<BoardRole> {
+    const role = boardId ? await this.getRole(boardId, userId) : null;
+    if (!role) throw notFound();
     if (!hasBoardRole(role, min)) throw insufficientRole();
     return role;
   }

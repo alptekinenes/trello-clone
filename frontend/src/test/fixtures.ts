@@ -3,6 +3,7 @@ import type {
   BoardRole,
   BoardSummaryDto,
   ErrorCode,
+  ListDto,
   UserDto,
 } from '@trello/contracts';
 import { HttpResponse } from 'msw';
@@ -36,7 +37,11 @@ export function boardSummary(overrides: Partial<BoardSummaryDto> = {}): BoardSum
 }
 
 /** Board detail with the test user as the only member, in the given role. */
-export function boardDetail(myRole: BoardRole = 'OWNER', title = 'Yol haritası'): BoardDetailDto {
+export function boardDetail(
+  myRole: BoardRole = 'OWNER',
+  title = 'Yol haritası',
+  lists: ListDto[] = [],
+): BoardDetailDto {
   return {
     board: boardSummary({ myRole, title }),
     members: [
@@ -50,5 +55,17 @@ export function boardDetail(myRole: BoardRole = 'OWNER', title = 'Yol haritası'
       },
     ],
     labels: [],
+    lists,
   };
+}
+
+/** Lists at positions 1024, 2048 ... in the given order. */
+export function testLists(...titles: string[]): ListDto[] {
+  return titles.map((title, i) => ({
+    id: `list-${i + 1}`,
+    boardId: BOARD_ID,
+    title,
+    position: (i + 1) * 1024,
+    archivedAt: null,
+  }));
 }

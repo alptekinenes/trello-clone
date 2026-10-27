@@ -5,6 +5,10 @@ import { ErrorCode } from '@trello/contracts';
 export const boardNotFound = () =>
   new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Board not found' });
 
+/** Same for lists on boards the user cannot see. */
+export const listNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'List not found' });
+
 export const insufficientRole = () =>
   new ForbiddenException({
     code: ErrorCode.FORBIDDEN,

@@ -1,4 +1,5 @@
 import type { BoardBackground, BoardRole, LabelColor } from './enums.js';
+import type { ListDto } from './lists.js';
 
 export const BOARD_LIMITS = {
   TITLE_MAX: 100,
@@ -45,11 +46,13 @@ export interface LabelDto {
   color: LabelColor;
 }
 
-/** Everything the board page needs in one request. Lists and cards join in later phases. */
+/** Everything the board page needs in one request. Cards join in phase 4. */
 export interface BoardDetailDto {
   board: BoardSummaryDto;
   members: MemberDto[];
   labels: LabelDto[];
+  /** Active (not archived) lists, ordered by position. */
+  lists: ListDto[];
 }
 
 export interface CreateBoardRequest {

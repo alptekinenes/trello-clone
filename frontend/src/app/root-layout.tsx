@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router';
 import { UserMenu } from '../features/auth';
+import { Toaster } from '../shared/ui/toaster';
 
 export function RootLayout() {
   return (
@@ -19,6 +20,7 @@ export function RootLayout() {
       <main id="main" className="flex flex-1 flex-col">
         <Outlet />
       </main>
+      <Toaster />
     </div>
   );
 }

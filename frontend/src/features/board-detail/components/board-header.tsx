@@ -4,6 +4,7 @@ import { Button } from '../../../shared/ui/button';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useBoardActions } from '../hooks/use-board-actions';
+import { ArchivedListsDialog } from './archived-lists-dialog';
 
 const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board';
 
@@ -38,12 +39,23 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
 
       <div className="ml-auto flex items-center gap-3">
         <AvatarStack people={people} label="Pano üyeleri" />
+        <Button variant="on-board" className="h-8 px-3" onClick={actions.openArchive}>
+          Arşiv
+        </Button>
         {actions.canDelete && (
           <Button variant="on-board" className="h-8 px-3" onClick={actions.askDelete}>
             Panoyu sil
           </Button>
         )}
       </div>
+
+      {actions.archiveOpen && (
+        <ArchivedListsDialog
+          boardId={board.id}
+          canDelete={actions.canDeleteLists}
+          onClose={actions.closeArchive}
+        />
+      )}
 
       {actions.confirmingDelete && (
         <ConfirmDialog

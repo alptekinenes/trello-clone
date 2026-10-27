@@ -5,6 +5,7 @@ import { Button } from '../../../shared/ui/button';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { PageLoader } from '../../../shared/ui/page-loader';
 import { useBoard } from '../api/use-board';
+import { BoardCanvas } from './board-canvas';
 import { BoardHeader } from './board-header';
 
 function BoardNotFound() {
@@ -43,11 +44,7 @@ export function BoardPage() {
   return (
     <div className={`flex flex-1 flex-col ${BOARD_BACKGROUND_CLASS[detail.board.background]}`}>
       <BoardHeader detail={detail} />
-      <div className="flex-1 overflow-x-auto p-4">
-        <p className="w-fit rounded-md bg-board-bar px-3 py-2 text-sm text-on-board">
-          Bu panoda henüz liste yok.
-        </p>
-      </div>
+      <BoardCanvas detail={detail} />
     </div>
   );
 }

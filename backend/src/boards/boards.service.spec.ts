@@ -14,6 +14,7 @@ function setup() {
       ...BOARD,
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
+      lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
     }),
   };
   const boardMember = {
@@ -67,6 +68,7 @@ describe('BoardsService', () => {
       board: { ...SUMMARY, myRole: 'ADMIN' },
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
+      lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
     });
   });
 

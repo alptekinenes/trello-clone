@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll } from 'vitest';
 // Test infrastructure may reach into feature internals to reset global state.
 import { resetAuthStore } from '../features/auth/store/auth-store';
 import { setAuthHandlers } from '../shared/lib/http';
+import { resetToasts } from '../shared/store/toast-store';
 import { server } from './msw-server';
 
 // jsdom has <dialog> but not its modal API. Minimal stand-in: toggle `open`, fire `close`.
@@ -23,5 +24,6 @@ afterEach(() => {
   cleanup();
   resetAuthStore();
   setAuthHandlers(null);
+  resetToasts();
 });
 afterAll(() => server.close());

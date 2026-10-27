@@ -6,6 +6,7 @@ import type {
   CreateBoardRequest,
   UpdateBoardRequest,
 } from '@trello/contracts';
+import { LIST_ORDER, LIST_SELECT, toListDto } from '../lists/list.mapper.js';
 import { MEMBER_ORDER, MEMBER_SELECT, toMemberDto } from '../members/member.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -53,12 +54,14 @@ export class BoardsService {
         members: { select: MEMBER_SELECT, orderBy: [...MEMBER_ORDER] },
         // Enum order (GREEN, YELLOW ...) matches the default label order.
         labels: { select: LABEL_SELECT, orderBy: [{ color: 'asc' }, { createdAt: 'asc' }] },
+        lists: { where: { archivedAt: null }, select: LIST_SELECT, orderBy: [...LIST_ORDER] },
       },
     });
     return {
       board: toBoardSummary(board, myRole),
       members: board.members.map(toMemberDto),
       labels: board.labels.map(toLabelDto),
+      lists: board.lists.map(toListDto),
     };
   }
 
