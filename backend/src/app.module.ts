@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AccessModule } from './access/access.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { BoardsModule } from './boards/boards.module.js';
+import { MembersModule } from './members/members.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
@@ -18,6 +21,9 @@ import { UsersModule } from './users/users.module.js';
     HealthModule,
     UsersModule,
     AuthModule,
+    AccessModule,
+    BoardsModule,
+    MembersModule,
   ],
   providers: [
     // Order matters: rate limiting runs before authentication.

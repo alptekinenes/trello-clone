@@ -38,3 +38,7 @@ export const BOARD_BACKGROUNDS = [
   'grey',
 ] as const;
 export type BoardBackground = (typeof BOARD_BACKGROUNDS)[number];
+
+export function isBoardBackground(value: string): value is BoardBackground {
+  return (BOARD_BACKGROUNDS as readonly string[]).includes(value);
+}
