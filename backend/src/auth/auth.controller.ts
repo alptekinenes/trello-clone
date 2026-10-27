@@ -14,6 +14,7 @@ import type { AuthResponse } from '@trello/contracts';
 import type { CookieOptions, Request, Response } from 'express';
 import { API_PREFIX } from '../app.constants.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { authRateLimit } from '../config/env.validation.js';
 import { invalidRefresh } from './auth.errors.js';
 import { type AuthSession, AuthService } from './auth.service.js';
 import { LoginDto, RegisterDto } from './dto/auth.dto.js';
@@ -21,7 +22,7 @@ import { LoginDto, RegisterDto } from './dto/auth.dto.js';
 export const REFRESH_COOKIE = 'rt';
 
 /** Brute-force protection for credential endpoints, per client IP. */
-const CREDENTIALS_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
+const CREDENTIALS_THROTTLE = { default: { limit: authRateLimit, ttl: 60_000 } };
 
 function readRefreshCookie(request: Request): string | undefined {
   const value: unknown = request.cookies?.[REFRESH_COOKIE];

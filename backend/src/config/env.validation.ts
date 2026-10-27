@@ -1,6 +1,8 @@
 import { plainToInstance } from 'class-transformer';
 import { IsEnum, IsInt, IsNotEmpty, IsString, Max, Min, MinLength, validateSync } from 'class-validator';
 
+export const DEFAULT_AUTH_RATE_LIMIT = 10;
+
 export enum NodeEnv {
   Development = 'development',
   Production = 'production',
@@ -38,6 +40,21 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(90)
   REFRESH_TOKEN_TTL_DAYS: number = 7;
+
+  /** Login/register attempts per client IP per minute. Raise it locally for e2e runs. */
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  AUTH_RATE_LIMIT_PER_MINUTE: number = DEFAULT_AUTH_RATE_LIMIT;
+}
+
+/**
+ * Read lazily by the throttler on each credential request. The value was
+ * validated at startup; the fallback only covers it being unset.
+ */
+export function authRateLimit(): number {
+  const value = Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_AUTH_RATE_LIMIT;
 }
 
 /** Validates process env on startup; the app refuses to boot with a bad config. */

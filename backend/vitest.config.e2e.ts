@@ -17,6 +17,8 @@ export default defineConfig({
       JWT_ACCESS_SECRET: 'test-secret-that-is-at-least-32-characters-long',
       JWT_ACCESS_TTL_SECONDS: '900',
       REFRESH_TOKEN_TTL_DAYS: '7',
+      // Pinned so the rate-limit test does not depend on a local .env.
+      AUTH_RATE_LIMIT_PER_MINUTE: '10',
     },
   },
 });
