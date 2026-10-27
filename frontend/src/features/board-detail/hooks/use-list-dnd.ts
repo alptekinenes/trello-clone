@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { ListDto } from '@trello/contracts';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMoveList } from '../api/use-list-mutations';
 import { BoardMouseSensor, BoardTouchSensor } from '../lib/dnd-sensors';
 import { getMoveAnchors } from '../lib/get-move-anchors';
@@ -29,6 +29,8 @@ const SCREEN_READER_INSTRUCTIONS =
 export function useListDnd(boardId: string, lists: ListDto[]) {
   const moveList = useMoveList(boardId);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Last place announced, so "tutuldu" is not overwritten by "1. sıraya geldi" at once.
+  const lastOverRef = useRef<UniqueIdentifier | null>(null);
 
   const sensors = useSensors(
     useSensor(BoardMouseSensor, { activationConstraint: { distance: 5 } }),
@@ -41,10 +43,15 @@ export function useListDnd(boardId: string, lists: ListDto[]) {
   const placeOf = (id: UniqueIdentifier) => sortableIds.indexOf(String(id)) + 1;
 
   const announcements: Announcements = {
-    onDragStart: ({ active }) =>
-      `“${titleOf(active.id)}” listesi tutuldu. ${placeOf(active.id)}. sırada, toplam ${lists.length} liste.`,
-    onDragOver: ({ active, over }) =>
-      over ? `“${titleOf(active.id)}” listesi ${placeOf(over.id)}. sıraya geldi.` : undefined,
+    onDragStart: ({ active }) => {
+      lastOverRef.current = active.id;
+      return `“${titleOf(active.id)}” listesi tutuldu. ${placeOf(active.id)}. sırada, toplam ${lists.length} liste.`;
+    },
+    onDragOver: ({ active, over }) => {
+      if (!over || over.id === lastOverRef.current) return undefined;
+      lastOverRef.current = over.id;
+      return `“${titleOf(active.id)}” listesi ${placeOf(over.id)}. sıraya geldi.`;
+    },
     onDragEnd: ({ active, over }) =>
       over
         ? `“${titleOf(active.id)}” listesi ${placeOf(over.id)}. sıraya bırakıldı.`

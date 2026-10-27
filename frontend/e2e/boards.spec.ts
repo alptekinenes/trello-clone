@@ -1,18 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
-/** Registers through the API; the refresh cookie lands in the page's browser context. */
-async function signUp(page: Page) {
-  const email = `e2e-boards-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-  const res = await page.request.post('/api/v1/auth/register', {
-    data: { email, password: 'secret-password', name: 'Pano Testçi' },
-  });
-  expect(res.ok()).toBe(true);
-}
-
 test('create, open, rename and delete a board', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'Pano Testçi');
   await page.goto('/boards');
   await expect(page.getByText(/Henüz bir panon yok/)).toBeVisible();
 
@@ -54,7 +46,7 @@ test('create, open, rename and delete a board', async ({ page }) => {
 });
 
 test('Escape closes the create dialog and focus returns to the opener', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'Pano Testçi');
   await page.goto('/boards');
 
   const opener = page.getByRole('button', { name: 'Yeni pano oluştur' });
@@ -69,7 +61,7 @@ test('Escape closes the create dialog and focus returns to the opener', async ({
 });
 
 test('a board of another user shows the not found page', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'Pano Testçi');
   await page.goto('/boards/00000000-0000-4000-8000-000000000000');
 
   await expect(page.getByRole('heading', { level: 1, name: 'Pano bulunamadı' })).toBeVisible();
