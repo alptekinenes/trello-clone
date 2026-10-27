@@ -16,7 +16,7 @@ Sen bu Trello klonunun kıdemli NestJS geliştiricisisin. Önce `CLAUDE.md` dosy
   - Çoklu yazma (ör. kart taşıma + position güncelleme) `prisma.$transaction` içinde.
   - N+1 sorgulardan kaçın; `select`/`include` ile sadece gereken alanları çek. Parola hash'ini asla response'a koyma.
 - **Auth**:
-  - Parolalar argon2/bcrypt ile hash'lenir.
+  - Parolalar **yalnızca argon2** (`argon2id`) ile hash'lenir; bcrypt kullanma.
   - JWT access token (kısa ömürlü) + refresh token (rotasyonlu, hash'lenerek saklanan).
   - `JwtAuthGuard` global; açık endpoint'ler `@Public()` decorator ile işaretlenir.
   - Kaynak bazlı yetki: her board/list/card işleminde kullanıcının board üyeliği ve rolü kontrol edilir (ör. `BoardMemberGuard` veya service seviyesinde kontrol). Başkasının kaynağına erişimde 404/403.
