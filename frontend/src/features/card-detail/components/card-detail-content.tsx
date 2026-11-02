@@ -1,6 +1,6 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
 import { Button } from '../../../shared/ui/button';
-import { ArchiveIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
+import { ArchiveIcon, ChecklistIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
 import { useArchiveOpenCard } from '../hooks/use-archive-open-card';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
@@ -8,6 +8,7 @@ import { CardDescription } from './card-description';
 import { CardDetailAlert } from './card-detail-alert';
 import { CardLabelsSection } from './card-labels-section';
 import { CardTitleEditor } from './card-title-editor';
+import { ChecklistsSection } from './checklists-section';
 import { DueDateSection } from './due-date-section';
 import { PanelButton } from './panel-button';
 
@@ -34,11 +35,15 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           <CardLabelsSection board={board} card={card} />
           <DueDateSection boardId={boardId} card={card} />
           <CardDescription boardId={boardId} cardId={card.id} description={card.description} />
+          <ChecklistsSection boardId={boardId} card={card} />
         </div>
         {!archived && (
           <aside aria-label="Kart işlemleri" className="flex shrink-0 flex-col gap-2 sm:w-44">
             <PanelButton panel="labels" icon={<LabelIcon />}>
               Etiketler
+            </PanelButton>
+            <PanelButton panel="checklist" icon={<ChecklistIcon />}>
+              Checklist
             </PanelButton>
             <PanelButton panel="due-date" icon={<ClockIcon />}>
               Son tarih

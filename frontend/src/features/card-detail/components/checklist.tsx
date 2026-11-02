@@ -1,0 +1,111 @@
+import { CHECKLIST_LIMITS, type CardDetailDto, type ChecklistDto } from '@trello/contracts';
+import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
+import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '../../../shared/ui/icons';
+import { InlineEdit } from '../../../shared/ui/inline-edit';
+import { useChecklist } from '../hooks/use-checklist';
+import { AddChecklistItemComposer } from './add-checklist-item-composer';
+import { ChecklistItemRow } from './checklist-item-row';
+import { ChecklistProgress } from './checklist-progress';
+
+const ICON_BUTTON =
+  'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40';
+
+interface ChecklistProps {
+  boardId: string;
+  card: CardDetailDto;
+  checklist: ChecklistDto;
+}
+
+/** A checklist with its progress, items, and the controls to rename, move and delete it. */
+export function Checklist({ boardId, card, checklist }: ChecklistProps) {
+  const actions = useChecklist(boardId, card, checklist);
+  const done = checklist.items.filter((item) => item.isCompleted).length;
+
+  return (
+    <section aria-labelledby={`checklist-title-${checklist.id}`} className="flex flex-col gap-2">
+      <div className="flex items-center gap-1">
+        <h3
+          id={`checklist-title-${checklist.id}`}
+          className="min-w-0 flex-1 text-base font-semibold"
+        >
+          <InlineEdit
+            value={checklist.title}
+            label="Checklist başlığı"
+            editHint="Checklist başlığını düzenle"
+            maxLength={CHECKLIST_LIMITS.TITLE_MAX}
+            wrap
+            onSave={actions.rename}
+            className="w-full px-1 py-0.5 text-left hover:bg-surface-hover"
+            inputClassName="w-full border border-focus bg-surface px-1 py-0.5 text-base font-semibold text-fg"
+          />
+        </h3>
+        <button
+          ref={actions.upRef}
+          type="button"
+          aria-label={`“${checklist.title}” checklist'ini yukarı taşı`}
+          title="Yukarı taşı"
+          disabled={!actions.canMoveUp}
+          onClick={() => actions.move('up')}
+          className={ICON_BUTTON}
+        >
+          <ChevronUpIcon />
+        </button>
+        <button
+          ref={actions.downRef}
+          type="button"
+          aria-label={`“${checklist.title}” checklist'ini aşağı taşı`}
+          title="Aşağı taşı"
+          disabled={!actions.canMoveDown}
+          onClick={() => actions.move('down')}
+          className={ICON_BUTTON}
+        >
+          <ChevronDownIcon />
+        </button>
+        <button
+          type="button"
+          aria-label={`“${checklist.title}” checklist'ini sil`}
+          title="Checklist'i sil"
+          onClick={actions.askDelete}
+          className={`${ICON_BUTTON} hover:text-danger`}
+        >
+          <TrashIcon />
+        </button>
+      </div>
+      <ChecklistProgress done={done} total={checklist.items.length} />
+      {checklist.items.length > 0 && (
+        <ul aria-label={`“${checklist.title}” öğeleri`} className="flex flex-col">
+          {checklist.items.map((item) => (
+            <ChecklistItemRow
+              key={item.id}
+              item={item}
+              onToggle={actions.toggleItem}
+              onEdit={actions.editItem}
+              onRemove={actions.removeItem}
+            />
+          ))}
+        </ul>
+      )}
+      <AddChecklistItemComposer
+        boardId={boardId}
+        cardId={card.id}
+        checklistId={checklist.id}
+        checklistTitle={checklist.title}
+      />
+      {actions.confirmingDelete && (
+        <ConfirmDialog
+          title="Checklist silinsin mi?"
+          confirmLabel="Checklist'i sil"
+          onConfirm={actions.confirmDelete}
+          onCancel={actions.cancelDelete}
+          pending={actions.isDeleting}
+          error={actions.deleteError}
+        >
+          <p>
+            <strong className="text-fg">“{checklist.title}”</strong> checklist’i ve içindeki{' '}
+            {checklist.items.length} öğe silinecek.
+          </p>
+        </ConfirmDialog>
+      )}
+    </section>
+  );
+}

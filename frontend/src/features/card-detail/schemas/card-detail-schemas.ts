@@ -1,4 +1,4 @@
-import { CARD_LIMITS } from '@trello/contracts';
+import { CARD_LIMITS, CHECKLIST_LIMITS } from '@trello/contracts';
 import { z } from 'zod';
 import { fromDateTimeLocalValue } from '../../../shared/lib/date';
 
@@ -22,3 +22,27 @@ export const dueDateSchema = z.object({
 });
 
 export type DueDateFormValues = z.infer<typeof dueDateSchema>;
+
+export const checklistTitleSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, { error: 'Checklist başlığını gir.' })
+    .max(CHECKLIST_LIMITS.TITLE_MAX, {
+      error: `Başlık en fazla ${CHECKLIST_LIMITS.TITLE_MAX} karakter olabilir.`,
+    }),
+});
+
+export type ChecklistTitleFormValues = z.input<typeof checklistTitleSchema>;
+
+export const checklistItemSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, { error: 'Öğe metnini gir.' })
+    .max(CHECKLIST_LIMITS.ITEM_CONTENT_MAX, {
+      error: `Öğe en fazla ${CHECKLIST_LIMITS.ITEM_CONTENT_MAX} karakter olabilir.`,
+    }),
+});
+
+export type ChecklistItemFormValues = z.input<typeof checklistItemSchema>;

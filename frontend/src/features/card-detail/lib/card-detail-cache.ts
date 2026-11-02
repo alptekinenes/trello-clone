@@ -1,4 +1,11 @@
-import type { CardDetailDto, CardSummaryDto, UpdateCardRequest } from '@trello/contracts';
+import type {
+  CardDetailDto,
+  CardSummaryDto,
+  ChecklistDto,
+  ChecklistItemDto,
+  UpdateCardRequest,
+} from '@trello/contracts';
+import { sortByPosition } from '../../../shared/lib/sort-by-position';
 
 /** The fields of the board's card tile that the card dialog can change. */
 export type CardSummaryContent = Pick<
@@ -53,4 +60,100 @@ export function setLabelAssigned(
 ): CardDetailDto {
   const others = card.labelIds.filter((id) => id !== labelId);
   return { ...card, labelIds: assigned ? [...others, labelId] : others };
+}
+
+/** The card with its checklist counters recomputed from the checklists. */
+export function withCounters(card: CardDetailDto): CardDetailDto {
+  const items = card.checklists.flatMap((checklist) => checklist.items);
+  return {
+    ...card,
+    checklistTotal: items.length,
+    checklistDone: items.filter((item) => item.isCompleted).length,
+  };
+}
+
+function withChecklists(card: CardDetailDto, checklists: ChecklistDto[]): CardDetailDto {
+  return withCounters({ ...card, checklists: sortByPosition(checklists) });
+}
+
+/** Adds the checklist, or replaces the one with the same id. */
+export function upsertChecklist(card: CardDetailDto, checklist: ChecklistDto): CardDetailDto {
+  const others = card.checklists.filter((item) => item.id !== checklist.id);
+  return withChecklists(card, [...others, { ...checklist, items: sortByPosition(checklist.items) }]);
+}
+
+export function patchChecklist(
+  card: CardDetailDto,
+  checklistId: string,
+  changes: Partial<Pick<ChecklistDto, 'title' | 'position'>>,
+): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.map((item) => (item.id === checklistId ? { ...item, ...changes } : item)),
+  );
+}
+
+export function removeChecklist(card: CardDetailDto, checklistId: string): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.filter((item) => item.id !== checklistId),
+  );
+}
+
+function mapChecklist(
+  card: CardDetailDto,
+  checklistId: string,
+  change: (items: ChecklistItemDto[]) => ChecklistItemDto[],
+): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.map((item) =>
+      item.id === checklistId ? { ...item, items: sortByPosition(change(item.items)) } : item,
+    ),
+  );
+}
+
+/** Adds the item to its checklist, or replaces the one with the same id. */
+export function upsertItem(card: CardDetailDto, item: ChecklistItemDto): CardDetailDto {
+  return mapChecklist(card, item.checklistId, (items) => [
+    ...items.filter((other) => other.id !== item.id),
+    item,
+  ]);
+}
+
+export function patchItem(
+  card: CardDetailDto,
+  itemId: string,
+  changes: Partial<Pick<ChecklistItemDto, 'content' | 'isCompleted'>>,
+): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.map((checklist) => ({
+      ...checklist,
+      items: checklist.items.map((item) => (item.id === itemId ? { ...item, ...changes } : item)),
+    })),
+  );
+}
+
+/** Takes the item out of its checklist and puts it into `checklistId` at `position`. */
+export function moveItem(
+  card: CardDetailDto,
+  itemId: string,
+  checklistId: string,
+  position: number,
+): CardDetailDto {
+  const item = card.checklists.flatMap((checklist) => checklist.items).find((i) => i.id === itemId);
+  if (!item) return card;
+  const without = removeItem(card, itemId);
+  return upsertItem(without, { ...item, checklistId, position });
+}
+
+export function removeItem(card: CardDetailDto, itemId: string): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.map((checklist) => ({
+      ...checklist,
+      items: checklist.items.filter((item) => item.id !== itemId),
+    })),
+  );
 }

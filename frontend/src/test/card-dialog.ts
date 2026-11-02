@@ -15,7 +15,13 @@ export const CARD_PATH = `/boards/${BOARD_ID}/c/${CARD_ID}`;
 
 /** The board tile of a card, like the server computes it. */
 function summaryOf(card: CardDetailDto) {
-  return testCard({ ...card, hasDescription: card.description !== null });
+  const items = card.checklists.flatMap((checklist) => checklist.items);
+  return testCard({
+    ...card,
+    hasDescription: card.description !== null,
+    checklistTotal: items.length,
+    checklistDone: items.filter((item) => item.isCompleted).length,
+  });
 }
 
 /**
