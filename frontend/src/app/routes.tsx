@@ -25,6 +25,15 @@ export const routes: RouteObject[] = [
               const { BoardPage } = await import('../features/board-detail');
               return { Component: BoardPage };
             },
+            children: [
+              {
+                path: 'c/:cardId',
+                lazy: async () => {
+                  const { CardDetailRoute } = await import('../features/card-detail');
+                  return { Component: CardDetailRoute };
+                },
+              },
+            ],
           },
         ],
       },

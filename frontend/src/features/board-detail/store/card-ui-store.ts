@@ -53,3 +53,8 @@ export function isAddCardFocusTarget(target: FocusTarget | null, listId: string)
 export function resetCardUi(): void {
   useCardUiStore.getState().reset();
 }
+
+/** Gives a card tile the focus once it is rendered in the given place (e.g. after its dialog closed). */
+export function focusCardTile(card: CardPlace): void {
+  useCardUiStore.getState().focusCard(card);
+}

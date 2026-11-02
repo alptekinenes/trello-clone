@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router';
+import { Link, Outlet, useParams } from 'react-router';
 import { apiErrorMessage, isNotFound } from '../../../shared/lib/api-error-message';
 import { BOARD_BACKGROUND_CLASS } from '../../../shared/lib/board-background';
 import { Button } from '../../../shared/ui/button';
@@ -45,6 +45,7 @@ export function BoardPage() {
     <div className={`flex flex-1 flex-col ${BOARD_BACKGROUND_CLASS[detail.board.background]}`}>
       <BoardHeader detail={detail} />
       <BoardCanvas detail={detail} />
+      <Outlet />
     </div>
   );
 }

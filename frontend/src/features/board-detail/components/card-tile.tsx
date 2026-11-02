@@ -1,11 +1,15 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { CardSummaryDto, LabelDto } from '@trello/contracts';
-import { useCallback, useEffect, useId, useRef } from 'react';
+import { type KeyboardEvent, useCallback, useEffect, useId, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import { MoreIcon } from '../../../shared/ui/icons';
 import { cardDragId } from '../hooks/use-board-dnd';
 import { isFocusTarget, useCardUiStore } from '../store/card-ui-store';
 import { CardTileBody } from './card-tile-body';
+
+/** Id of the hidden hint every card tile points to with aria-describedby. */
+export const CARD_OPEN_HINT_ID = 'card-open-hint';
 
 const SURFACE = 'rounded-md bg-surface px-3 py-2 text-sm text-fg shadow-card';
 
@@ -31,6 +35,7 @@ export function CardDragPreview({
 }
 
 interface CardTileProps {
+  boardId: string;
   card: CardSummaryDto;
   labels: ReadonlyMap<string, LabelDto>;
   /** A list is being dragged, so cards do not take drops. */
@@ -39,12 +44,13 @@ interface CardTileProps {
 
 /**
  * A card in a list. The tile is the drag handle for pointer and keyboard
- * (Space or Enter picks it up); the "…" button opens the card's actions.
+ * (Space picks it up, Enter opens it); the "…" button opens the card's actions.
  */
-export function CardTile({ card, labels, dropDisabled }: CardTileProps) {
+export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps) {
   const openActions = useCardUiStore((state) => state.openActions);
   const shouldFocus = useCardUiStore((state) => isFocusTarget(state.focusTarget, card));
   const clearFocus = useCardUiStore((state) => state.clearFocus);
+  const navigate = useNavigate();
   const titleId = useId();
   const labelsId = useId();
   const badgesId = useId();
@@ -65,7 +71,21 @@ export function CardTile({ card, labels, dropDisabled }: CardTileProps) {
   });
 
   // Ids of parts that are not rendered are ignored by assistive technology.
-  const describedBy = [labelsId, badgesId, attributes['aria-describedby']].filter(Boolean).join(' ');
+  const describedBy = [labelsId, badgesId, CARD_OPEN_HINT_ID, attributes['aria-describedby']].filter(Boolean).join(' ');
+
+  function open() {
+    navigate(`/boards/${boardId}/c/${card.id}`, { state: { fromBoard: true } });
+  }
+
+  /** Enter opens the card; every other key (Space lifts it) goes to dnd-kit. */
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Enter' && !isDragging && event.target === event.currentTarget) {
+      event.preventDefault();
+      if (!event.repeat) open();
+      return;
+    }
+    listeners?.onKeyDown(event);
+  }
 
   const setActivator = useCallback(
     (node: HTMLDivElement | null) => {
@@ -92,6 +112,8 @@ export function CardTile({ card, labels, dropDisabled }: CardTileProps) {
         ref={setActivator}
         {...attributes}
         {...listeners}
+        onClick={open}
+        onKeyDown={onKeyDown}
         aria-labelledby={titleId}
         aria-describedby={describedBy}
         className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:shadow-raised`}

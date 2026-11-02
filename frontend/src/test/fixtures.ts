@@ -2,6 +2,7 @@ import type {
   BoardDetailDto,
   BoardRole,
   BoardSummaryDto,
+  CardDetailDto,
   CardSummaryDto,
   ErrorCode,
   LabelDto,
@@ -96,4 +97,11 @@ export function testCard(
     checklistDone: 0,
     ...card,
   };
+}
+
+/** A card as the card dialog gets it: the summary plus board, description and checklists. */
+export function testCardDetail(
+  card: Partial<CardDetailDto> & Pick<CardDetailDto, 'id' | 'listId' | 'title'>,
+): CardDetailDto {
+  return { ...testCard(card), boardId: BOARD_ID, description: null, checklists: [], ...card };
 }

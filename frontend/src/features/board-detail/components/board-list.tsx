@@ -121,6 +121,7 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
               {cards.map((card) => (
                 <CardTile
                   key={card.id}
+                  boardId={boardId}
                   card={card}
                   labels={labels}
                   dropDisabled={draggingType === 'list'}

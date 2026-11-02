@@ -2,10 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { CardSummaryDto, ListDto } from '@trello/contracts';
 import { useForm, useWatch } from 'react-hook-form';
 import { moveToColumn } from '../../../shared/lib/sortable-columns';
-import { useArchiveCard, useMoveCard } from '../api/use-card-mutations';
+import { useMoveCard } from '../api/use-card-mutations';
 import { buildColumns, placeOf, samePlace } from '../lib/card-columns';
 import { type MoveCardFormValues, moveCardSchema } from '../schemas/card-schemas';
 import { useCardUiStore } from '../store/card-ui-store';
+import { useArchiveCardWithFocus } from './use-archive-card-with-focus';
 
 /**
  * The card actions dialog: move the card by picking a list and a position
@@ -20,13 +21,12 @@ export function useCardActions(
 ) {
   const closeActions = useCardUiStore((state) => state.closeActions);
   const focusCard = useCardUiStore((state) => state.focusCard);
-  const focusAddCard = useCardUiStore((state) => state.focusAddCard);
   // The card keeps the focus: in its new place, or back in its old one if the move fails.
   const moveCard = useMoveCard(boardId, {
     onMoved: focusCard,
     onRollback: (restored) => focusCard(restored ?? card),
   });
-  const archiveCard = useArchiveCard(boardId);
+  const archiveWithFocus = useArchiveCardWithFocus(boardId);
 
   const columns = buildColumns(lists, cards);
   const current = placeOf(columns, card.id);
@@ -65,18 +65,9 @@ export function useCardActions(
     });
   });
 
-  /**
-   * The focus moves to the card below, or above when it was the last one, or
-   * to the list's "Kart ekle" button when it was the only one.
-   */
   function archive() {
-    const ids = current ? columns[current.listId] : [];
-    const neighbourId = current ? (ids[current.index + 1] ?? ids[current.index - 1]) : undefined;
-    const neighbour = cards.find((item) => item.id === neighbourId);
     closeActions();
-    if (neighbour) focusCard(neighbour);
-    else focusAddCard(card.listId);
-    archiveCard.mutate(card);
+    archiveWithFocus(card);
   }
 
   return {

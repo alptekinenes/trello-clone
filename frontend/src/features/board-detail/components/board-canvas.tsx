@@ -8,7 +8,7 @@ import { useCardUiStore } from '../store/card-ui-store';
 import { AddListComposer } from './add-list-composer';
 import { BoardList, ListDragPreview } from './board-list';
 import { CardActionsDialog } from './card-actions-dialog';
-import { CardDragPreview } from './card-tile';
+import { CARD_OPEN_HINT_ID, CardDragPreview } from './card-tile';
 
 /** Horizontally scrolling lists with their cards, drag-and-drop for both, and "Liste ekle" at the end. */
 export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
@@ -28,6 +28,9 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
 
   return (
     <div className="flex flex-1 items-start gap-3 overflow-x-auto p-4">
+      <p id={CARD_OPEN_HINT_ID} hidden>
+        Kartı açmak için Enter tuşuna bas.
+      </p>
       <DndContext {...contextProps}>
         <SortableContext items={listIds} strategy={horizontalListSortingStrategy}>
           <ol aria-label="Listeler" className="flex items-start gap-3">

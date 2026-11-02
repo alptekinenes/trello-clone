@@ -55,8 +55,8 @@ const idOf = (id: UniqueIdentifier) => parseId(id)?.id ?? '';
 const kindOf = (id: UniqueIdentifier) => parseId(id)?.kind ?? null;
 
 const SCREEN_READER_INSTRUCTIONS =
-  'Tutmak için boşluk ya da Enter tuşuna bas. Tutarken ok tuşlarıyla taşı, bırakmak için ' +
-  'yine boşluk ya da Enter, vazgeçmek için Escape tuşuna bas.';
+  'Tutmak için boşluk tuşuna bas. Tutarken ok tuşlarıyla taşı, bırakmak için yine boşluk ' +
+  'ya da Enter, vazgeçmek için Escape tuşuna bas.';
 
 /** True when the dragged card's center is below the center of what it is over. */
 function isBelow(active: Active, over: Over): boolean {
