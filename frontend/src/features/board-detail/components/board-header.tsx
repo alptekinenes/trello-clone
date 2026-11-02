@@ -2,9 +2,11 @@ import { BOARD_LIMITS, type BoardDetailDto } from '@trello/contracts';
 import { AvatarStack } from '../../../shared/ui/avatar';
 import { Button } from '../../../shared/ui/button';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
+import { Dialog } from '../../../shared/ui/dialog';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useBoardActions } from '../hooks/use-board-actions';
 import { ArchiveDialog } from './archive-dialog';
+import { LabelsManager } from './labels-manager';
 
 const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board';
 
@@ -39,6 +41,9 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
 
       <div className="ml-auto flex items-center gap-3">
         <AvatarStack people={people} label="Pano üyeleri" />
+        <Button variant="on-board" className="h-8 px-3" onClick={actions.openLabels}>
+          Etiketler
+        </Button>
         <Button variant="on-board" className="h-8 px-3" onClick={actions.openArchive}>
           Arşiv
         </Button>
@@ -48,6 +53,12 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
           </Button>
         )}
       </div>
+
+      {actions.labelsOpen && (
+        <Dialog title="Etiketler" onClose={actions.closeLabels} showCloseButton>
+          <LabelsManager boardId={board.id} labels={detail.labels} />
+        </Dialog>
+      )}
 
       {actions.archiveOpen && (
         <ArchiveDialog

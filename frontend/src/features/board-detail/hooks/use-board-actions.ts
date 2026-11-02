@@ -12,6 +12,7 @@ export function useBoardActions(boardId: string, myRole: BoardRole) {
   const deleteBoard = useDeleteBoard(boardId);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
 
   function rename(title: string) {
     const parsed = boardTitleSchema.safeParse(title);
@@ -36,6 +37,9 @@ export function useBoardActions(boardId: string, myRole: BoardRole) {
     archiveOpen,
     openArchive: () => setArchiveOpen(true),
     closeArchive: () => setArchiveOpen(false),
+    labelsOpen,
+    openLabels: () => setLabelsOpen(true),
+    closeLabels: () => setLabelsOpen(false),
     rename,
     renameError: updateBoard.error ? 'Pano adı kaydedilemedi. Tekrar dene.' : null,
     confirmingDelete,
