@@ -277,6 +277,95 @@ describe('CardsService', () => {
     });
   });
 
+  describe('update content', () => {
+    it('writes description, due date and completion', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', {
+        description: 'Ayrıntı',
+        dueDate: '2026-11-05T15:00:00+03:00',
+        dueComplete: true,
+      });
+
+      const { data } = card.update.mock.calls[0][0];
+      expect(data.description).toBe('Ayrıntı');
+      expect(data.dueDate).toEqual(new Date('2026-11-05T12:00:00.000Z'));
+      expect(data.dueComplete).toBe(true);
+    });
+
+    it('resets dueComplete when the due date is cleared', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { dueDate: null, dueComplete: true });
+
+      const { data } = card.update.mock.calls[0][0];
+      expect(data.dueDate).toBeNull();
+      expect(data.dueComplete).toBe(false);
+    });
+
+    it('leaves the due date alone when it is not sent', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { title: 'Yeni' });
+
+      expect(card.update.mock.calls[0][0].data).not.toHaveProperty('dueDate');
+    });
+
+    it('reports hasDescription from the stored value', async () => {
+      const { service, card } = setup();
+      card.update.mockResolvedValueOnce({ ...row('c', LIST, 1024), description: 'Var' });
+      card.update.mockResolvedValueOnce({ ...row('c', LIST, 1024), description: null });
+
+      await expect(service.update(BOARD, 'c', { description: 'Var' })).resolves.toMatchObject({
+        hasDescription: true,
+      });
+      const cleared = await service.update(BOARD, 'c', { description: null });
+      expect(cleared.hasDescription).toBe(false);
+      expect(cleared).not.toHaveProperty('description');
+    });
+  });
+
+  describe('getDetail', () => {
+    it('reads the card scoped to the board and maps checklists', async () => {
+      const { service, card } = setup();
+      card.findFirst.mockReset().mockResolvedValueOnce({
+        ...row('c', LIST, 1024),
+        boardId: BOARD,
+        description: 'Metin',
+        checklists: [
+          {
+            id: 'cl',
+            cardId: 'c',
+            title: 'Liste',
+            position: 1024,
+            items: [
+              { id: 'i', checklistId: 'cl', content: 'Madde', isCompleted: true, position: 1024 },
+            ],
+          },
+        ],
+      });
+
+      const detail = await service.getDetail(BOARD, 'c');
+
+      expect(card.findFirst.mock.calls[0][0].where).toEqual({ id: 'c', boardId: BOARD });
+      expect(detail).toMatchObject({
+        id: 'c',
+        boardId: BOARD,
+        description: 'Metin',
+        hasDescription: true,
+        checklistTotal: 1,
+        checklistDone: 1,
+        checklists: [{ id: 'cl', items: [{ id: 'i', isCompleted: true }] }],
+      });
+    });
+
+    it('throws 404 when the card is not on the board', async () => {
+      const { service, card } = setup();
+      card.findFirst.mockReset().mockResolvedValueOnce(null);
+      await expect(service.getDetail(BOARD, 'c')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('listForBoard', () => {
     it('lists active cards of active lists in board order', async () => {
       const { service, card } = setup({ siblings: [] });

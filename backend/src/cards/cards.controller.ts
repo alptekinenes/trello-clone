@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import type { CardSummaryDto, MoveCardResponse } from '@trello/contracts';
+import type { CardDetailDto, CardSummaryDto, MoveCardResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
 import { ArchivedQueryDto } from '../common/dto/archived-query.dto.js';
 import { CardsService } from './cards.service.js';
@@ -48,6 +48,15 @@ export class ListCardsController {
 @Controller('cards/:cardId')
 export class CardsController {
   constructor(private readonly cards: CardsService) {}
+
+  @Get()
+  @BoardRole('MEMBER')
+  detail(
+    @CurrentBoardId() boardId: string,
+    @Param('cardId') cardId: string,
+  ): Promise<CardDetailDto> {
+    return this.cards.getDetail(boardId, cardId);
+  }
 
   @Patch()
   @BoardRole('MEMBER')

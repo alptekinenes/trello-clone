@@ -52,6 +52,63 @@ describe('UpdateCardDto', () => {
   });
 });
 
+describe('UpdateCardDto description', () => {
+  it('turns a blank description into null and trims the rest', () => {
+    expect(check(UpdateCardDto, { description: '   \n ' }).dto.description).toBeNull();
+    expect(check(UpdateCardDto, { description: '' }).dto.description).toBeNull();
+    expect(check(UpdateCardDto, { description: '  Ayrıntı  ' }).dto.description).toBe('Ayrıntı');
+  });
+
+  it('accepts null and leaves a missing description undefined', () => {
+    const withNull = check(UpdateCardDto, { description: null });
+    expect(withNull.invalidFields).toEqual([]);
+    expect(withNull.dto.description).toBeNull();
+    expect(check(UpdateCardDto, {}).dto.description).toBeUndefined();
+  });
+
+  it('allows 10000 characters and rejects 10001', () => {
+    expect(check(UpdateCardDto, { description: 'x'.repeat(10_000) }).invalidFields).toEqual([]);
+    expect(check(UpdateCardDto, { description: 'x'.repeat(10_001) }).invalidFields).toEqual([
+      'description',
+    ]);
+  });
+
+  it('counts the length after trimming', () => {
+    const padded = ` ${'x'.repeat(10_000)} `;
+    expect(check(UpdateCardDto, { description: padded }).invalidFields).toEqual([]);
+  });
+
+  it('rejects a number', () => {
+    expect(check(UpdateCardDto, { description: 5 }).invalidFields).toEqual(['description']);
+  });
+});
+
+describe('UpdateCardDto due date', () => {
+  it.each(['2026-11-05T12:00:00Z', '2026-11-05T12:00:00.000Z', '2026-11-05T15:00:00+03:00'])(
+    'accepts %s',
+    (dueDate) => {
+      expect(check(UpdateCardDto, { dueDate }).invalidFields).toEqual([]);
+    },
+  );
+
+  it('accepts null to clear the date', () => {
+    expect(check(UpdateCardDto, { dueDate: null }).invalidFields).toEqual([]);
+  });
+
+  it.each(['2026-11-05T12:00:00', '2026-11-05', 'yarın', '2026-13-45T12:00:00Z', 12, true])(
+    'rejects %j',
+    (dueDate) => {
+      expect(check(UpdateCardDto, { dueDate }).invalidFields).toEqual(['dueDate']);
+    },
+  );
+
+  it('accepts a boolean dueComplete and rejects null or text', () => {
+    expect(check(UpdateCardDto, { dueComplete: true }).invalidFields).toEqual([]);
+    expect(check(UpdateCardDto, { dueComplete: null }).invalidFields).toEqual(['dueComplete']);
+    expect(check(UpdateCardDto, { dueComplete: 'yes' }).invalidFields).toEqual(['dueComplete']);
+  });
+});
+
 describe('MoveCardDto', () => {
   it('requires a target list id', () => {
     expect(check(MoveCardDto, { listId: ID }).invalidFields).toEqual([]);

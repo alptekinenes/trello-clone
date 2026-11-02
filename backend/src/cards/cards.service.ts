@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  CardDetailDto,
   CardSummaryDto,
   CreateCardRequest,
   MoveCardRequest,
@@ -14,7 +15,13 @@ import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findCardSummaries } from './card-summaries.js';
-import { CARD_ORDER, CARD_SELECT, toCardSummary } from './card.mapper.js';
+import {
+  CARD_DETAIL_SELECT,
+  CARD_ORDER,
+  CARD_SELECT,
+  toCardDetail,
+  toCardSummary,
+} from './card.mapper.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -43,6 +50,16 @@ export class CardsService {
     );
   }
 
+  /** The card with its description and checklists. Archived cards are readable too. */
+  async getDetail(boardId: string, cardId: string): Promise<CardDetailDto> {
+    const card = await this.prisma.card.findFirst({
+      where: { id: cardId, boardId },
+      select: CARD_DETAIL_SELECT,
+    });
+    if (!card) throw cardNotFound();
+    return toCardDetail(card);
+  }
+
   create(boardId: string, listId: string, input: CreateCardRequest): Promise<CardSummaryDto> {
     return this.prisma.$transaction(async (tx) => {
       const [list] = await lockLists(tx, boardId, [listId]);
@@ -62,7 +79,7 @@ export class CardsService {
   }
 
   /**
-   * Renames, archives, or restores the card. A restored card goes to the end of
+   * Edits title, description and due date, archives, or restores the card. A restored card goes to the end of
    * its list, which must not be archived itself.
    */
   update(boardId: string, cardId: string, input: UpdateCardRequest): Promise<CardSummaryDto> {
@@ -73,7 +90,16 @@ export class CardsService {
         ? await this.lockCard(tx, boardId, cardId)
         : { card: await this.findOnBoard(tx, boardId, cardId), activeListIds: null };
 
-      const data: Prisma.CardUpdateInput = { title: input.title };
+      const data: Prisma.CardUpdateInput = {
+        title: input.title,
+        description: input.description,
+        dueComplete: input.dueComplete,
+      };
+      if (input.dueDate !== undefined) {
+        data.dueDate = input.dueDate === null ? null : new Date(input.dueDate);
+        // A cleared due date cannot stay "complete".
+        if (input.dueDate === null) data.dueComplete = false;
+      }
       if (input.archived === true && !current.archivedAt) {
         data.archivedAt = new Date();
       }
