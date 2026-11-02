@@ -14,6 +14,7 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  ValidateBy,
   ValidateIf,
 } from 'class-validator';
 import { BlankToNull } from '../../common/decorators/blank-to-null.decorator.js';
@@ -41,6 +42,24 @@ export class CreateCardDto extends CardAnchorsDto implements CreateCardRequest {
 /** An ISO 8601 date-time that names its time zone: `Z` or `+hh:mm`. */
 const ISO_DATETIME_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
+/** UTC years a due date may fall in. A 5-digit year is stored, but Date cannot read it back. */
+const DUE_YEARS = { MIN: 1970, MAX: 9999 } as const;
+
+function IsDueYearSupported(): PropertyDecorator {
+  return ValidateBy({
+    name: 'isDueYearSupported',
+    validator: {
+      validate: (value: unknown) => {
+        if (typeof value !== 'string') return false;
+        const year = new Date(value).getUTCFullYear();
+        return year >= DUE_YEARS.MIN && year <= DUE_YEARS.MAX;
+      },
+      defaultMessage: () =>
+        `dueDate must fall between the years ${DUE_YEARS.MIN} and ${DUE_YEARS.MAX} in UTC`,
+    },
+  });
+}
+
 /**
  * Every field is optional. Null is rejected, except for `description` and
  * `dueDate`, where it clears the value.
@@ -64,6 +83,7 @@ export class UpdateCardDto implements UpdateCardRequest {
   @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsISO8601({ strict: true })
   @Matches(ISO_DATETIME_WITH_ZONE, { message: 'dueDate must include a time zone (Z or +hh:mm)' })
+  @IsDueYearSupported()
   dueDate?: string | null;
 
   @ValidateIf((_, value) => value !== undefined)

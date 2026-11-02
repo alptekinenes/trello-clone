@@ -90,15 +90,24 @@ export class CardsService {
         ? await this.lockCard(tx, boardId, cardId)
         : { card: await this.findOnBoard(tx, boardId, cardId), activeListIds: null };
 
+      // Completing without sending a date relies on the stored one; it may have
+      // been cleared by someone else meanwhile, so that write is conditional.
+      const completesStoredDate = input.dueComplete === true && input.dueDate === undefined;
       const data: Prisma.CardUpdateInput = {
         title: input.title,
         description: input.description,
-        dueComplete: input.dueComplete,
+        dueComplete: completesStoredDate ? undefined : input.dueComplete,
       };
       if (input.dueDate !== undefined) {
         data.dueDate = input.dueDate === null ? null : new Date(input.dueDate);
         // A cleared due date cannot stay "complete".
         if (input.dueDate === null) data.dueComplete = false;
+      }
+      if (completesStoredDate) {
+        await tx.card.updateMany({
+          where: { id: cardId, boardId, dueDate: { not: null } },
+          data: { dueComplete: true },
+        });
       }
       if (input.archived === true && !current.archivedAt) {
         data.archivedAt = new Date();

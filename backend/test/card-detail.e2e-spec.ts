@@ -184,6 +184,23 @@ describe('Card detail (e2e, database)', () => {
       expect(cleared.body).toMatchObject({ dueDate: null, dueComplete: false });
     });
 
+    it('keeps a card without a due date incomplete', async () => {
+      const res = await patch({ dueComplete: true }).expect(200);
+      expect(res.body).toMatchObject({ dueDate: null, dueComplete: false });
+    });
+
+    it('accepts the last minute of year 9999 in UTC', async () => {
+      const res = await patch({ dueDate: '9999-12-31T23:59:00Z' }).expect(200);
+      expect(res.body.dueDate).toBe('9999-12-31T23:59:00.000Z');
+    });
+
+    it.each(['9999-12-31T23:59:00-23:59', '1969-12-31T23:59:59Z'])(
+      'rejects %s, outside the supported years in UTC',
+      async (dueDate) => {
+        await patch({ dueDate }).expect(400);
+      },
+    );
+
     it('rejects null and text for dueComplete', async () => {
       await patch({ dueComplete: null }).expect(400);
       await patch({ dueComplete: 'yes' }).expect(400);

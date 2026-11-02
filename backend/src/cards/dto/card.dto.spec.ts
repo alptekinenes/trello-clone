@@ -91,6 +91,21 @@ describe('UpdateCardDto due date', () => {
     },
   );
 
+  it.each(['1970-01-01T00:00:00Z', '9999-12-31T23:59:59Z', '1970-01-01T02:00:00+02:00'])(
+    'accepts %s at the edge of the supported years',
+    (dueDate) => {
+      expect(check(UpdateCardDto, { dueDate }).invalidFields).toEqual([]);
+    },
+  );
+
+  // The last one is 9999 locally but year 10000 in UTC, which Date cannot read back.
+  it.each(['1969-12-31T23:59:59Z', '0001-01-01T00:00:00Z', '9999-12-31T23:59:00-23:59'])(
+    'rejects %s outside the supported years in UTC',
+    (dueDate) => {
+      expect(check(UpdateCardDto, { dueDate }).invalidFields).toEqual(['dueDate']);
+    },
+  );
+
   it('accepts null to clear the date', () => {
     expect(check(UpdateCardDto, { dueDate: null }).invalidFields).toEqual([]);
   });

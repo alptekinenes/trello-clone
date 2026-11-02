@@ -59,6 +59,7 @@ function setup({
       .mockImplementation(({ where, data }) =>
         Promise.resolve(row(where.id, LIST, data.position ?? 0, data.archivedAt ?? null)),
       ),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     delete: vi.fn(),
   };
   const tx = { card, $queryRaw: vi.fn().mockResolvedValue(locked) };
@@ -301,6 +302,27 @@ describe('CardsService', () => {
       const { data } = card.update.mock.calls[0][0];
       expect(data.dueDate).toBeNull();
       expect(data.dueComplete).toBe(false);
+    });
+
+    it('completes the date only if the card still has one, in a single conditional write', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { dueComplete: true });
+
+      expect(card.updateMany).toHaveBeenCalledWith({
+        where: { id: 'c', boardId: BOARD, dueDate: { not: null } },
+        data: { dueComplete: true },
+      });
+      expect(card.update.mock.calls[0][0].data.dueComplete).toBeUndefined();
+    });
+
+    it('writes completion directly when the same request sets the date', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { dueDate: '2026-11-05T12:00:00Z', dueComplete: true });
+
+      expect(card.updateMany).not.toHaveBeenCalled();
+      expect(card.update.mock.calls[0][0].data.dueComplete).toBe(true);
     });
 
     it('leaves the due date alone when it is not sent', async () => {
