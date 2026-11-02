@@ -42,3 +42,23 @@ export async function lockLists(
     ORDER BY id
     FOR NO KEY UPDATE`;
 }
+
+/**
+ * Locks the card row until the transaction ends. Checklist and item writes that
+ * change positions or delete rows take it first, so everything on one card runs
+ * one after another, including moving an item between two of its checklists.
+ * Lock order is Board, List, Card, then checklist rows; a checklist write never
+ * takes a list or board lock, so the orders cannot cross.
+ * Returns false when the card no longer exists (or is on another board).
+ */
+export async function lockCardRow(
+  tx: Prisma.TransactionClient,
+  boardId: string,
+  cardId: string,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Card"
+    WHERE id = ${cardId}::uuid AND "boardId" = ${boardId}::uuid
+    FOR NO KEY UPDATE`;
+  return rows.length > 0;
+}
