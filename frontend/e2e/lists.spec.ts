@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { seedBoard, signUp } from './helpers.js';
+import { keyboardDragReady, seedBoard, signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -65,6 +65,7 @@ test('move a list with the keyboard', async ({ page }) => {
   await page.getByRole('button', { name: '“A” listesini taşı' }).focus();
   await page.keyboard.press('Space');
   await announced('“A” listesi tutuldu. 1. sırada, toplam 3 liste.');
+  await keyboardDragReady(page);
   await page.keyboard.press('ArrowRight');
   await announced('“A” listesi 2. sıraya geldi.');
   await page.keyboard.press('ArrowRight');
@@ -85,7 +86,7 @@ test('archive a list, then restore it from the archive', async ({ page }) => {
   await expect(page.getByText('“A” listesi arşivlendi.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Arşiv', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Arşivlenmiş listeler' });
+  const dialog = page.getByRole('dialog', { name: 'Arşiv' });
   await dialog.getByRole('button', { name: '“A” listesini geri yükle' }).click();
   await expect(dialog.getByText('Arşivde liste yok.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Kapat' }).click();

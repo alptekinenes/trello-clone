@@ -11,13 +11,20 @@
 | 1 – Auth | ✅ Bitti | DB'li e2e (`test/auth-flow.e2e-spec.ts`) ve Playwright kayıt→çıkış→giriş akışı (`e2e/auth.spec.ts`) dahil. |
 | 2 – Board + Üyeler | ✅ Bitti | Board CRUD, varsayılan 6 etiket, `@BoardRole` + `BoardAccessGuard` (`src/access/`), üye listeleme/rol değiştirme/çıkarma/ayrılma. FE: `/boards` (liste + oluşturma diyaloğu), `/boards/:id` (başlık yeniden adlandırma, üye avatarları, sahip için silme). **Plandan farklar:** `BoardDetailDto` şimdilik `{ board, members, labels }`; `lists`/`cards` Faz 3–4'te eklenecek. Üye yönetimi arayüzü (rol değiştirme, çıkarma, ayrılma) davetlerle birlikte Faz 6'da; arka plan değiştirme arayüzü Faz 8'de (API hazır). |
 | 3 – Listeler | ✅ Bitti | Liste CRUD, arşiv/geri yükleme, kalıcı silme (ADMIN), board kilidiyle sıralama + rebalance (`src/ordering/`), `POST /lists/:id/move`. FE: yatay liste sütunları, fare/klavye ile sürükle-bırak (dnd-kit), Liste ekle, arşiv diyaloğu, toast. Playwright: fare ve klavye ile taşıma → reload → sıra kalıcı, arşiv/geri yükleme. |
-| 4–8 | ⏳ Başlamadı | |
+| 4 – Kartlar + DnD | ✅ Bitti | Kart oluşturma, başlık/arşiv `PATCH`, geri yükleme (listenin sonuna), silme, `POST /cards/:id/move`; kart yazımları kaynak + hedef listeyi id sırasıyla kilitler (`lockLists`), kilitten sonra kart başka listeye geçmişse 409. `:cardId` yetki çözümü, `GET /boards/:id/cards?archived=true`, board detayında `cards[]`. FE: kart kutucukları, liste içi ve listeler arası sürükle-bırak (fare + klavye, Türkçe duyurular), “Kart işlemleri” diyaloğu (liste + sıra seçerek erişilebilir taşıma, arşivleme), Kart ekle, Arşiv diyaloğunda kartlar (geri yükleme, kalıcı silme). Playwright: fareyle listeler arası/boş listeye/liste içi taşıma, klavyeyle taşıma, diyalogla taşıma (odak korunur), arşiv → geri yükleme. **Plandan farklar:** `PATCH /cards/:id` şimdilik `{title?, archived?}` (açıklama ve son tarih Faz 5); kart başlığını düzenleme arayüzü Faz 5'te kart detayıyla; board detayı arşivlenmiş listelerin kartlarını içermez. |
+| 5–8 | ⏳ Başlamadı | |
 
 **Ortam:** PostgreSQL 17 yerel olarak kurulu (Windows servisi, sadece localhost). `trello` kullanıcısı; `trello` (dev) ve `trello_test` (e2e) veritabanları. Docker yok.
 
-**İş takibi:** Bundan sonra işler uygulamanın kendisinde, demo hesabındaki "Trello Clone — Geliştirme" panosunda yönetilir (kartlar Faz 4 ile gelir).
+**İş takibi:** İşler uygulamanın kendisinde, demo hesabındaki "Trello Clone — Geliştirme" panosunda yönetilir: her faz ve bilinen teknik borçlar birer kart. Etiket ve checklist'ler Faz 5 ile gelince açık kartlara "bitti" checklist'i eklenecek.
 
 **Not (prod):** Reverse proxy arkasında rate limit'in doğru IP'yi görmesi için Express `trust proxy` ayarı gerekecek (Faz 8).
+
+**Not (Faz 5):**
+- `BoardAccessGuard` route'taki ilk id parametresinden board'u çözer. `/cards/:cardId/labels/:labelId` gibi iki id'li route'larda ikinci id'nin aynı board'a ait olduğu service içinde kontrol edilmeli (`LABEL_NOT_IN_BOARD`).
+- Board detayı `hasDescription` için şu an açıklamanın tamamını çekiyor. Açıklama alanı (≤10k karakter) gelmeden önce bu hafif bir sorguya çevrilmeli.
+
+**Kilitler:** Sıralama kilitleri `FOR NO KEY UPDATE` kullanır (`src/ordering/locks.ts`): yazımları sıraya dizer ama FK kontrollerinin `KEY SHARE` kilidini engellemez. `FOR UPDATE` ile kart ekleme ↔ liste yazımı deadlock'a giriyordu (`test/cards.e2e-spec.ts` "concurrency with list writes" bunu yakalar). Kalan nadir deadlock/serileştirme hataları (ör. board silme ↔ kart ekleme) 409 `CONFLICT` döner. Bu eşleme, eski kilit moduyla gerçek Prisma hatalarına karşı denenerek doğrulandı. Aşırı yükte görülen transaction zaman aşımları (P2028) bilerek 500 bırakıldı.
 
 ---
 
@@ -496,12 +503,14 @@ BoardPage
 ### Sürükle-bırak (dnd-kit)
 - Tek `DndContext`; sortable id'ler tip önekli (`list:<id>`, `card:<id>`), `data.type` ile ayrılır. Böylece kartlar listelerin arasına bırakılamaz.
 - Sensörler: `PointerSensor` (aktivasyon mesafesi 5px), `TouchSensor` (gecikme ~200ms), `KeyboardSensor` (`sortableKeyboardCoordinates`).
-- Boş listeye bırakma için her `BoardList` aynı zamanda `useDroppable`.
-- Akış:
-  1. `onDragStart`: board cache'inin snapshot'ı alınır, `dragStore.activeId` set edilir.
-  2. `onDragOver`: kart başka listeye geçerse cache'te geçici olarak taşınır (önizleme).
-  3. `onDragEnd`: son index'ten `afterId`/`beforeId` türetilir (`getMoveAnchors` saf fonksiyonu), `positionBetween` ile optimistic pozisyon hesaplanır, `useMoveCard`/`useMoveList` mutation'ı çağrılır.
-  4. `onDragCancel` veya mutation hatası: snapshot'a dönülür, toast. 409 → board query invalidate.
+- Boş listeye bırakma için her `BoardList`'in kart alanı ayrıca `useDroppable` (`list-cards:<id>`). Sürüklenen türün dışındaki droppable'lar sürükleme boyunca kapatılır (klavye koordinatları yalnızca aynı türü görür).
+- Akış (uygulanan hâli, `hooks/use-board-dnd.ts`):
+  1. `onDragStart`: kart sürükleniyorsa cache'ten türetilen sütunlar yerel `dragColumns` state'ine kopyalanır. Cache sürükleme sırasında değişmez.
+  2. `onDragOver`: kart başka listeye geçerse yalnızca `dragColumns`'ta taşınır (önizleme, diğer listede boşluk açılır).
+  3. `onDragEnd`: son sütundan komşular türetilir (`lib/card-columns.ts`; listeler için `getMoveAnchors`), `useMoveCard`/`useMoveList` optimistic mutation'ı çağrılır. Bırakılan düzen, optimistic güncelleme cache'e ulaşana kadar (`dropped`) gösterilir; TanStack gözlemcilere `setTimeout(0)` ile haber verdiği için bu, kartın bir kare geri zıplamasını önler.
+  4. `onDragCancel`: yerel state atılır. Mutation hatası: cache geri alınır, `onRollback` ile `dropped` hemen temizlenir, toast; 409/400 → board yeniden çekilir.
+- Board yalnızca o board'da çalışan **son** mutation bittiğinde yeniden çekilir (ortak `mutationKey`), böylece bir refetch hâlâ yolda olan başka bir optimistic değişikliği ezmez.
+- `DragOverlay`'deki eğim bir iç elemanda: dnd-kit overlay'in tek çocuğunu ölçer, döndürülmüş kutu klavye taşımasında komşu seçimini bozar.
 - `DragOverlay` ile önizleme (belirgin gölge, hafif eğim); `accessibility.announcements` Türkçe ("Kart 'X', 'Yapılacaklar' listesine taşındı").
 - Checklist maddeleri aynı desenle sıralanır.
 
