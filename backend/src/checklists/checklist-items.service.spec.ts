@@ -27,6 +27,8 @@ function setup({
     { id: 'b', position: 2048 },
   ],
   deleted = 1,
+  // Successive checklist.findFirst results; once used up, `checklist` is returned.
+  checklistReads = [] as ({ id?: string; cardId?: string } | null)[],
 } = {}) {
   const calls: string[] = [];
   const checklistItem = {
@@ -54,7 +56,7 @@ function setup({
   const checklistModel = {
     findFirst: vi.fn().mockImplementation(() => {
       calls.push('checklist.findFirst');
-      return Promise.resolve(checklist);
+      return Promise.resolve(checklistReads.length > 0 ? checklistReads.shift() : checklist);
     }),
   };
   const tx = {
@@ -85,11 +87,15 @@ function codeOf(error: unknown): unknown {
 describe('ChecklistItemsService', () => {
   describe('create', () => {
     it('locks the card, then appends after the last item', async () => {
-      const { service, checklistItem, calls } = setup();
+      const { service, checklistItem, tx, calls } = setup({
+        checklistReads: [{ cardId: CARD }, { id: LIST_A }],
+      });
 
       const result = await service.create(BOARD, LIST_A, { content: 'Madde' });
 
       expect(calls[1]).toBe('lock');
+      // Tagged template: the strings, then the bound card and board ids.
+      expect(tx.$queryRaw.mock.calls[0].slice(1)).toEqual([CARD, BOARD]);
       expect(calls.indexOf('lock')).toBeLessThan(calls.indexOf('item.findMany'));
       expect(checklistItem.findMany.mock.calls[0][0].where).toEqual({ checklistId: LIST_A });
       expect(checklistItem.create.mock.calls[0][0].data).toEqual({
@@ -106,6 +112,20 @@ describe('ChecklistItemsService', () => {
         NotFoundException,
       );
       expect(tx.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 when the checklist was deleted while waiting for the lock', async () => {
+      const { service, checklist, checklistItem, calls } = setup({
+        checklistReads: [{ cardId: CARD }, null],
+      });
+
+      await expect(service.create(BOARD, LIST_A, { content: 'X' })).rejects.toThrow(
+        'Checklist not found',
+      );
+
+      expect(calls.slice(0, 3)).toEqual(['checklist.findFirst', 'lock', 'checklist.findFirst']);
+      expect(checklist.findFirst.mock.calls[1][0].where).toEqual({ id: LIST_A, cardId: CARD });
+      expect(checklistItem.create).not.toHaveBeenCalled();
     });
 
     it('throws 404 when the card is gone at the lock', async () => {
