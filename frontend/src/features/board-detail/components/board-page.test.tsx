@@ -1,8 +1,9 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { BoardRole, UpdateBoardRequest } from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
+import { boardKeys } from '../../boards';
 import { useAuthStore } from '../../auth/store/auth-store';
 import { BOARD_ID, apiError, boardDetail, boardSummary, testUser } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
@@ -18,6 +19,21 @@ function openBoard(role: BoardRole = 'OWNER') {
 }
 
 describe('BoardPage', () => {
+  it('keeps the board on screen when a background refresh fails, and offers to retry', async () => {
+    const { queryClient, user } = openBoard();
+    await screen.findByRole('heading', { level: 1, name: 'Yol haritası' });
+    server.use(http.get(BOARD_URL, () => apiError(429, 'TOO_MANY_REQUESTS')));
+
+    await queryClient.invalidateQueries({ queryKey: boardKeys.detail(BOARD_ID) });
+
+    expect(await screen.findByText('Pano yenilenemedi.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Yol haritası' })).toBeInTheDocument();
+
+    server.use(http.get(BOARD_URL, () => HttpResponse.json(boardDetail('OWNER'))));
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+    await waitFor(() => expect(screen.queryByText('Pano yenilenemedi.')).not.toBeInTheDocument());
+  });
+
   it('shows the board title and members', async () => {
     openBoard();
 

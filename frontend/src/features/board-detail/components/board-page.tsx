@@ -30,7 +30,8 @@ export function BoardPage() {
 
   if (isPending) return <PageLoader label="Pano yükleniyor…" />;
   if (isNotFound(error)) return <BoardNotFound />;
-  if (error) {
+  // A failed refresh keeps showing the board (and a card dialog open on it).
+  if (error && !detail) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-3 px-4 py-12">
         <FormAlert>{apiErrorMessage(error)}</FormAlert>
@@ -44,6 +45,16 @@ export function BoardPage() {
   return (
     <div className={`flex flex-1 flex-col ${BOARD_BACKGROUND_CLASS[detail.board.background]}`}>
       <BoardHeader detail={detail} />
+      {error && (
+        <div className="flex items-center gap-3 bg-danger-subtle px-4 py-2 text-sm text-danger">
+          <p role="alert" className="flex-1">
+            Pano yenilenemedi.
+          </p>
+          <Button variant="secondary" className="h-8 px-3" onClick={() => void refetch()} loading={isRefetching}>
+            Tekrar dene
+          </Button>
+        </div>
+      )}
       <BoardCanvas detail={detail} />
       <Outlet />
     </div>
