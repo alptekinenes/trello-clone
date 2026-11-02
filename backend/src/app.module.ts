@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { BoardsModule } from './boards/boards.module.js';
 import { ChecklistsModule } from './checklists/checklists.module.js';
 import { CardsModule } from './cards/cards.module.js';
+import { InvitationsModule } from './invitations/invitations.module.js';
 import { MembersModule } from './members/members.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module.js';
     AccessModule,
     BoardsModule,
     MembersModule,
+    InvitationsModule,
     ListsModule,
     CardsModule,
     LabelsModule,

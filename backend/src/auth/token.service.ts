@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { hashToken, newOpaqueToken } from '../common/crypto/opaque-token.js';
 import type { AuthUser } from '../common/decorators/current-user.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { invalidAccessToken, invalidRefresh } from './auth.errors.js';
 
-const REFRESH_TOKEN_BYTES = 32;
 const USER_AGENT_MAX = 512;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -27,9 +27,7 @@ export interface RotatedRefreshToken {
   refreshToken: IssuedRefreshToken;
 }
 
-export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
+export { hashToken };
 
 /**
  * Access tokens: short-lived JWTs, verified without a DB lookup.
@@ -139,7 +137,7 @@ export class TokenService {
 
   private newRefreshToken(now: Date): IssuedRefreshToken {
     return {
-      token: randomBytes(REFRESH_TOKEN_BYTES).toString('base64url'),
+      token: newOpaqueToken(),
       expiresAt: new Date(now.getTime() + this.refreshTtlMs),
     };
   }

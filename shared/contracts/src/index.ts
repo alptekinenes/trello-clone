@@ -4,6 +4,8 @@ export * from './cards.js';
 export * from './checklists.js';
 export * from './enums.js';
 export * from './errors.js';
+export * from './invitations.js';
 export * from './labels.js';
 export * from './lists.js';
+export * from './members.js';
 export * from './position.js';

@@ -19,6 +19,9 @@ export default defineConfig({
       REFRESH_TOKEN_TTL_DAYS: '7',
       // Pinned so the rate-limit test does not depend on a local .env.
       AUTH_RATE_LIMIT_PER_MINUTE: '10',
+      APP_URL: 'http://localhost:5173',
+      // High so e2e suites do not hit it; the rate-limit test stubs a low value.
+      INVITATION_RATE_LIMIT_PER_MINUTE: '1000',
     },
   },
 });

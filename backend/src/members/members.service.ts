@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import {
   type AssignableBoardRole,
   type BoardRole,
-  hasBoardRole,
+  canChangeMemberRole,
+  checkMemberRemoval,
   type MemberDto,
+  type MemberRef,
 } from '@trello/contracts';
 import { insufficientRole } from '../access/access.errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -16,20 +18,11 @@ export interface BoardActor {
   role: BoardRole;
 }
 
-/**
- * Who may remove whom:
- * - anyone except the owner may leave;
- * - ADMIN+ removes members, only the OWNER removes admins;
- * - nobody removes the owner.
- */
-function assertCanRemove(actor: BoardActor, target: { userId: string; role: BoardRole }): void {
-  if (target.userId === actor.userId) {
-    if (target.role === 'OWNER') throw ownerCannotLeave();
-    return;
-  }
-  if (target.role === 'OWNER') throw insufficientRole();
-  const required: BoardRole = target.role === 'ADMIN' ? 'OWNER' : 'ADMIN';
-  if (!hasBoardRole(actor.role, required)) throw insufficientRole();
+/** Throws the error matching the shared removal rules (contracts `checkMemberRemoval`). */
+function assertCanRemove(actor: BoardActor, target: MemberRef): void {
+  const check = checkMemberRemoval(actor, target);
+  if (check === 'OWNER_CANNOT_LEAVE') throw ownerCannotLeave();
+  if (check === 'FORBIDDEN') throw insufficientRole();
 }
 
 @Injectable()
@@ -45,14 +38,14 @@ export class MembersService {
     return rows.map(toMemberDto);
   }
 
-  /** Only called by the owner (checked by the guard). */
+  /** Only reachable by the owner (`@BoardRole('OWNER')` on the route), so the actor is the owner. */
   async updateRole(
     boardId: string,
     userId: string,
     role: AssignableBoardRole,
   ): Promise<MemberDto> {
     const target = await this.findRole(boardId, userId);
-    if (target === 'OWNER') throw cannotChangeOwner();
+    if (!canChangeMemberRole('OWNER', target)) throw cannotChangeOwner();
 
     const row = await this.prisma.boardMember.update({
       where: { boardId_userId: { boardId, userId } },

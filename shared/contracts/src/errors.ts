@@ -17,6 +17,8 @@ export const ErrorCode = {
   LABEL_NOT_IN_BOARD: 'LABEL_NOT_IN_BOARD',
   EMAIL_MISMATCH: 'EMAIL_MISMATCH',
   INVITATION_EXPIRED: 'INVITATION_EXPIRED',
+  INVITATION_REVOKED: 'INVITATION_REVOKED',
+  INVITATION_USED: 'INVITATION_USED',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 

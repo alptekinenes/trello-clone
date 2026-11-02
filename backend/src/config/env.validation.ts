@@ -1,7 +1,18 @@
-import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsNotEmpty, IsString, Max, Min, MinLength, validateSync } from 'class-validator';
+import { plainToInstance, Transform } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 export const DEFAULT_AUTH_RATE_LIMIT = 10;
+export const DEFAULT_INVITATION_RATE_LIMIT = 30;
 
 export enum NodeEnv {
   Development = 'development',
@@ -46,6 +57,22 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(10_000)
   AUTH_RATE_LIMIT_PER_MINUTE: number = DEFAULT_AUTH_RATE_LIMIT;
+
+  /**
+   * Public address of the frontend; the base of invitation links. Trailing slashes are
+   * dropped. Defaults to the local dev server; production must set it (see `validateEnv`).
+   */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.replace(/\/+$/, '') : value,
+  )
+  @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
+  APP_URL: string = 'http://localhost:5173';
+
+  /** Invitation create/preview/accept requests per client IP per minute (per route). */
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  INVITATION_RATE_LIMIT_PER_MINUTE: number = DEFAULT_INVITATION_RATE_LIMIT;
 }
 
 /**
@@ -57,14 +84,28 @@ export function authRateLimit(): number {
   return Number.isInteger(value) && value > 0 ? value : DEFAULT_AUTH_RATE_LIMIT;
 }
 
+/** Same lazy read as `authRateLimit`, for the invitation routes. */
+export function invitationRateLimit(): number {
+  const value = Number(process.env.INVITATION_RATE_LIMIT_PER_MINUTE);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_INVITATION_RATE_LIMIT;
+}
+
+/** The class defaults hide a missing value, so required-in-production checks look at the raw input. */
+function isSet(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
 /** Validates process env on startup; the app refuses to boot with a bad config. */
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
   const env = plainToInstance(EnvironmentVariables, config, { enableImplicitConversion: true });
   const errors = validateSync(env, { skipMissingProperties: false });
-  if (errors.length > 0) {
-    const problems = errors.map(
-      (e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
-    );
+  const problems = errors.map(
+    (e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
+  );
+  if (env.NODE_ENV === NodeEnv.Production && !isSet(config.APP_URL)) {
+    problems.push('APP_URL: must be set in production (invitation links are built from it)');
+  }
+  if (problems.length > 0) {
     throw new Error(`Invalid environment variables:\n- ${problems.join('\n- ')}`);
   }
   return env;
