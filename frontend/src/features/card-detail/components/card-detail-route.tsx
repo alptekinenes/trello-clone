@@ -37,7 +37,7 @@ function LoadFailed({ error, retry }: { error: unknown; retry: () => void }) {
 export function CardDetailRoute() {
   const { boardId = '', cardId = '' } = useParams();
   const { data: board } = useBoard(boardId);
-  const { data: card, error, refetch } = useCardDetail(cardId);
+  const { data: card, error, refetch } = useCardDetail(boardId, cardId);
   const openDialogState = useCardDetailStore((state) => state.open);
   const resetDialogState = useCardDetailStore((state) => state.reset);
   const onClose = useCardDetailClose(boardId, cardId);

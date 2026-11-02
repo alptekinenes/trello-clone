@@ -1,4 +1,9 @@
+import { boardKeys } from '../../boards';
+
+/**
+ * Card details live under their board's key, so everything that refreshes the board
+ * (the last of a series of changes, say) refreshes the open card too.
+ */
 export const cardKeys = {
-  all: ['cards'] as const,
-  detail: (cardId: string) => [...cardKeys.all, 'detail', cardId] as const,
+  detail: (boardId: string, cardId: string) => [...boardKeys.detail(boardId), 'card', cardId] as const,
 };

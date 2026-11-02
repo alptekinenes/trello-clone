@@ -6,6 +6,8 @@ import {
 } from '@trello/contracts';
 import { ApiError } from '../../../shared/lib/http';
 import {
+  findChecklist,
+  findItem,
   patchChecklist,
   patchItem,
   removeChecklist,
@@ -40,6 +42,11 @@ export function useRenameChecklist(boardId: string, cardId: string) {
     mutationFn: ({ checklistId, title }: RenameChecklistVariables) =>
       checklistsApi.rename(checklistId, { title }),
     optimistic: (card, { checklistId, title }) => patchChecklist(card, checklistId, { title }),
+    touches: ({ checklistId }) => [`checklist:${checklistId}:title`],
+    revert: (card, previous, { checklistId }) => {
+      const before = findChecklist(previous, checklistId);
+      return before ? patchChecklist(card, checklistId, { title: before.title }) : card;
+    },
     // The answer carries all items; only the title is this request's.
     onSuccessCard: (card, answer: ChecklistDto) =>
       patchChecklist(card, answer.id, { title: answer.title }),
@@ -64,6 +71,11 @@ export function useMoveChecklist(boardId: string, cardId: string) {
         card.checklists.find((checklist) => checklist.id === id)?.position ?? null;
       const position = positionBetween(positionOf(afterChecklistId), positionOf(beforeChecklistId));
       return patchChecklist(card, checklistId, { position });
+    },
+    touches: ({ checklistId }) => [`checklist:${checklistId}:position`],
+    revert: (card, previous, { checklistId }) => {
+      const before = findChecklist(previous, checklistId);
+      return before ? patchChecklist(card, checklistId, { position: before.position }) : card;
     },
     onSuccessCard: (card, { id, position }) => patchChecklist(card, id, { position }),
     errorMessage: (error) =>
@@ -114,6 +126,18 @@ export function useUpdateChecklistItem(boardId: string, cardId: string) {
     cardId,
     mutationFn: ({ itemId, ...body }: UpdateItemVariables) => checklistsApi.updateItem(itemId, body),
     optimistic: (card, { itemId, ...changes }) => patchItem(card, itemId, changes),
+    touches: ({ itemId, content, isCompleted }) => [
+      ...(content !== undefined ? [`item:${itemId}:content`] : []),
+      ...(isCompleted !== undefined ? [`item:${itemId}:isCompleted`] : []),
+    ],
+    revert: (card, previous, { itemId, content, isCompleted }) => {
+      const before = findItem(previous, itemId);
+      if (!before) return card;
+      return patchItem(card, itemId, {
+        ...(content !== undefined && { content: before.content }),
+        ...(isCompleted !== undefined && { isCompleted: before.isCompleted }),
+      });
+    },
     // Only what this request changed: another tick may be on its way.
     onSuccessCard: (card, answer: ChecklistItemDto, { itemId, content, isCompleted }) =>
       patchItem(card, itemId, {
@@ -130,6 +154,11 @@ export function useDeleteChecklistItem(boardId: string, cardId: string) {
     cardId,
     mutationFn: (itemId: string) => checklistsApi.removeItem(itemId),
     optimistic: (card, itemId) => removeItem(card, itemId),
+    touches: (itemId) => [`item:${itemId}:gone`],
+    revert: (card, previous, itemId) => {
+      const before = findItem(previous, itemId);
+      return before ? upsertItem(card, before) : card;
+    },
     errorMessage: 'Öğe silinemedi. Tekrar dene.',
   });
 }
@@ -159,6 +188,11 @@ export function useMoveChecklistItem(
       const positionOf = (id: string | null) => items.find((item) => item.id === id)?.position ?? null;
       const position = positionBetween(positionOf(afterItemId), positionOf(beforeItemId));
       return moveItem(card, itemId, checklistId, position);
+    },
+    touches: ({ itemId }) => [`item:${itemId}:place`],
+    revert: (card, previous, { itemId }) => {
+      const before = findItem(previous, itemId);
+      return before ? moveItem(card, itemId, before.checklistId, before.position) : card;
     },
     onSuccessCard: (card, { id, checklistId, position }) => moveItem(card, id, checklistId, position),
     onRollback,

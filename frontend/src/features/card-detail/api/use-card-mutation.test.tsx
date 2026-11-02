@@ -30,9 +30,8 @@ function setup() {
   useCardDetailStore.getState().open('card-1');
   const queryClient = createTestQueryClient();
   queryClient.setQueryDefaults(boardKeys.all, { staleTime: Infinity });
-  queryClient.setQueryDefaults(cardKeys.all, { staleTime: Infinity });
   queryClient.setQueryData(boardKeys.detail(BOARD_ID), BOARD);
-  queryClient.setQueryData(cardKeys.detail(CARD.id), CARD);
+  queryClient.setQueryData(cardKeys.detail(BOARD_ID, CARD.id), CARD);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
@@ -47,7 +46,7 @@ function setup() {
     result,
     queryClient,
     board: () => queryClient.getQueryData<BoardDetailDto>(boardKeys.detail(BOARD_ID)),
-    card: () => queryClient.getQueryData<CardDetailDto>(cardKeys.detail(CARD.id)),
+    card: () => queryClient.getQueryData<CardDetailDto>(cardKeys.detail(BOARD_ID, CARD.id)),
   };
 }
 
@@ -79,7 +78,7 @@ describe('useUpdateCard', () => {
     );
     const { result, card, queryClient } = setup();
     queryClient.setQueryData(
-      cardKeys.detail(CARD.id),
+      cardKeys.detail(BOARD_ID, CARD.id),
       testCardDetail({ ...CARD, dueDate: '2026-11-05T10:00:00.000Z', dueComplete: true }),
     );
 

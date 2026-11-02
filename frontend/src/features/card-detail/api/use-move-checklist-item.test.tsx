@@ -46,17 +46,16 @@ const CARD: CardDetailDto = withCounters(
   }),
 );
 
-function setup(onRollback?: () => void) {
+async function setup(onRollback?: () => void) {
   // The card's dialog is open, so failures show inside it.
   useCardDetailStore.getState().open('card-1');
   const queryClient = createTestQueryClient();
   queryClient.setQueryDefaults(boardKeys.all, { staleTime: Infinity });
-  queryClient.setQueryDefaults(cardKeys.all, { staleTime: Infinity });
   queryClient.setQueryData(
     boardKeys.detail(BOARD_ID),
     boardDetail('OWNER', 'Pano', [TODO], [testCard(CARD)]),
   );
-  queryClient.setQueryData(cardKeys.detail(CARD.id), CARD);
+  queryClient.setQueryData(cardKeys.detail(BOARD_ID, CARD.id), CARD);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
@@ -64,12 +63,13 @@ function setup(onRollback?: () => void) {
     () => {
       useBoard(BOARD_ID);
       // The dialog always observes its card; without an observer nothing refetches.
-      useCardDetail(CARD.id);
-      return useMoveChecklistItem(BOARD_ID, CARD.id, { onRollback });
+      const detail = useCardDetail(BOARD_ID, CARD.id);
+      return { detail, move: useMoveChecklistItem(BOARD_ID, CARD.id, { onRollback }) };
     },
     { wrapper },
   );
-  const card = () => queryClient.getQueryData<CardDetailDto>(cardKeys.detail(CARD.id));
+  await waitFor(() => expect(result.current.detail.isFetching).toBe(false));
+  const card = () => queryClient.getQueryData<CardDetailDto>(cardKeys.detail(BOARD_ID, CARD.id));
   const ids = (checklistId: string) =>
     card()
       ?.checklists.find((list) => list.id === checklistId)
@@ -96,17 +96,17 @@ describe('useMoveChecklistItem', () => {
       }),
       ...refetchHandlers({ card: 0 }),
     );
-    const { result, ids, card } = setup();
+    const { result, ids, card } = await setup();
 
     act(() =>
-      result.current.mutate({ itemId: 'a1', checklistId: 'b', afterItemId: 'b1', beforeItemId: null }),
+      result.current.move.mutate({ itemId: 'a1', checklistId: 'b', afterItemId: 'b1', beforeItemId: null }),
     );
 
     await waitFor(() => expect(ids('b')).toEqual(['b1', 'a1']));
     expect(ids('a')).toEqual(['a2']);
     expect(card()?.checklists[1].items[1].position).toBe(2048);
     expect(card()).toMatchObject({ checklistTotal: 3, checklistDone: 0 });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
   });
 
   it('puts the item back and tells the dialog when the move fails', async () => {
@@ -118,13 +118,13 @@ describe('useMoveChecklistItem', () => {
       }),
       ...refetchHandlers({ card: 0 }),
     );
-    const { result, ids } = setup(onRollback);
+    const { result, ids } = await setup(onRollback);
 
     act(() =>
-      result.current.mutate({ itemId: 'a1', checklistId: 'b', afterItemId: null, beforeItemId: 'b1' }),
+      result.current.move.mutate({ itemId: 'a1', checklistId: 'b', afterItemId: null, beforeItemId: 'b1' }),
     );
     await waitFor(() => expect(ids('b')).toEqual(['a1', 'b1']));
-    await waitFor(() => expect(result.current.isError).toBe(true));
+    await waitFor(() => expect(result.current.move.isError).toBe(true));
 
     expect(ids('a')).toEqual(['a1', 'a2']);
     expect(ids('b')).toEqual(['b1']);
@@ -138,10 +138,11 @@ describe('useMoveChecklistItem', () => {
       http.post('*/api/v1/checklist-items/a1/move', () => apiError(409, 'POSITION_CONFLICT')),
       ...refetchHandlers(counter),
     );
-    const { result } = setup();
+    const { result } = await setup();
+    counter.card = 0;
 
     act(() =>
-      result.current.mutate({ itemId: 'a1', checklistId: 'a', afterItemId: 'a2', beforeItemId: null }),
+      result.current.move.mutate({ itemId: 'a1', checklistId: 'a', afterItemId: 'a2', beforeItemId: null }),
     );
 
     await waitFor(() => expect(counter.card).toBe(1));

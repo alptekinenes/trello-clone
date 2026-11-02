@@ -157,3 +157,11 @@ export function removeItem(card: CardDetailDto, itemId: string): CardDetailDto {
     })),
   );
 }
+
+export function findItem(card: CardDetailDto, itemId: string): ChecklistItemDto | undefined {
+  return card.checklists.flatMap((checklist) => checklist.items).find((item) => item.id === itemId);
+}
+
+export function findChecklist(card: CardDetailDto, checklistId: string): ChecklistDto | undefined {
+  return card.checklists.find((checklist) => checklist.id === checklistId);
+}
