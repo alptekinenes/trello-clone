@@ -44,3 +44,13 @@ export function applyCardUpdate(card: CardDetailDto, changes: UpdateCardRequest)
   }
   return next;
 }
+
+/** The card with the label added to (or taken off) its labels. */
+export function setLabelAssigned(
+  card: CardDetailDto,
+  labelId: string,
+  assigned: boolean,
+): CardDetailDto {
+  const others = card.labelIds.filter((id) => id !== labelId);
+  return { ...card, labelIds: assigned ? [...others, labelId] : others };
+}

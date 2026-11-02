@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { CardSummaryDto, UpdateCardRequest } from '@trello/contracts';
+import { type CardSummaryDto, ErrorCode, type UpdateCardRequest } from '@trello/contracts';
+import { ApiError } from '../../../shared/lib/http';
 import { useRestoreCard } from '../../board-detail';
-import { applyCardUpdate } from '../lib/card-detail-cache';
+import { applyCardUpdate, setLabelAssigned } from '../lib/card-detail-cache';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { cardDetailApi } from './card-detail-api';
 import { cardKeys } from './card-keys';
@@ -50,4 +51,24 @@ export function useRestoreOpenCard(boardId: string, cardId: string) {
       }),
     isRestoring: restore.isPending,
   };
+}
+
+export interface ToggleLabelVariables {
+  labelId: string;
+  assigned: boolean;
+}
+
+/** Adds the label to the card or takes it off. The label chips change at once. */
+export function useToggleCardLabel(boardId: string, cardId: string) {
+  return useCardMutation({
+    boardId,
+    cardId,
+    mutationFn: ({ labelId, assigned }: ToggleLabelVariables) =>
+      assigned ? cardDetailApi.assignLabel(cardId, labelId) : cardDetailApi.unassignLabel(cardId, labelId),
+    optimistic: (card, { labelId, assigned }) => setLabelAssigned(card, labelId, assigned),
+    errorMessage: (error) =>
+      error instanceof ApiError && error.code === ErrorCode.LABEL_NOT_IN_BOARD
+        ? 'Etiket bulunamadı, silinmiş olabilir.'
+        : 'Etiket değişikliği kaydedilemedi. Tekrar dene.',
+  });
 }

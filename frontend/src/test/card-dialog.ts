@@ -29,15 +29,19 @@ export function openCard(
 ) {
   useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
   /** The card as the server has it; PATCH handlers change it. */
+  const requests = { board: 0 };
   const serverState = { card: testCardDetail({ id: CARD_ID, listId: LIST.id, title: 'Rapor', ...detail }) };
   server.use(
-    http.get(BOARD_URL, () =>
-      HttpResponse.json(boardDetail('OWNER', 'Pano', [LIST], [summaryOf(serverState.card)], labels)),
-    ),
+    http.get(BOARD_URL, () => {
+      requests.board += 1;
+      return HttpResponse.json(
+        boardDetail('OWNER', 'Pano', [LIST], [summaryOf(serverState.card)], labels),
+      );
+    }),
     http.get(CARD_URL, () => HttpResponse.json(serverState.card)),
   );
   const result = renderApp(path);
-  return { ...result, user: userEvent.setup(), serverCard: serverState };
+  return { ...result, user: userEvent.setup(), serverCard: serverState, requests };
 }
 
 /** Answers PATCH /cards/:id like the server would and returns what was sent. */
