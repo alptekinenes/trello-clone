@@ -3,7 +3,6 @@ import {
   type BoardSummaryDto,
   isBoardBackground,
   type LabelColor,
-  type LabelDto,
 } from '@trello/contracts';
 
 export const BOARD_SELECT = { id: true, title: true, background: true, updatedAt: true } as const;
@@ -24,19 +23,6 @@ export function toBoardSummary(board: BoardRow, myRole: BoardRole): BoardSummary
     myRole,
     updatedAt: board.updatedAt.toISOString(),
   };
-}
-
-export const LABEL_SELECT = { id: true, boardId: true, name: true, color: true } as const;
-
-export interface LabelRow {
-  id: string;
-  boardId: string;
-  name: string;
-  color: LabelColor;
-}
-
-export function toLabelDto(label: LabelRow): LabelDto {
-  return { id: label.id, boardId: label.boardId, name: label.name, color: label.color };
 }
 
 /** Labels every new board starts with, in display order. */

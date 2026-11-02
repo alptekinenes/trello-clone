@@ -7,16 +7,11 @@ import type {
   UpdateBoardRequest,
 } from '@trello/contracts';
 import { findCardSummaries } from '../cards/card-summaries.js';
+import { LABEL_ORDER, LABEL_SELECT, toLabelDto } from '../labels/label.mapper.js';
 import { LIST_ORDER, LIST_SELECT, toListDto } from '../lists/list.mapper.js';
 import { MEMBER_ORDER, MEMBER_SELECT, toMemberDto } from '../members/member.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  BOARD_SELECT,
-  DEFAULT_LABEL_COLORS,
-  LABEL_SELECT,
-  toBoardSummary,
-  toLabelDto,
-} from './board.mapper.js';
+import { BOARD_SELECT, DEFAULT_LABEL_COLORS, toBoardSummary } from './board.mapper.js';
 
 /** Board CRUD. Callers check access first (BoardAccessGuard). */
 @Injectable()
@@ -54,8 +49,7 @@ export class BoardsService {
         select: {
           ...BOARD_SELECT,
           members: { select: MEMBER_SELECT, orderBy: [...MEMBER_ORDER] },
-          // Enum order (GREEN, YELLOW ...) matches the default label order.
-          labels: { select: LABEL_SELECT, orderBy: [{ color: 'asc' }, { createdAt: 'asc' }] },
+          labels: { select: LABEL_SELECT, orderBy: [...LABEL_ORDER] },
           lists: { where: { archivedAt: null }, select: LIST_SELECT, orderBy: [...LIST_ORDER] },
         },
       }),
