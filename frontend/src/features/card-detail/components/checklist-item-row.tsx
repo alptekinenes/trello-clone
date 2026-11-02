@@ -18,14 +18,17 @@ interface ChecklistItemRowProps {
 function ItemContent({ item, onToggle, onEdit }: Omit<ChecklistItemRowProps, 'onRemove'>) {
   return (
     <>
-      <input
-        id={itemCheckboxId(item.id)}
-        type="checkbox"
-        aria-label={item.content}
-        checked={item.isCompleted}
-        onChange={(event) => onToggle(item, event.target.checked)}
-        className="mt-1 size-4 shrink-0 accent-primary"
-      />
+      {/* The label gives the small native checkbox a 28px target. */}
+      <label className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center">
+        <input
+          id={itemCheckboxId(item.id)}
+          type="checkbox"
+          aria-label={item.content}
+          checked={item.isCompleted}
+          onChange={(event) => onToggle(item, event.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
       <div
         className={`min-w-0 flex-1 text-sm ${item.isCompleted ? 'text-fg-muted line-through' : ''}`}
       >

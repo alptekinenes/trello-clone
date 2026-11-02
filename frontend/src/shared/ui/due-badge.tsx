@@ -28,7 +28,7 @@ export function DueBadge({ dueDate, dueComplete }: DueBadgeProps) {
     .join(', ');
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-sm px-1 py-0.5 text-xs ${STATUS_CLASS[status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1 py-0.5 text-xs ${STATUS_CLASS[status]}`}
     >
       <ClockIcon className="size-3.5" />
       <span aria-hidden="true">{formatDueShort(dueDate)}</span>

@@ -20,6 +20,7 @@ export function LabelChip({ label, size = 'sm' }: LabelChipProps) {
   }
   return (
     <span
+      title={label.name}
       className={`inline-block max-w-full truncate rounded-sm font-medium leading-5 text-on-label ${color} ${SIZE_CLASS[size]}`}
     >
       {label.name}

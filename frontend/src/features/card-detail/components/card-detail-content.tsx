@@ -27,8 +27,11 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <CardDetailAlert />
-      {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}
+      {/* pr-10 keeps the alert and banner buttons clear of the dialog's close button. */}
+      <div className="flex flex-col gap-4 pr-10 empty:hidden">
+        <CardDetailAlert />
+        {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}
+      </div>
       <CardTitleEditor boardId={boardId} cardId={card.id} title={card.title} listTitle={listTitle} />
       <div className="flex flex-col gap-6 sm:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -38,7 +41,10 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           <ChecklistsSection boardId={boardId} card={card} />
         </div>
         {!archived && (
-          <aside aria-label="Kart işlemleri" className="flex shrink-0 flex-col gap-2 sm:w-44">
+          <aside
+            aria-label="Kart işlemleri"
+            className="flex shrink-0 flex-row flex-wrap gap-2 sm:w-44 sm:flex-col"
+          >
             <PanelButton panel="labels" icon={<LabelIcon />}>
               Etiketler
             </PanelButton>

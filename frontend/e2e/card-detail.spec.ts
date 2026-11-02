@@ -614,3 +614,30 @@ test('move items with the keyboard within a checklist, across checklists and int
   await page.reload();
   await expect.poll(() => order(cardDialog(page, 'Klavye'))).toEqual(expected);
 });
+
+test('the archived banner stays clear of the close button and restores the card', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Arşivli');
+  await apiPatchCard(page, token, cardId, { archived: true });
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Arşivli');
+  const restore = dialog.getByRole('button', { name: 'Geri yükle' });
+  await expect(restore).toBeVisible();
+
+  const close = await dialog.getByRole('button', { name: 'Kapat', exact: true }).boundingBox();
+  const target = await restore.boundingBox();
+  expect(close && target).toBeTruthy();
+  if (close && target) {
+    const overlaps =
+      target.x < close.x + close.width &&
+      close.x < target.x + target.width &&
+      target.y < close.y + close.height &&
+      close.y < target.y + target.height;
+    expect(overlaps).toBe(false);
+  }
+
+  await restore.click();
+  await expect(dialog.getByText('Bu kart arşivde.')).toBeHidden();
+  await expect(tile(page, 'Arşivli')).toBeVisible();
+});

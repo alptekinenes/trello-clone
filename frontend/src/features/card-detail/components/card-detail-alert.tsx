@@ -17,7 +17,7 @@ export function CardDetailAlert() {
         type="button"
         aria-label="Uyarıyı kapat"
         onClick={clearError}
-        className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-surface-hover"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm hover:bg-surface-hover"
       >
         <CloseIcon className="size-3.5" />
       </button>
