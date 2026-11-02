@@ -12,7 +12,6 @@ const CARD_ROW = {
   dueDate: null,
   dueComplete: false,
   archivedAt: null,
-  description: null,
   labels: [],
   checklists: [],
 };
@@ -28,14 +27,19 @@ function setup() {
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
       lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
-      cards: [CARD_ROW],
     }),
+  };
+  const card = {
+    findMany: vi
+      .fn()
+      .mockResolvedValueOnce([CARD_ROW])
+      .mockResolvedValueOnce([{ id: 'card-1' }]),
   };
   const boardMember = {
     findMany: vi.fn().mockResolvedValue([{ role: 'MEMBER', board: BOARD }]),
   };
-  const service = new BoardsService({ board, boardMember } as unknown as PrismaService);
-  return { service, board, boardMember };
+  const service = new BoardsService({ board, boardMember, card } as unknown as PrismaService);
+  return { service, board, boardMember, card };
 }
 
 const SUMMARY = {
@@ -83,18 +87,24 @@ describe('BoardsService', () => {
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
       lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
-      cards: [toCardSummary(CARD_ROW)],
+      cards: [toCardSummary(CARD_ROW, true)],
     });
   });
 
   it('getDetail loads only active cards on active lists', async () => {
-    const { service, board } = setup();
+    const { service, board, card } = setup();
 
     await service.getDetail('board-1', 'MEMBER');
 
-    const { cards } = board.findUniqueOrThrow.mock.calls[0][0].select;
-    expect(cards.where).toEqual({ archivedAt: null, list: { archivedAt: null } });
-    expect(cards.orderBy).toEqual([{ position: 'asc' }, { id: 'asc' }]);
+    expect(board.findUniqueOrThrow.mock.calls[0][0].select).not.toHaveProperty('cards');
+    const query = card.findMany.mock.calls[0][0];
+    expect(query.where).toEqual({
+      boardId: 'board-1',
+      archivedAt: null,
+      list: { archivedAt: null },
+    });
+    expect(query.orderBy).toEqual([{ position: 'asc' }, { id: 'asc' }]);
+    expect(query.select).not.toHaveProperty('description');
   });
 
   it('update writes only title and background', async () => {

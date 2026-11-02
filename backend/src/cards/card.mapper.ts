@@ -1,6 +1,9 @@
 import type { CardSummaryDto } from '@trello/contracts';
 
-/** Columns and relations a card tile needs (labels and checklist counts included). */
+/**
+ * Columns and relations a card tile needs (labels and checklist counts included).
+ * The description is left out on purpose: it can be 10k characters per card.
+ */
 export const CARD_SELECT = {
   id: true,
   listId: true,
@@ -9,7 +12,6 @@ export const CARD_SELECT = {
   dueDate: true,
   dueComplete: true,
   archivedAt: true,
-  description: true,
   labels: { select: { labelId: true }, orderBy: { assignedAt: 'asc' } },
   checklists: { select: { items: { select: { isCompleted: true } } } },
 } as const;
@@ -25,12 +27,11 @@ export interface CardRow {
   dueDate: Date | null;
   dueComplete: boolean;
   archivedAt: Date | null;
-  description: string | null;
   labels: { labelId: string }[];
   checklists: { items: { isCompleted: boolean }[] }[];
 }
 
-export function toCardSummary(card: CardRow): CardSummaryDto {
+export function toCardSummary(card: CardRow, hasDescription: boolean): CardSummaryDto {
   const items = card.checklists.flatMap((checklist) => checklist.items);
   return {
     id: card.id,
@@ -41,7 +42,7 @@ export function toCardSummary(card: CardRow): CardSummaryDto {
     dueComplete: card.dueComplete,
     archivedAt: card.archivedAt?.toISOString() ?? null,
     labelIds: card.labels.map((label) => label.labelId),
-    hasDescription: Boolean(card.description),
+    hasDescription,
     checklistTotal: items.length,
     checklistDone: items.filter((item) => item.isCompleted).length,
   };

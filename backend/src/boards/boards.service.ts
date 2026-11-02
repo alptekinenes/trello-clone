@@ -6,7 +6,7 @@ import type {
   CreateBoardRequest,
   UpdateBoardRequest,
 } from '@trello/contracts';
-import { CARD_ORDER, CARD_SELECT, toCardSummary } from '../cards/card.mapper.js';
+import { findCardSummaries } from '../cards/card-summaries.js';
 import { LIST_ORDER, LIST_SELECT, toListDto } from '../lists/list.mapper.js';
 import { MEMBER_ORDER, MEMBER_SELECT, toMemberDto } from '../members/member.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -48,27 +48,29 @@ export class BoardsService {
   }
 
   async getDetail(boardId: string, myRole: BoardRole): Promise<BoardDetailDto> {
-    const board = await this.prisma.board.findUniqueOrThrow({
-      where: { id: boardId },
-      select: {
-        ...BOARD_SELECT,
-        members: { select: MEMBER_SELECT, orderBy: [...MEMBER_ORDER] },
-        // Enum order (GREEN, YELLOW ...) matches the default label order.
-        labels: { select: LABEL_SELECT, orderBy: [{ color: 'asc' }, { createdAt: 'asc' }] },
-        lists: { where: { archivedAt: null }, select: LIST_SELECT, orderBy: [...LIST_ORDER] },
-        cards: {
-          where: { archivedAt: null, list: { archivedAt: null } },
-          select: CARD_SELECT,
-          orderBy: [...CARD_ORDER],
+    const [board, cards] = await Promise.all([
+      this.prisma.board.findUniqueOrThrow({
+        where: { id: boardId },
+        select: {
+          ...BOARD_SELECT,
+          members: { select: MEMBER_SELECT, orderBy: [...MEMBER_ORDER] },
+          // Enum order (GREEN, YELLOW ...) matches the default label order.
+          labels: { select: LABEL_SELECT, orderBy: [{ color: 'asc' }, { createdAt: 'asc' }] },
+          lists: { where: { archivedAt: null }, select: LIST_SELECT, orderBy: [...LIST_ORDER] },
         },
-      },
-    });
+      }),
+      findCardSummaries(this.prisma, {
+        boardId,
+        archivedAt: null,
+        list: { archivedAt: null },
+      }),
+    ]);
     return {
       board: toBoardSummary(board, myRole),
       members: board.members.map(toMemberDto),
       labels: board.labels.map(toLabelDto),
       lists: board.lists.map(toListDto),
-      cards: board.cards.map(toCardSummary),
+      cards,
     };
   }
 

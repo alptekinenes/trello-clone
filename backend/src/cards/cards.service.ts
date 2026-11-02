@@ -13,6 +13,7 @@ import { invalidTarget, positionConflict } from '../ordering/ordering.errors.js'
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { findCardSummaries } from './card-summaries.js';
 import { CARD_ORDER, CARD_SELECT, toCardSummary } from './card.mapper.js';
 
 type Tx = Prisma.TransactionClient;
@@ -32,15 +33,14 @@ export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Active cards on active lists, or every archived card of the board (newest first). */
-  async listForBoard(boardId: string, archived: boolean): Promise<CardSummaryDto[]> {
-    const cards = await this.prisma.card.findMany({
-      where: archived
+  listForBoard(boardId: string, archived: boolean): Promise<CardSummaryDto[]> {
+    return findCardSummaries(
+      this.prisma,
+      archived
         ? { boardId, archivedAt: { not: null } }
         : { boardId, archivedAt: null, list: { archivedAt: null } },
-      select: CARD_SELECT,
-      orderBy: archived ? [{ archivedAt: 'desc' }, { id: 'asc' }] : [...CARD_ORDER],
-    });
-    return cards.map(toCardSummary);
+      archived ? [{ archivedAt: 'desc' }, { id: 'asc' }] : [...CARD_ORDER],
+    );
   }
 
   create(boardId: string, listId: string, input: CreateCardRequest): Promise<CardSummaryDto> {
@@ -57,7 +57,7 @@ export class CardsService {
         data: { boardId, listId, title: input.title, position },
         select: CARD_SELECT,
       });
-      return toCardSummary(card);
+      return toCardSummary(card, false);
     });
   }
 
@@ -85,8 +85,12 @@ export class CardsService {
         data.position = await this.place(tx, current.listId, cardId, {});
       }
 
-      const card = await tx.card.update({ where: { id: cardId }, data, select: CARD_SELECT });
-      return toCardSummary(card);
+      const { description, ...card } = await tx.card.update({
+        where: { id: cardId },
+        data,
+        select: { ...CARD_SELECT, description: true },
+      });
+      return toCardSummary(card, description !== null);
     });
   }
 

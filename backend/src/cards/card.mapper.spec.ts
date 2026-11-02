@@ -8,14 +8,13 @@ const BASE: CardRow = {
   dueDate: null,
   dueComplete: false,
   archivedAt: null,
-  description: null,
   labels: [],
   checklists: [],
 };
 
 describe('toCardSummary', () => {
   it('maps an empty card', () => {
-    expect(toCardSummary(BASE)).toEqual({
+    expect(toCardSummary(BASE, false)).toEqual({
       id: 'card-1',
       listId: 'list-1',
       title: 'Tasarım',
@@ -30,18 +29,20 @@ describe('toCardSummary', () => {
     });
   });
 
-  it('flattens labels, counts checklist items over all checklists and hides the description', () => {
-    const summary = toCardSummary({
-      ...BASE,
-      dueDate: new Date('2026-11-01T09:00:00.000Z'),
-      archivedAt: new Date('2026-10-28T10:00:00.000Z'),
-      description: 'Ayrıntılar',
-      labels: [{ labelId: 'label-2' }, { labelId: 'label-1' }],
-      checklists: [
-        { items: [{ isCompleted: true }, { isCompleted: false }] },
-        { items: [{ isCompleted: true }] },
-      ],
-    });
+  it('flattens labels, counts checklist items over all checklists and takes hasDescription from the caller', () => {
+    const summary = toCardSummary(
+      {
+        ...BASE,
+        dueDate: new Date('2026-11-01T09:00:00.000Z'),
+        archivedAt: new Date('2026-10-28T10:00:00.000Z'),
+        labels: [{ labelId: 'label-2' }, { labelId: 'label-1' }],
+        checklists: [
+          { items: [{ isCompleted: true }, { isCompleted: false }] },
+          { items: [{ isCompleted: true }] },
+        ],
+      },
+      true,
+    );
 
     expect(summary).toMatchObject({
       dueDate: '2026-11-01T09:00:00.000Z',

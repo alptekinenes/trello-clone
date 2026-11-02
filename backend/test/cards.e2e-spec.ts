@@ -456,6 +456,28 @@ describe('Cards (e2e, database)', () => {
     });
   });
 
+  describe('description flag', () => {
+    it('omits the description text and flags cards that have one', async () => {
+      const plain = await createCard(todo.id, 'Açıklamasız');
+      const described = await createCard(todo.id, 'Açıklamalı');
+      await prisma.card.update({ where: { id: described.id }, data: { description: 'Ayrıntı' } });
+
+      const detail = await boardDetail();
+      const listed = await http()
+        .get(`/api/v1/boards/${boardId}/cards`)
+        .set('Authorization', owner.auth)
+        .expect(200);
+
+      for (const cards of [detail.cards, listed.body as CardSummaryDto[]]) {
+        expect(cards.map((card) => [card.id, card.hasDescription])).toEqual([
+          [plain.id, false],
+          [described.id, true],
+        ]);
+        for (const card of cards) expect(card).not.toHaveProperty('description');
+      }
+    });
+  });
+
   describe('access', () => {
     it('hides cards of other boards behind 404', async () => {
       const a = await createCard(todo.id, 'A');
