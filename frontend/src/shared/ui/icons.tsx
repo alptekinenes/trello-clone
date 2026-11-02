@@ -46,6 +46,14 @@ export function GripIcon(props: IconProps) {
   );
 }
 
+export function MoreIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 8h.01M8 8h.01M12 8h.01" strokeWidth={2.5} />
+    </Icon>
+  );
+}
+
 export function ArchiveIcon(props: IconProps) {
   return (
     <Icon {...props}>

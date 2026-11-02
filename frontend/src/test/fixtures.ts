@@ -2,6 +2,7 @@ import type {
   BoardDetailDto,
   BoardRole,
   BoardSummaryDto,
+  CardSummaryDto,
   ErrorCode,
   ListDto,
   UserDto,
@@ -41,6 +42,7 @@ export function boardDetail(
   myRole: BoardRole = 'OWNER',
   title = 'Yol haritası',
   lists: ListDto[] = [],
+  cards: CardSummaryDto[] = [],
 ): BoardDetailDto {
   return {
     board: boardSummary({ myRole, title }),
@@ -56,6 +58,7 @@ export function boardDetail(
     ],
     labels: [],
     lists,
+    cards,
   };
 }
 
@@ -68,4 +71,27 @@ export function testLists(...titles: string[]): ListDto[] {
     position: (i + 1) * 1024,
     archivedAt: null,
   }));
+}
+
+/** Cards of one list at positions 1024, 2048 ..., with ids <listId>-card-1, <listId>-card-2 ... */
+export function testCards(listId: string, ...titles: string[]): CardSummaryDto[] {
+  return titles.map((title, i) =>
+    testCard({ id: `${listId}-card-${i + 1}`, listId, title, position: (i + 1) * 1024 }),
+  );
+}
+
+export function testCard(
+  card: Partial<CardSummaryDto> & Pick<CardSummaryDto, 'id' | 'listId' | 'title'>,
+): CardSummaryDto {
+  return {
+    position: 1024,
+    dueDate: null,
+    dueComplete: false,
+    archivedAt: null,
+    labelIds: [],
+    hasDescription: false,
+    checklistTotal: 0,
+    checklistDone: 0,
+    ...card,
+  };
 }

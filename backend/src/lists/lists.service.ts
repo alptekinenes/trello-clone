@@ -9,8 +9,9 @@ import type {
 import { boardNotFound, listNotFound } from '../access/access.errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { lockBoard } from '../ordering/locks.js';
-import { invalidTarget, positionConflict } from '../ordering/ordering.errors.js';
-import { AnchorNotFoundError, type Placement, placeItem, type Sibling } from '../ordering/placement.js';
+import { invalidTarget } from '../ordering/ordering.errors.js';
+import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
+import type { Anchors } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LIST_ORDER, LIST_SELECT, toListDto } from './list.mapper.js';
 
@@ -110,25 +111,15 @@ export class ListsService {
     tx: Tx,
     boardId: string,
     listId: string | null,
-    anchors: { afterId?: string | null; beforeId?: string | null },
+    anchors: Anchors,
   ): Promise<number> {
-    const siblings: Sibling[] = await tx.list.findMany({
+    const siblings = await tx.list.findMany({
       where: { boardId, archivedAt: null, ...(listId ? { id: { not: listId } } : {}) },
       select: { id: true, position: true },
       orderBy: [...LIST_ORDER],
     });
-
-    let placement: Placement;
-    try {
-      placement = placeItem(siblings, anchors);
-    } catch (error) {
-      if (error instanceof AnchorNotFoundError) throw positionConflict();
-      throw error;
-    }
-
-    for (const sibling of placement.rebalanced ?? []) {
-      await tx.list.update({ where: { id: sibling.id }, data: { position: sibling.position } });
-    }
-    return placement.position;
+    return placeAndRebalance(siblings, anchors, (id, position) =>
+      tx.list.update({ where: { id }, data: { position } }),
+    );
   }
 }

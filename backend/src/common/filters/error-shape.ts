@@ -54,7 +54,27 @@ function fromHttpException(exception: HttpException): ErrorShape {
     : { statusCode, code, message, details: body.details };
 }
 
+/** Postgres serialization failure and deadlock: the request lost a race and can be retried. */
+const RETRYABLE_SQL_STATES = ['40001', '40P01'];
+
+/** P2034 for a failed transaction; P2010 when a raw query inside it was the one aborted. */
+function isLostRace(error: Prisma.PrismaClientKnownRequestError): boolean {
+  if (error.code === 'P2034') return true;
+  if (error.code !== 'P2010') return false;
+  const state = (error.meta as { code?: unknown } | undefined)?.code;
+  return RETRYABLE_SQL_STATES.some(
+    (code) => state === code || error.message.includes(`Code: \`${code}\``),
+  );
+}
+
 function fromPrismaError(error: Prisma.PrismaClientKnownRequestError): ErrorShape | null {
+  if (isLostRace(error)) {
+    return {
+      statusCode: HttpStatus.CONFLICT,
+      code: ErrorCode.CONFLICT,
+      message: 'Another change got in the way. Try again.',
+    };
+  }
   switch (error.code) {
     case 'P2002':
       return {

@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccessModule } from './access/access.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BoardsModule } from './boards/boards.module.js';
+import { CardsModule } from './cards/cards.module.js';
 import { MembersModule } from './members/members.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module.js';
     BoardsModule,
     MembersModule,
     ListsModule,
+    CardsModule,
   ],
   providers: [
     // Order matters: rate limiting runs before authentication.

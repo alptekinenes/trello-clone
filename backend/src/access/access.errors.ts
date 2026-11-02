@@ -9,6 +9,10 @@ export const boardNotFound = () =>
 export const listNotFound = () =>
   new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'List not found' });
 
+/** Same for cards on boards the user cannot see. */
+export const cardNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Card not found' });
+
 export const insufficientRole = () =>
   new ForbiddenException({
     code: ErrorCode.FORBIDDEN,

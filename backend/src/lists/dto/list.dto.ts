@@ -4,7 +4,6 @@ import {
   type MoveListRequest,
   type UpdateListRequest,
 } from '@trello/contracts';
-import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -45,16 +44,6 @@ export class UpdateListDto implements UpdateListRequest {
   title?: string;
 
   @ValidateIf((_, value) => value !== undefined)
-  @IsBoolean()
-  archived?: boolean;
-}
-
-/** `?archived=true` lists the archive instead of the board. */
-export class ListQueryDto {
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    value === 'true' ? true : value === 'false' ? false : value,
-  )
   @IsBoolean()
   archived?: boolean;
 }

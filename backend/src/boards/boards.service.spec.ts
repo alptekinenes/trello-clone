@@ -1,8 +1,21 @@
+import { toCardSummary } from '../cards/card.mapper.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { BOARD_SELECT, DEFAULT_LABEL_COLORS, toBoardSummary } from './board.mapper.js';
 import { BoardsService } from './boards.service.js';
 
 const UPDATED_AT = new Date('2026-10-27T09:00:00.000Z');
+const CARD_ROW = {
+  id: 'card-1',
+  listId: 'list-1',
+  title: 'Taslak',
+  position: 1024,
+  dueDate: null,
+  dueComplete: false,
+  archivedAt: null,
+  description: null,
+  labels: [],
+  checklists: [],
+};
 const BOARD = { id: 'board-1', title: 'Proje', background: 'green', updatedAt: UPDATED_AT };
 
 function setup() {
@@ -15,6 +28,7 @@ function setup() {
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
       lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
+      cards: [CARD_ROW],
     }),
   };
   const boardMember = {
@@ -61,7 +75,7 @@ describe('BoardsService', () => {
     );
   });
 
-  it('getDetail returns the board, members and labels', async () => {
+  it('getDetail returns the board, members, labels, lists and cards', async () => {
     const { service } = setup();
 
     await expect(service.getDetail('board-1', 'ADMIN')).resolves.toEqual({
@@ -69,7 +83,18 @@ describe('BoardsService', () => {
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
       lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
+      cards: [toCardSummary(CARD_ROW)],
     });
+  });
+
+  it('getDetail loads only active cards on active lists', async () => {
+    const { service, board } = setup();
+
+    await service.getDetail('board-1', 'MEMBER');
+
+    const { cards } = board.findUniqueOrThrow.mock.calls[0][0].select;
+    expect(cards.where).toEqual({ archivedAt: null, list: { archivedAt: null } });
+    expect(cards.orderBy).toEqual([{ position: 'asc' }, { id: 'asc' }]);
   });
 
   it('update writes only title and background', async () => {

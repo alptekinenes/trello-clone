@@ -60,6 +60,15 @@ describe('BoardAccessService lists', () => {
     expect(findUnique).toHaveBeenCalledOnce();
   });
 
+  it('finds the board of a card', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ boardId: BOARD_ID });
+    const service = new BoardAccessService({ card: { findUnique } } as unknown as PrismaService);
+
+    await expect(service.boardIdOfCard(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfCard('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: BOARD_ID }, select: { boardId: true } });
+  });
+
   it('throws the given not-found error when there is no board', async () => {
     const { service, findUnique } = setup('OWNER');
     const notFound = () => new NotFoundException('List not found');

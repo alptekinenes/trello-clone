@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { CreateListDto, ListAnchorsDto, ListQueryDto, UpdateListDto } from './list.dto.js';
+import { CreateListDto, ListAnchorsDto, UpdateListDto } from './list.dto.js';
 
 type DtoClass<T> = new () => T;
 
@@ -54,20 +54,5 @@ describe('UpdateListDto', () => {
       'archived',
       'title',
     ]);
-  });
-});
-
-describe('ListQueryDto', () => {
-  it.each([
-    ['true', true],
-    ['false', false],
-  ])('parses ?archived=%s', (value, expected) => {
-    const { dto, invalidFields } = check(ListQueryDto, { archived: value });
-    expect(invalidFields).toEqual([]);
-    expect(dto.archived).toBe(expected);
-  });
-
-  it('rejects other values', () => {
-    expect(check(ListQueryDto, { archived: 'yes' }).invalidFields).toEqual(['archived']);
   });
 });

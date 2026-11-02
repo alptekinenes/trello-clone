@@ -31,6 +31,16 @@ export class BoardAccessService {
     return list?.boardId ?? null;
   }
 
+  /** Board of a card, or null when the card does not exist. */
+  async boardIdOfCard(cardId: string): Promise<string | null> {
+    if (!isUUID(cardId)) return null;
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      select: { boardId: true },
+    });
+    return card?.boardId ?? null;
+  }
+
   /**
    * Returns the user's role, or throws when it is missing or below `min`.
    * `notFound` is thrown for non-members, so a list route can say "List not found".

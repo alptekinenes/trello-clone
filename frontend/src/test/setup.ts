@@ -1,11 +1,16 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 // Test infrastructure may reach into feature internals to reset global state.
 import { resetAuthStore } from '../features/auth/store/auth-store';
+import { resetCardUi } from '../features/board-detail/store/card-ui-store';
 import { setAuthHandlers } from '../shared/lib/http';
 import { resetToasts } from '../shared/store/toast-store';
 import { server } from './msw-server';
+
+// The first full-app render of a file loads the lazy routes. With many workers on a busy
+// machine (e.g. dev servers running) that can pass the default 1 s of findBy/waitFor.
+configure({ asyncUtilTimeout: 3000 });
 
 // jsdom has <dialog> but not its modal API. Minimal stand-in: toggle `open`, fire `close`.
 HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
@@ -25,5 +30,6 @@ afterEach(() => {
   resetAuthStore();
   setAuthHandlers(null);
   resetToasts();
+  resetCardUi();
 });
 afterAll(() => server.close());

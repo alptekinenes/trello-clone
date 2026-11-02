@@ -21,6 +21,7 @@ function openBoard(initial: ListDto[], role: BoardRole = 'OWNER') {
   useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
   server.use(
     http.get(BOARD_URL, () => HttpResponse.json(boardDetail(role, 'Pano', state.lists))),
+    http.get(`${BOARD_URL}/cards`, () => HttpResponse.json([])),
   );
   renderApp(`/boards/${BOARD_ID}`);
   return { state, user: userEvent.setup() };
@@ -158,7 +159,7 @@ describe('BoardCanvas', () => {
       );
 
       await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
-      const dialog = screen.getByRole('dialog', { name: 'Arşivlenmiş listeler' });
+      const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
       expect(await within(dialog).findByText('Eski')).toBeInTheDocument();
       expect(
         within(dialog).getByRole('button', { name: '“Eski” listesini geri yükle' }),
@@ -180,7 +181,7 @@ describe('BoardCanvas', () => {
       server.use(http.get(`${BOARD_URL}/lists`, () => HttpResponse.json([archived])));
 
       await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
-      const dialog = screen.getByRole('dialog', { name: 'Arşivlenmiş listeler' });
+      const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
 
       expect(await within(dialog).findByText('Eski')).toBeInTheDocument();
       expect(within(dialog).queryByRole('button', { name: /kalıcı olarak sil/ })).toBeNull();

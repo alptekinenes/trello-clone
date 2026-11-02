@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import type { ListDto, MoveListResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
-import { CreateListDto, ListAnchorsDto, ListQueryDto, UpdateListDto } from './dto/list.dto.js';
+import { ArchivedQueryDto } from '../common/dto/archived-query.dto.js';
+import { CreateListDto, ListAnchorsDto, UpdateListDto } from './dto/list.dto.js';
 import { ListsService } from './lists.service.js';
 
 @Controller('boards/:boardId/lists')
@@ -21,7 +22,7 @@ export class BoardListsController {
 
   @Get()
   @BoardRole('MEMBER')
-  list(@Param('boardId') boardId: string, @Query() query: ListQueryDto): Promise<ListDto[]> {
+  list(@Param('boardId') boardId: string, @Query() query: ArchivedQueryDto): Promise<ListDto[]> {
     return this.lists.listForBoard(boardId, query.archived ?? false);
   }
 

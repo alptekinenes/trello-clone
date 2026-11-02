@@ -70,7 +70,10 @@ export function useMoveList(boardId: string) {
 
 /** Optimistic: the list disappears at once; the toast offers to undo. */
 export function useArchiveList(boardId: string) {
-  const restore = useRestoreList(boardId);
+  // The toast has no other place to show a failed undo.
+  const restore = useRestoreList(boardId, {
+    onError: () => showToast('Liste geri yüklenemedi. Tekrar dene.', { tone: 'error' }),
+  });
   return useBoardMutation({
     boardId,
     mutationFn: (list: ListDto) => listsApi.update(list.id, { archived: true }),
@@ -84,11 +87,12 @@ export function useArchiveList(boardId: string) {
 }
 
 /** Back to the board, at the end. */
-export function useRestoreList(boardId: string) {
+export function useRestoreList(boardId: string, { onError }: { onError?: () => void } = {}) {
   return useBoardMutation({
     boardId,
     mutationFn: (listId: string) => listsApi.update(listId, { archived: false }),
     onSuccessCache: (detail, list: ListDto) => upsertList(detail, list),
+    onError,
   });
 }
 

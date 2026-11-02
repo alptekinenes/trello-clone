@@ -4,7 +4,7 @@ import { Button } from '../../../shared/ui/button';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useBoardActions } from '../hooks/use-board-actions';
-import { ArchivedListsDialog } from './archived-lists-dialog';
+import { ArchiveDialog } from './archive-dialog';
 
 const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board';
 
@@ -50,9 +50,10 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
       </div>
 
       {actions.archiveOpen && (
-        <ArchivedListsDialog
+        <ArchiveDialog
           boardId={board.id}
-          canDelete={actions.canDeleteLists}
+          lists={detail.lists}
+          canDeleteLists={actions.canDeleteLists}
           onClose={actions.closeArchive}
         />
       )}

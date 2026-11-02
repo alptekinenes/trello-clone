@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { BoardRole } from '@trello/contracts';
 import { invalidAccessToken } from '../auth/auth.errors.js';
 import type { RequestWithUser } from '../common/decorators/current-user.decorator.js';
-import { boardNotFound, listNotFound } from './access.errors.js';
+import { boardNotFound, cardNotFound, listNotFound } from './access.errors.js';
 import { BoardAccessService } from './board-access.service.js';
 
 /** Metadata key for the minimum role, set by @BoardRole(). */
@@ -27,7 +27,7 @@ interface Target {
 
 /**
  * Checks board membership for routes marked with @BoardRole(). Runs after JwtAuthGuard.
- * The board comes from the `:boardId` param, or from the list in `:listId`.
+ * The board comes from the `:boardId` param, or from the list in `:listId` or the card in `:cardId`.
  */
 @Injectable()
 export class BoardAccessGuard implements CanActivate {
@@ -63,6 +63,9 @@ export class BoardAccessGuard implements CanActivate {
     }
     if (params.listId !== undefined) {
       return { boardId: await this.access.boardIdOfList(params.listId), notFound: listNotFound };
+    }
+    if (params.cardId !== undefined) {
+      return { boardId: await this.access.boardIdOfCard(params.cardId), notFound: cardNotFound };
     }
     return null;
   }

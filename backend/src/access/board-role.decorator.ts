@@ -15,7 +15,7 @@ import {
 
 /**
  * Requires the current user to have at least `min` role on the board named
- * by the `:boardId` route param, or on the board of the `:listId` list.
+ * by the `:boardId` route param, or on the board of the `:listId` list or `:cardId` card.
  */
 export const BoardRole = (min: BoardRoleName) =>
   applyDecorators(SetMetadata(BOARD_ROLE_KEY, min), UseGuards(BoardAccessGuard));
@@ -31,7 +31,7 @@ export const CurrentBoardRole = createParamDecorator(
   (_: unknown, ctx: ExecutionContext): BoardRoleName => boardAccessOf(ctx).role,
 );
 
-/** The board the route acts on, resolved by @BoardRole() (useful on /lists/:listId routes). */
+/** The board the route acts on, resolved by @BoardRole() (useful on /lists/:listId and /cards/:cardId routes). */
 export const CurrentBoardId = createParamDecorator(
   (_: unknown, ctx: ExecutionContext): string => boardAccessOf(ctx).boardId,
 );

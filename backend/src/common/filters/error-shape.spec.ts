@@ -67,6 +67,28 @@ describe('toErrorShape', () => {
     });
   });
 
+  it('maps a deadlock or write conflict to a retryable 409', () => {
+    const rawDeadlock = new Prisma.PrismaClientKnownRequestError(
+      'Raw query failed. Code: `40P01`. Message: `deadlock detected`',
+      { code: 'P2010', clientVersion: 'test' },
+    );
+    for (const error of [prismaError('P2034'), rawDeadlock]) {
+      expect(toErrorShape(error)).toEqual({
+        statusCode: HttpStatus.CONFLICT,
+        code: ErrorCode.CONFLICT,
+        message: 'Another change got in the way. Try again.',
+      });
+    }
+  });
+
+  it('keeps other raw query failures internal', () => {
+    const syntax = new Prisma.PrismaClientKnownRequestError(
+      'Raw query failed. Code: `42601`. Message: `syntax error`',
+      { code: 'P2010', clientVersion: 'test' },
+    );
+    expect(toErrorShape(syntax).statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+  });
+
   it('maps Prisma record not found (P2025) to 404', () => {
     expect(toErrorShape(prismaError('P2025'))).toMatchObject({
       statusCode: HttpStatus.NOT_FOUND,

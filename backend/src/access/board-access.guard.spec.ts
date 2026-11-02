@@ -19,6 +19,7 @@ function setup(minRole: string | undefined) {
   const access = {
     requireRole: vi.fn().mockResolvedValue('ADMIN'),
     boardIdOfList: vi.fn().mockResolvedValue('board-of-list'),
+    boardIdOfCard: vi.fn().mockResolvedValue('board-of-card'),
   };
   const guard = new BoardAccessGuard(reflector, access as unknown as BoardAccessService);
   return { guard, access };
@@ -58,6 +59,19 @@ describe('BoardAccessGuard', () => {
     expect(access.requireRole.mock.calls[0][0]).toBe('board-of-list');
     expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('List not found');
     expect(request.boardAccess).toEqual({ boardId: 'board-of-list', role: 'ADMIN' });
+  });
+
+  it('resolves the board from :cardId and reports a missing card', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = { user: USER, params: { cardId: 'card-1' } };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfCard).toHaveBeenCalledWith('card-1');
+    expect(access.boardIdOfList).not.toHaveBeenCalled();
+    expect(access.requireRole.mock.calls[0][0]).toBe('board-of-card');
+    expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Card not found');
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-card', role: 'ADMIN' });
   });
 
   it('denies a route without a required role instead of allowing it', async () => {
