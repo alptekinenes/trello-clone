@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CardSummaryDto, ListDto } from '@trello/contracts';
 import { useForm, useWatch } from 'react-hook-form';
+import { moveToColumn } from '../../../shared/lib/sortable-columns';
 import { useArchiveCard, useMoveCard } from '../api/use-card-mutations';
-import { buildColumns, moveToColumn, placeOf, samePlace } from '../lib/card-columns';
+import { buildColumns, placeOf, samePlace } from '../lib/card-columns';
 import { type MoveCardFormValues, moveCardSchema } from '../schemas/card-schemas';
 import { useCardUiStore } from '../store/card-ui-store';
 

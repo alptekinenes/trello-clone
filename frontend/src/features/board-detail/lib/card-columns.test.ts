@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { Columns } from '../../../shared/lib/sortable-columns';
 import { testCard, testLists } from '../../../test/fixtures';
-import {
-  buildColumns,
-  type Columns,
-  dropColumns,
-  findColumn,
-  moveToColumn,
-  placeOf,
-  samePlace,
-} from './card-columns';
+import { buildColumns, placeOf, samePlace } from './card-columns';
 
 const [todo, doing] = testLists('Yapılacaklar', 'Yapılıyor');
 
@@ -33,36 +26,6 @@ describe('buildColumns', () => {
   });
 });
 
-describe('findColumn', () => {
-  it('finds the list of a card', () => {
-    expect(findColumn(COLUMNS, 'd')).toBe(doing.id);
-    expect(findColumn(COLUMNS, 'missing')).toBeNull();
-  });
-});
-
-describe('moveToColumn', () => {
-  it('moves a card to another list at an index', () => {
-    expect(moveToColumn(COLUMNS, 'b', doing.id, 0)).toEqual({
-      [todo.id]: ['a', 'c'],
-      [doing.id]: ['b', 'd'],
-    });
-  });
-
-  it('clamps the index and moves inside the same list', () => {
-    expect(moveToColumn(COLUMNS, 'a', todo.id, 99)[todo.id]).toEqual(['b', 'c', 'a']);
-    expect(moveToColumn(COLUMNS, 'c', todo.id, -1)[todo.id]).toEqual(['c', 'a', 'b']);
-  });
-
-  it('leaves the columns alone for an unknown list', () => {
-    expect(moveToColumn(COLUMNS, 'a', 'nope', 0)).toBe(COLUMNS);
-  });
-
-  it('does not change the original columns', () => {
-    moveToColumn(COLUMNS, 'a', doing.id, 0);
-    expect(COLUMNS[todo.id]).toEqual(['a', 'b', 'c']);
-  });
-});
-
 describe('placeOf', () => {
   it.each([
     ['a', { index: 0, afterCardId: null, beforeCardId: 'b' }],
@@ -83,19 +46,6 @@ describe('placeOf', () => {
 
   it('is null for an unknown card', () => {
     expect(placeOf(COLUMNS, 'missing')).toBeNull();
-  });
-});
-
-describe('dropColumns', () => {
-  it('takes the index of the card it is dropped on, like arrayMove', () => {
-    expect(dropColumns(COLUMNS, 'a', 'c')[todo.id]).toEqual(['b', 'c', 'a']);
-    expect(dropColumns(COLUMNS, 'c', 'a')[todo.id]).toEqual(['c', 'a', 'b']);
-  });
-
-  it('keeps the dragged place when dropped on itself, on nothing or on another list', () => {
-    expect(dropColumns(COLUMNS, 'a', 'a')).toBe(COLUMNS);
-    expect(dropColumns(COLUMNS, 'a', null)).toBe(COLUMNS);
-    expect(dropColumns(COLUMNS, 'a', 'd')).toBe(COLUMNS);
   });
 });
 

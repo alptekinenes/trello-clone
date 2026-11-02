@@ -19,18 +19,16 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { BoardDetailDto, CardSummaryDto } from '@trello/contracts';
 import { useEffect, useRef, useState } from 'react';
-import { useMoveCard } from '../api/use-card-mutations';
-import { useMoveList } from '../api/use-list-mutations';
+import { BoardMouseSensor, BoardTouchSensor } from '../../../shared/lib/dnd-sensors';
 import {
-  buildColumns,
   type Columns,
   dropColumns,
   findColumn,
   moveToColumn,
-  placeOf,
-  samePlace,
-} from '../lib/card-columns';
-import { BoardMouseSensor, BoardTouchSensor } from '../lib/dnd-sensors';
+} from '../../../shared/lib/sortable-columns';
+import { useMoveCard } from '../api/use-card-mutations';
+import { useMoveList } from '../api/use-list-mutations';
+import { buildColumns, placeOf, samePlace } from '../lib/card-columns';
 import { getMoveAnchors } from '../lib/get-move-anchors';
 import { useCardUiStore } from '../store/card-ui-store';
 

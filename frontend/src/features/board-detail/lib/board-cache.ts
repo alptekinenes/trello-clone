@@ -1,9 +1,5 @@
 import type { BoardDetailDto, CardSummaryDto, ListDto } from '@trello/contracts';
-
-/** Board order: position, then id (same as the server). */
-export function sortByPosition<T extends { id: string; position: number }>(items: T[]): T[] {
-  return [...items].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
-}
+import { sortByPosition } from '../../../shared/lib/sort-by-position';
 
 export function upsertList(detail: BoardDetailDto, list: ListDto): BoardDetailDto {
   const others = detail.lists.filter((item) => item.id !== list.id);
