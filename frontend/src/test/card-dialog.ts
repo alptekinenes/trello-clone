@@ -41,7 +41,7 @@ export function openCard(
     http.get(BOARD_URL, () => {
       requests.board += 1;
       return HttpResponse.json(
-        boardDetail('OWNER', 'Pano', [LIST], [summaryOf(serverState.card)], labels),
+        boardDetail('OWNER', 'Pano', [LIST], serverState.card.archivedAt ? [] : [summaryOf(serverState.card)], labels),
       );
     }),
     http.get(CARD_URL, () => HttpResponse.json(serverState.card)),

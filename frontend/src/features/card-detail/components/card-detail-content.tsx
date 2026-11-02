@@ -20,10 +20,13 @@ interface CardDetailContentProps {
 /** Everything inside the card dialog once the card has loaded. */
 export function CardDetailContent({ board, card }: CardDetailContentProps) {
   const boardId = board.board.id;
-  const archiveCard = useArchiveOpenCard(boardId, card);
+  // The board knows better than the cached card where it is (moved, archived) right now.
+  const tile = board.cards.find((item) => item.id === card.id);
+  const archiveCard = useArchiveOpenCard(boardId, tile);
   const announcement = useCardDetailStore((state) => state.announcement);
-  const listTitle = board.lists.find((list) => list.id === card.listId)?.title ?? null;
-  const archived = card.archivedAt !== null;
+  const listId = tile?.listId ?? card.listId;
+  const listTitle = board.lists.find((list) => list.id === listId)?.title ?? null;
+  const archived = tile === undefined;
 
   return (
     <div className="flex flex-col gap-4">

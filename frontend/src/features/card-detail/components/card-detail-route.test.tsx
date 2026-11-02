@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { UpdateCardRequest } from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { BOARD_ID, apiError, boardDetail, testCard, testUser } from '../../../test/fixtures';
+import { BOARD_ID, apiError, boardDetail, testCard, testLists, testUser } from '../../../test/fixtures';
 import { BOARD_URL, CARD_ID, CARD_URL, LIST, cardDialog, openCard as open } from '../../../test/card-dialog';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
@@ -170,5 +170,36 @@ describe('archive from the dialog', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Geri yükle' }));
 
     await waitFor(() => expect(restored).toEqual({ archived: false }));
+  });
+});
+
+describe('a card the board has moved or archived', () => {
+  const OTHER = { ...testLists('Yapılacaklar', 'Bitti')[1] };
+
+  it('names the list the board has it in, not the one the cached card had', async () => {
+    open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
+    server.use(
+      http.get(BOARD_URL, () =>
+        HttpResponse.json(
+          boardDetail('OWNER', 'Pano', [list, OTHER], [testCard({ id: CARD_ID, listId: OTHER.id, title: 'Rapor' })]),
+        ),
+      ),
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'Rapor' });
+
+    expect(await within(dialog).findByText('“Bitti” listesinde')).toBeInTheDocument();
+  });
+
+  it('shows the archive banner for a card that is no longer on the board', async () => {
+    open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
+    server.use(
+      http.get(BOARD_URL, () => HttpResponse.json(boardDetail('OWNER', 'Pano', [list], []))),
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'Rapor' });
+
+    expect(await within(dialog).findByText('Bu kart arşivde.')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Arşivle' })).not.toBeInTheDocument();
   });
 });
