@@ -84,6 +84,27 @@ describe('Labels (e2e, database)', () => {
       await post({ color: 'RED', name: null }).expect(400);
     });
 
+    it('answers 400 when the database counts the name longer than the validator does', async () => {
+      // A variation selector after a letter is one character for class-validator, two for Postgres.
+      const res = await http()
+        .post(`/api/v1/boards/${boardId}/labels`)
+        .set('Authorization', owner.auth)
+        .send({ color: 'RED', name: 'a️'.repeat(50) })
+        .expect(400);
+
+      expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    });
+
+    it('answers 400 for text Postgres cannot store', async () => {
+      const res = await http()
+        .post(`/api/v1/boards/${boardId}/labels`)
+        .set('Authorization', owner.auth)
+        .send({ color: 'RED', name: 'a\u0000b' })
+        .expect(400);
+
+      expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    });
+
     it('lets a plain member manage labels', async () => {
       const member = await addMember(app, boardId, 'MEMBER');
       const created = await createLabel({ name: 'Üye', color: 'LIME' }, boardId, member);

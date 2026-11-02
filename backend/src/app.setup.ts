@@ -4,6 +4,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
+import { RejectNulPipe } from './common/pipes/reject-nul.pipe.js';
 import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { API_PREFIX } from './app.constants.js';
 
@@ -15,7 +16,7 @@ export function configureApp(app: INestApplication): void {
   app.use(helmet());
   app.use(cookieParser());
   app.enableCors({ origin: config.getOrThrow<string>('CORS_ORIGIN'), credentials: true });
-  app.useGlobalPipes(createValidationPipe());
+  app.useGlobalPipes(new RejectNulPipe(), createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
   app.enableShutdownHooks();
 }

@@ -67,6 +67,14 @@ describe('toErrorShape', () => {
     });
   });
 
+  it('maps a value too long for its column (P2000) to 400', () => {
+    expect(toErrorShape(prismaError('P2000'))).toEqual({
+      statusCode: HttpStatus.BAD_REQUEST,
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'A value is too long',
+    });
+  });
+
   it('maps a foreign key violation (P2003) to 409', () => {
     expect(toErrorShape(prismaError('P2003'))).toMatchObject({
       statusCode: HttpStatus.CONFLICT,

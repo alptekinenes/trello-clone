@@ -76,6 +76,13 @@ function fromPrismaError(error: Prisma.PrismaClientKnownRequestError): ErrorShap
     };
   }
   switch (error.code) {
+    case 'P2000':
+      // Postgres counts some characters (e.g. U+FE0F after a letter) that class-validator's length check skips.
+      return {
+        statusCode: HttpStatus.BAD_REQUEST,
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'A value is too long',
+      };
     case 'P2002':
       return {
         statusCode: HttpStatus.CONFLICT,
