@@ -62,7 +62,11 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
+      // React bubbles `close` through the component tree, so a dialog nested in this one
+      // would otherwise report its own close here as well.
+      onClose={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
       className={`m-auto w-full rounded-lg bg-surface text-fg shadow-raised backdrop:bg-overlay ${SIZE_CLASS[size]}`}
     >
       <h2 id={titleId} className={hideTitle ? 'sr-only' : 'mb-4 text-lg font-semibold'}>

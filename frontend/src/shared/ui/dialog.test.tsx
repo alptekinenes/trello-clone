@@ -30,6 +30,25 @@ describe('Dialog', () => {
   });
 });
 
+describe('nested dialogs', () => {
+  it('does not report the close of a nested dialog to the outer dialog', () => {
+    const onOuterClose = vi.fn();
+    const onInnerClose = vi.fn();
+    render(
+      <Dialog title="Kart" onClose={onOuterClose}>
+        <Dialog title="Etiket silinsin mi?" onClose={onInnerClose}>
+          <p>İçerik</p>
+        </Dialog>
+      </Dialog>,
+    );
+
+    (screen.getByRole('dialog', { name: 'Etiket silinsin mi?' }) as HTMLDialogElement).close();
+
+    expect(onInnerClose).toHaveBeenCalledOnce();
+    expect(onOuterClose).not.toHaveBeenCalled();
+  });
+});
+
 describe('Dialog options', () => {
   it('keeps the accessible name when the title is hidden', () => {
     render(
