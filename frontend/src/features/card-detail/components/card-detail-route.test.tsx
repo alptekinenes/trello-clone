@@ -4,7 +4,16 @@ import type { UpdateCardRequest } from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { BOARD_ID, apiError, boardDetail, testCard, testLists, testUser } from '../../../test/fixtures';
-import { BOARD_URL, CARD_ID, CARD_URL, LIST, cardDialog, openCard as open } from '../../../test/card-dialog';
+import {
+  BOARD_URL,
+  CARD_ID,
+  CARD_URL,
+  LIST,
+  cardDialog,
+  openCard,
+  openCard as open,
+  recordPatches,
+} from '../../../test/card-dialog';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 import { useAuthStore } from '../../auth/store/auth-store';
@@ -201,5 +210,33 @@ describe('a card the board has moved or archived', () => {
 
     expect(await within(dialog).findByText('Bu kart arşivde.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Arşivle' })).not.toBeInTheDocument();
+  });
+});
+
+describe('focus when the focused element goes away', () => {
+  it('moves to "Arşivle" and announces it when the card is restored', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { archivedAt: '2026-11-02T10:00:00.000Z' });
+    recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Geri yükle' }));
+
+    const archive = await within(dialog).findByRole('button', { name: 'Arşivle' });
+    expect(archive).toHaveFocus();
+    expect(within(dialog).getByText('Kart geri yüklendi.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Bu kart arşivde.')).not.toBeInTheDocument();
+  });
+
+  it('moves to the title when the error notice is dismissed', async () => {
+    const { user } = openCard(CARD_PATH);
+    server.use(http.patch(CARD_URL, () => apiError(500, 'INTERNAL_ERROR')));
+    const dialog = await cardDialog();
+    await user.click(within(dialog).getByRole('button', { name: 'Rapor' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Kart başlığı' }), 'x{Enter}');
+
+    await user.click(await within(dialog).findByRole('button', { name: 'Uyarıyı kapat' }));
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Rapor' })).toHaveFocus();
   });
 });

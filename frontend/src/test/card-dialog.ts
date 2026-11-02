@@ -61,6 +61,7 @@ export function recordPatches(state: { card: CardDetailDto }) {
       state.card = {
         ...state.card,
         title: edit.title ?? state.card.title,
+        archivedAt: edit.archived === false ? null : state.card.archivedAt,
         description:
           edit.description === undefined ? state.card.description : edit.description?.trim() || null,
         dueDate,
