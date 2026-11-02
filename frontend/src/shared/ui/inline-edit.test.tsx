@@ -77,3 +77,19 @@ describe('InlineEdit', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe('InlineEdit wrap', () => {
+  const LONG = 'Çok uzun bir kart başlığı '.repeat(5);
+
+  it('truncates by default', () => {
+    render(<InlineEdit value={LONG} label="Başlık" editHint="Düzenle" onSave={vi.fn()} />);
+    expect(screen.getByRole('button')).toHaveClass('truncate');
+  });
+
+  it('wraps long text when asked to', () => {
+    render(<InlineEdit value={LONG} label="Başlık" editHint="Düzenle" wrap onSave={vi.fn()} />);
+    const button = screen.getByRole('button');
+    expect(button).toHaveClass('whitespace-normal', 'break-words');
+    expect(button).not.toHaveClass('truncate');
+  });
+});

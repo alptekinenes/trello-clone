@@ -8,6 +8,8 @@ interface InlineEditProps {
   /** Read by screen readers on the view button, e.g. "Pano adını düzenle". */
   editHint: string;
   maxLength?: number;
+  /** Wraps long text over several lines instead of truncating it. */
+  wrap?: boolean;
   /** Called with the trimmed text, only when it is non-empty and changed. */
   onSave: (value: string) => void;
   className?: string;
@@ -26,6 +28,7 @@ export function InlineEdit({
   label,
   editHint,
   maxLength,
+  wrap = false,
   onSave,
   className = '',
   inputClassName = '',
@@ -75,7 +78,7 @@ export function InlineEdit({
           type="button"
           onClick={start}
           aria-describedby={hintId}
-          className={`max-w-full truncate rounded-sm text-left ${className}`}
+          className={`max-w-full rounded-sm text-left ${wrap ? 'whitespace-normal break-words' : 'truncate'} ${className}`}
         >
           {value}
         </button>

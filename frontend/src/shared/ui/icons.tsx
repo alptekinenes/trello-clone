@@ -61,3 +61,62 @@ export function ArchiveIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5v3.2l2 1.3" />
+    </Icon>
+  );
+}
+
+export function DescriptionIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 4h10M3 8h10M3 12h6" />
+    </Icon>
+  );
+}
+
+export function ChecklistIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M5.5 8.2l1.7 1.7 3.3-3.6" />
+    </Icon>
+  );
+}
+
+export function LabelIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 3.5v4l6 6 5-5-6-6h-4a1 1 0 0 0-1 1z" />
+      <path d="M5.5 5.5h.01" strokeWidth={2.5} />
+    </Icon>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5M7 7v4M9 7v4" />
+    </Icon>
+  );
+}
+
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 10l4-4 4 4" />
+    </Icon>
+  );
+}
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6l4 4 4-4" />
+    </Icon>
+  );
+}
