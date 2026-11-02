@@ -4,6 +4,7 @@ import type {
   BoardSummaryDto,
   CardSummaryDto,
   ErrorCode,
+  LabelDto,
   ListDto,
   UserDto,
 } from '@trello/contracts';
@@ -43,6 +44,7 @@ export function boardDetail(
   title = 'Yol haritası',
   lists: ListDto[] = [],
   cards: CardSummaryDto[] = [],
+  labels: LabelDto[] = [],
 ): BoardDetailDto {
   return {
     board: boardSummary({ myRole, title }),
@@ -56,7 +58,7 @@ export function boardDetail(
         joinedAt: '2026-10-27T09:00:00.000Z',
       },
     ],
-    labels: [],
+    labels,
     lists,
     cards,
   };

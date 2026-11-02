@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type CardSummaryDto, LIST_LIMITS, type ListDto } from '@trello/contracts';
+import { type CardSummaryDto, LIST_LIMITS, type LabelDto, type ListDto } from '@trello/contracts';
 import { ArchiveIcon, GripIcon } from '../../../shared/ui/icons';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useRenameList, useArchiveList } from '../api/use-list-mutations';
@@ -44,10 +44,11 @@ interface BoardListProps {
   boardId: string;
   list: ListDto;
   cards: CardSummaryDto[];
+  labels: ReadonlyMap<string, LabelDto>;
   draggingType: DragType | null;
 }
 
-export function BoardList({ boardId, list, cards, draggingType }: BoardListProps) {
+export function BoardList({ boardId, list, cards, labels, draggingType }: BoardListProps) {
   const rename = useRenameList(boardId);
   const archive = useArchiveList(boardId);
   const {
@@ -118,7 +119,12 @@ export function BoardList({ boardId, list, cards, draggingType }: BoardListProps
           {cards.length > 0 && (
             <ol aria-label={`“${list.title}” kartları`} className={CARD_STACK}>
               {cards.map((card) => (
-                <CardTile key={card.id} card={card} dropDisabled={draggingType === 'list'} />
+                <CardTile
+                  key={card.id}
+                  card={card}
+                  labels={labels}
+                  dropDisabled={draggingType === 'list'}
+                />
               ))}
             </ol>
           )}

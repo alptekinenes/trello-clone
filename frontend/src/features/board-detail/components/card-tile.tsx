@@ -1,10 +1,11 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { CardSummaryDto } from '@trello/contracts';
-import { useCallback, useEffect, useRef } from 'react';
+import type { CardSummaryDto, LabelDto } from '@trello/contracts';
+import { useCallback, useEffect, useId, useRef } from 'react';
 import { MoreIcon } from '../../../shared/ui/icons';
 import { cardDragId } from '../hooks/use-board-dnd';
 import { isFocusTarget, useCardUiStore } from '../store/card-ui-store';
+import { CardTileBody } from './card-tile-body';
 
 const SURFACE = 'rounded-md bg-surface px-3 py-2 text-sm text-fg shadow-card';
 
@@ -13,11 +14,17 @@ const SURFACE = 'rounded-md bg-surface px-3 py-2 text-sm text-fg shadow-card';
  * measures the overlay's only child, so the tilt sits one level deeper and
  * does not skew the box used for keyboard moves and collisions.
  */
-export function CardDragPreview({ card }: { card: CardSummaryDto }) {
+export function CardDragPreview({
+  card,
+  labels,
+}: {
+  card: CardSummaryDto;
+  labels: ReadonlyMap<string, LabelDto>;
+}) {
   return (
     <div>
       <div className={`${SURFACE} rotate-2 cursor-grabbing shadow-drag`}>
-        <p className="break-words">{card.title}</p>
+        <CardTileBody card={card} labels={labels} />
       </div>
     </div>
   );
@@ -25,6 +32,7 @@ export function CardDragPreview({ card }: { card: CardSummaryDto }) {
 
 interface CardTileProps {
   card: CardSummaryDto;
+  labels: ReadonlyMap<string, LabelDto>;
   /** A list is being dragged, so cards do not take drops. */
   dropDisabled: boolean;
 }
@@ -33,10 +41,13 @@ interface CardTileProps {
  * A card in a list. The tile is the drag handle for pointer and keyboard
  * (Space or Enter picks it up); the "…" button opens the card's actions.
  */
-export function CardTile({ card, dropDisabled }: CardTileProps) {
+export function CardTile({ card, labels, dropDisabled }: CardTileProps) {
   const openActions = useCardUiStore((state) => state.openActions);
   const shouldFocus = useCardUiStore((state) => isFocusTarget(state.focusTarget, card));
   const clearFocus = useCardUiStore((state) => state.clearFocus);
+  const titleId = useId();
+  const labelsId = useId();
+  const badgesId = useId();
   const activatorRef = useRef<HTMLDivElement | null>(null);
   const {
     attributes,
@@ -52,6 +63,9 @@ export function CardTile({ card, dropDisabled }: CardTileProps) {
     disabled: { draggable: false, droppable: dropDisabled },
     attributes: { roleDescription: 'sıralanabilir kart' },
   });
+
+  // Ids of parts that are not rendered are ignored by assistive technology.
+  const describedBy = [labelsId, badgesId, attributes['aria-describedby']].filter(Boolean).join(' ');
 
   const setActivator = useCallback(
     (node: HTMLDivElement | null) => {
@@ -78,9 +92,17 @@ export function CardTile({ card, dropDisabled }: CardTileProps) {
         ref={setActivator}
         {...attributes}
         {...listeners}
+        aria-labelledby={titleId}
+        aria-describedby={describedBy}
         className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:shadow-raised`}
       >
-        <p className="break-words">{card.title}</p>
+        <CardTileBody
+          card={card}
+          labels={labels}
+          titleId={titleId}
+          labelsId={labelsId}
+          badgesId={badgesId}
+        />
       </div>
       <button
         type="button"
