@@ -248,9 +248,9 @@ describe('moving and renaming', () => {
     expect(
       within(dialog).getByRole('button', { name: '“Yapılacaklar” checklist\'ini yukarı taşı' }),
     ).toHaveFocus();
-    expect(within(dialog).getByRole('status')).toHaveTextContent(
-      '“Yapılacaklar” checklist\'i 2. sıraya taşındı.',
-    );
+    expect(
+      within(dialog).getByText('“Yapılacaklar” checklist\'i 2. sıraya taşındı.'),
+    ).toBeInTheDocument();
   });
 
   it('renames a checklist', async () => {
@@ -273,5 +273,45 @@ describe('moving and renaming', () => {
 
     expect(within(dialog).getByRole('heading', { name: 'Yayına çıkış' })).toBeInTheDocument();
     await waitFor(() => expect(sent).toEqual([{ title: 'Yayına çıkış' }]));
+  });
+});
+
+describe('dragging items', () => {
+  it('gives each item a grip button for the keyboard', async () => {
+    openCard(CARD_PATH, { checklists: [TODO_LIST] });
+    const dialog = await cardDialog();
+
+    const grip = within(dialog).getByRole('button', { name: '“Taslak” öğesini taşı' });
+    expect(grip).toHaveAttribute('aria-roledescription', 'sıralanabilir öğe');
+  });
+
+  it('announces a lift inside the dialog and cancels with Escape without closing it', async () => {
+    const { user } = openCard(CARD_PATH, { checklists: [TODO_LIST, SECOND_LIST] });
+    const dialog = await cardDialog();
+
+    within(dialog).getByRole('button', { name: '“Taslak” öğesini taşı' }).focus();
+    await user.keyboard(' ');
+
+    expect(
+      await within(dialog).findByText('“Taslak” öğesi tutuldu. “Yapılacaklar” checklist\'inde 1. sırada.'),
+    ).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(
+      await within(dialog).findByText('Taşıma iptal edildi. “Taslak” öğesi yerinde kaldı.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
+  });
+
+  it('keeps the checkbox working: Space on it ticks instead of lifting', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { checklists: [TODO_LIST] });
+    itemEndpoints(serverCard);
+    const dialog = await cardDialog();
+
+    within(dialog).getByRole('checkbox', { name: 'Taslak' }).focus();
+    await user.keyboard(' ');
+
+    expect(within(dialog).getByRole('checkbox', { name: 'Taslak' })).toBeChecked();
+    expect(within(dialog).queryByText(/tutuldu/)).not.toBeInTheDocument();
   });
 });

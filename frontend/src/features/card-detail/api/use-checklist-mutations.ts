@@ -11,6 +11,7 @@ import {
   removeChecklist,
   removeItem,
   upsertChecklist,
+  moveItem,
   upsertItem,
 } from '../lib/card-detail-cache';
 import { checklistsApi } from './checklists-api';
@@ -130,5 +131,41 @@ export function useDeleteChecklistItem(boardId: string, cardId: string) {
     mutationFn: (itemId: string) => checklistsApi.removeItem(itemId),
     optimistic: (card, itemId) => removeItem(card, itemId),
     errorMessage: 'Öğe silinemedi. Tekrar dene.',
+  });
+}
+
+export interface MoveItemVariables {
+  itemId: string;
+  checklistId: string;
+  afterItemId: string | null;
+  beforeItemId: string | null;
+}
+
+/**
+ * Optimistic: the item jumps to its new place, in its checklist or in another one of the
+ * same card. A stale card (409, or a checklist that is gone) is refetched.
+ */
+export function useMoveChecklistItem(
+  boardId: string,
+  cardId: string,
+  { onRollback }: { onRollback?: () => void } = {},
+) {
+  return useCardMutation({
+    boardId,
+    cardId,
+    mutationFn: ({ itemId, ...body }: MoveItemVariables) => checklistsApi.moveItem(itemId, body),
+    optimistic: (card, { itemId, checklistId, afterItemId, beforeItemId }) => {
+      const items = card.checklists.flatMap((checklist) => checklist.items);
+      const positionOf = (id: string | null) => items.find((item) => item.id === id)?.position ?? null;
+      const position = positionBetween(positionOf(afterItemId), positionOf(beforeItemId));
+      return moveItem(card, itemId, checklistId, position);
+    },
+    onSuccessCard: (card, { id, checklistId, position }) => moveItem(card, id, checklistId, position),
+    onRollback,
+    errorMessage: (error) =>
+      error instanceof ApiError &&
+      (error.code === ErrorCode.POSITION_CONFLICT || error.code === ErrorCode.INVALID_TARGET)
+        ? 'Öğeler başka biri tarafından değiştirildi. Kart yenilendi.'
+        : 'Öğe taşınamadı. Tekrar dene.',
   });
 }

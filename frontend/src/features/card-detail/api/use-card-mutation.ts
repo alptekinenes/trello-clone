@@ -14,6 +14,8 @@ interface CardMutationOptions<TVariables, TData> {
   optimistic?: (card: CardDetailDto, variables: TVariables) => CardDetailDto;
   /** Applied with the server's answer. Write only what this request changed. */
   onSuccessCard?: (card: CardDetailDto, data: TData, variables: TVariables) => CardDetailDto;
+  /** Runs right after a failed request's optimistic change was rolled back. */
+  onRollback?: (variables: TVariables) => void;
   /** Shown inside the dialog when the request fails. */
   errorMessage: string | ((error: Error, variables: TVariables) => string);
 }
@@ -30,6 +32,7 @@ export function useCardMutation<TVariables, TData>({
   mutationFn,
   optimistic,
   onSuccessCard,
+  onRollback,
   errorMessage,
 }: CardMutationOptions<TVariables, TData>) {
   const queryClient = useQueryClient();
@@ -69,6 +72,7 @@ export function useCardMutation<TVariables, TData>({
         queryClient.setQueryData(cardKey, context.previous);
         syncSummary();
       }
+      onRollback?.(variables);
       showError(typeof errorMessage === 'function' ? errorMessage(error, variables) : errorMessage);
     },
     onSuccess: (data, variables) => {

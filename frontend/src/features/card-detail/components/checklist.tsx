@@ -1,8 +1,16 @@
-import { CHECKLIST_LIMITS, type CardDetailDto, type ChecklistDto } from '@trello/contracts';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  CHECKLIST_LIMITS,
+  type CardDetailDto,
+  type ChecklistDto,
+  type ChecklistItemDto,
+} from '@trello/contracts';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '../../../shared/ui/icons';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useChecklist } from '../hooks/use-checklist';
+import { checklistItemsDropId, itemDragId } from '../hooks/use-checklist-dnd';
 import { AddChecklistItemComposer } from './add-checklist-item-composer';
 import { ChecklistItemRow } from './checklist-item-row';
 import { ChecklistProgress } from './checklist-progress';
@@ -14,11 +22,17 @@ interface ChecklistProps {
   boardId: string;
   card: CardDetailDto;
   checklist: ChecklistDto;
+  /** The items in the order to show them, which differs from the card's while one is dragged. */
+  items: ChecklistItemDto[];
 }
 
 /** A checklist with its progress, items, and the controls to rename, move and delete it. */
-export function Checklist({ boardId, card, checklist }: ChecklistProps) {
+export function Checklist({ boardId, card, checklist, items }: ChecklistProps) {
   const actions = useChecklist(boardId, card, checklist);
+  const { setNodeRef: setItemsRef } = useDroppable({
+    id: checklistItemsDropId(checklist.id),
+    data: { type: 'checklist-items' },
+  });
   const done = checklist.items.filter((item) => item.isCompleted).length;
 
   return (
@@ -72,9 +86,13 @@ export function Checklist({ boardId, card, checklist }: ChecklistProps) {
         </button>
       </div>
       <ChecklistProgress done={done} total={checklist.items.length} />
-      {checklist.items.length > 0 && (
-        <ul aria-label={`“${checklist.title}” öğeleri`} className="flex flex-col">
-          {checklist.items.map((item) => (
+      <SortableContext items={items.map((item) => itemDragId(item.id))} strategy={verticalListSortingStrategy}>
+        <ul
+          ref={setItemsRef}
+          aria-label={`“${checklist.title}” öğeleri`}
+          className="flex min-h-2 flex-col gap-1"
+        >
+          {items.map((item) => (
             <ChecklistItemRow
               key={item.id}
               item={item}
@@ -84,7 +102,7 @@ export function Checklist({ boardId, card, checklist }: ChecklistProps) {
             />
           ))}
         </ul>
-      )}
+      </SortableContext>
       <AddChecklistItemComposer
         boardId={boardId}
         cardId={card.id}
