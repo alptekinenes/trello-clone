@@ -18,3 +18,15 @@ export const insufficientRole = () =>
     code: ErrorCode.FORBIDDEN,
     message: 'Your role on this board does not allow this action',
   });
+
+/** Same for labels on boards the user cannot see. */
+export const labelNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Label not found' });
+
+/** Same for checklists on boards the user cannot see. */
+export const checklistNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Checklist not found' });
+
+/** Same for checklist items on boards the user cannot see. */
+export const checklistItemNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Checklist item not found' });

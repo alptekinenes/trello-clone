@@ -69,6 +69,51 @@ describe('BoardAccessService lists', () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { id: BOARD_ID }, select: { boardId: true } });
   });
 
+  it('finds the board of a label', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ boardId: BOARD_ID });
+    const service = new BoardAccessService({ label: { findUnique } } as unknown as PrismaService);
+
+    await expect(service.boardIdOfLabel(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfLabel('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledOnce();
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: BOARD_ID }, select: { boardId: true } });
+  });
+
+  it('finds the board of a checklist through its card', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ card: { boardId: BOARD_ID } });
+    const service = new BoardAccessService({
+      checklist: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.boardIdOfChecklist(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfChecklist('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledOnce();
+  });
+
+  it('finds the board of a checklist item through its checklist and card', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ checklist: { card: { boardId: BOARD_ID } } });
+    const service = new BoardAccessService({
+      checklistItem: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.boardIdOfChecklistItem(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfChecklistItem('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledOnce();
+  });
+
+  it('returns null for a label, checklist or item that does not exist', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const service = new BoardAccessService({
+      label: { findUnique },
+      checklist: { findUnique },
+      checklistItem: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.boardIdOfLabel(BOARD_ID)).resolves.toBeNull();
+    await expect(service.boardIdOfChecklist(BOARD_ID)).resolves.toBeNull();
+    await expect(service.boardIdOfChecklistItem(BOARD_ID)).resolves.toBeNull();
+  });
+
   it('throws the given not-found error when there is no board', async () => {
     const { service, findUnique } = setup('OWNER');
     const notFound = () => new NotFoundException('List not found');

@@ -82,6 +82,13 @@ function fromPrismaError(error: Prisma.PrismaClientKnownRequestError): ErrorShap
         code: ErrorCode.CONFLICT,
         message: 'Resource already exists',
       };
+    case 'P2003':
+      // A parent row was deleted while the insert was in flight.
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        code: ErrorCode.CONFLICT,
+        message: 'A related resource was deleted. Reload and try again.',
+      };
     case 'P2025':
       return {
         statusCode: HttpStatus.NOT_FOUND,

@@ -20,6 +20,9 @@ function setup(minRole: string | undefined) {
     requireRole: vi.fn().mockResolvedValue('ADMIN'),
     boardIdOfList: vi.fn().mockResolvedValue('board-of-list'),
     boardIdOfCard: vi.fn().mockResolvedValue('board-of-card'),
+    boardIdOfChecklist: vi.fn().mockResolvedValue('board-of-checklist'),
+    boardIdOfChecklistItem: vi.fn().mockResolvedValue('board-of-item'),
+    boardIdOfLabel: vi.fn().mockResolvedValue('board-of-label'),
   };
   const guard = new BoardAccessGuard(reflector, access as unknown as BoardAccessService);
   return { guard, access };
@@ -72,6 +75,69 @@ describe('BoardAccessGuard', () => {
     expect(access.requireRole.mock.calls[0][0]).toBe('board-of-card');
     expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Card not found');
     expect(request.boardAccess).toEqual({ boardId: 'board-of-card', role: 'ADMIN' });
+  });
+
+  it('resolves the board from :checklistId and reports a missing checklist', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = { user: USER, params: { checklistId: 'cl-1' } };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfChecklist).toHaveBeenCalledWith('cl-1');
+    expect(access.requireRole.mock.calls[0][0]).toBe('board-of-checklist');
+    expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Checklist not found');
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-checklist', role: 'ADMIN' });
+  });
+
+  it('resolves the board from :itemId and reports a missing item', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = { user: USER, params: { itemId: 'item-1' } };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfChecklistItem).toHaveBeenCalledWith('item-1');
+    expect(access.requireRole.mock.calls[0][0]).toBe('board-of-item');
+    expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Checklist item not found');
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-item', role: 'ADMIN' });
+  });
+
+  it('resolves the board from :labelId and reports a missing label', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = { user: USER, params: { labelId: 'label-1' } };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfLabel).toHaveBeenCalledWith('label-1');
+    expect(access.requireRole.mock.calls[0][0]).toBe('board-of-label');
+    expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Label not found');
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-label', role: 'ADMIN' });
+  });
+
+  it('lets the card win when a route has both :cardId and :labelId', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = {
+      user: USER,
+      params: { labelId: 'label-1', cardId: 'card-1' },
+    };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfCard).toHaveBeenCalledWith('card-1');
+    expect(access.boardIdOfLabel).not.toHaveBeenCalled();
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-card', role: 'ADMIN' });
+  });
+
+  it('lets the checklist win over the item when a route has both', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = {
+      user: USER,
+      params: { itemId: 'item-1', checklistId: 'cl-1' },
+    };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfChecklist).toHaveBeenCalledWith('cl-1');
+    expect(access.boardIdOfChecklistItem).not.toHaveBeenCalled();
   });
 
   it('denies a route without a required role instead of allowing it', async () => {

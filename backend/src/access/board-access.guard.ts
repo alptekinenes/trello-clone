@@ -3,7 +3,14 @@ import { Reflector } from '@nestjs/core';
 import type { BoardRole } from '@trello/contracts';
 import { invalidAccessToken } from '../auth/auth.errors.js';
 import type { RequestWithUser } from '../common/decorators/current-user.decorator.js';
-import { boardNotFound, cardNotFound, listNotFound } from './access.errors.js';
+import {
+  boardNotFound,
+  cardNotFound,
+  checklistItemNotFound,
+  checklistNotFound,
+  labelNotFound,
+  listNotFound,
+} from './access.errors.js';
 import { BoardAccessService } from './board-access.service.js';
 
 /** Metadata key for the minimum role, set by @BoardRole(). */
@@ -27,7 +34,11 @@ interface Target {
 
 /**
  * Checks board membership for routes marked with @BoardRole(). Runs after JwtAuthGuard.
- * The board comes from the `:boardId` param, or from the list in `:listId` or the card in `:cardId`.
+ * The board comes from the first of these params that the route has, in this
+ * fixed order (not the order in the path): `:boardId`, `:listId`, `:cardId`,
+ * `:checklistId`, `:itemId`, `:labelId`. A route with two of them, such as
+ * `/cards/:cardId/labels/:labelId`, is authorized through the first one; the
+ * service has to check the second against that board.
  */
 @Injectable()
 export class BoardAccessGuard implements CanActivate {
@@ -66,6 +77,21 @@ export class BoardAccessGuard implements CanActivate {
     }
     if (params.cardId !== undefined) {
       return { boardId: await this.access.boardIdOfCard(params.cardId), notFound: cardNotFound };
+    }
+    if (params.checklistId !== undefined) {
+      return {
+        boardId: await this.access.boardIdOfChecklist(params.checklistId),
+        notFound: checklistNotFound,
+      };
+    }
+    if (params.itemId !== undefined) {
+      return {
+        boardId: await this.access.boardIdOfChecklistItem(params.itemId),
+        notFound: checklistItemNotFound,
+      };
+    }
+    if (params.labelId !== undefined) {
+      return { boardId: await this.access.boardIdOfLabel(params.labelId), notFound: labelNotFound };
     }
     return null;
   }

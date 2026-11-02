@@ -67,6 +67,13 @@ describe('toErrorShape', () => {
     });
   });
 
+  it('maps a foreign key violation (P2003) to 409', () => {
+    expect(toErrorShape(prismaError('P2003'))).toMatchObject({
+      statusCode: HttpStatus.CONFLICT,
+      code: ErrorCode.CONFLICT,
+    });
+  });
+
   it('maps a deadlock or write conflict to a retryable 409', () => {
     const rawDeadlock = new Prisma.PrismaClientKnownRequestError(
       'Raw query failed. Code: `40P01`. Message: `deadlock detected`',

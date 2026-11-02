@@ -41,6 +41,36 @@ export class BoardAccessService {
     return card?.boardId ?? null;
   }
 
+  /** Board of a label, or null when the label does not exist. */
+  async boardIdOfLabel(labelId: string): Promise<string | null> {
+    if (!isUUID(labelId)) return null;
+    const label = await this.prisma.label.findUnique({
+      where: { id: labelId },
+      select: { boardId: true },
+    });
+    return label?.boardId ?? null;
+  }
+
+  /** Board of a checklist, or null when the checklist does not exist. */
+  async boardIdOfChecklist(checklistId: string): Promise<string | null> {
+    if (!isUUID(checklistId)) return null;
+    const checklist = await this.prisma.checklist.findUnique({
+      where: { id: checklistId },
+      select: { card: { select: { boardId: true } } },
+    });
+    return checklist?.card.boardId ?? null;
+  }
+
+  /** Board of a checklist item, or null when the item does not exist. */
+  async boardIdOfChecklistItem(itemId: string): Promise<string | null> {
+    if (!isUUID(itemId)) return null;
+    const item = await this.prisma.checklistItem.findUnique({
+      where: { id: itemId },
+      select: { checklist: { select: { card: { select: { boardId: true } } } } },
+    });
+    return item?.checklist.card.boardId ?? null;
+  }
+
   /**
    * Returns the user's role, or throws when it is missing or below `min`.
    * `notFound` is thrown for non-members, so a list route can say "List not found".
