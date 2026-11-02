@@ -1,47 +1,16 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CardDetailDto, UpdateCardRequest } from '@trello/contracts';
+import type { UpdateCardRequest } from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import {
-  BOARD_ID,
-  apiError,
-  boardDetail,
-  testCard,
-  testCardDetail,
-  testLists,
-  testUser,
-} from '../../../test/fixtures';
+import { BOARD_ID, apiError, boardDetail, testCard, testUser } from '../../../test/fixtures';
+import { BOARD_URL, CARD_ID, CARD_URL, LIST, cardDialog, openCard as open } from '../../../test/card-dialog';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 import { useAuthStore } from '../../auth/store/auth-store';
 
-const [list] = testLists('Yapılacaklar');
-const CARD_ID = 'card-1';
-const BOARD_URL = `*/api/v1/boards/${BOARD_ID}`;
-const CARD_URL = `*/api/v1/cards/${CARD_ID}`;
-
-/** Opens `path` with one card on the board; the card GET answers with `detail`. */
-function open(path: string, detail: Partial<CardDetailDto> = {}) {
-  useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
-  const card = testCardDetail({ id: CARD_ID, listId: list.id, title: 'Rapor', ...detail });
-  server.use(
-    http.get(BOARD_URL, () =>
-      HttpResponse.json(boardDetail('OWNER', 'Pano', [list], [testCard(card)])),
-    ),
-    http.get(CARD_URL, () => HttpResponse.json(card)),
-  );
-  const result = renderApp(path);
-  return { ...result, user: userEvent.setup(), card };
-}
-
+const list = LIST;
 const tile = () => screen.findByRole('button', { name: 'Rapor' });
-/** The card dialog once the card has loaded. */
-async function cardDialog() {
-  const dialog = await screen.findByRole('dialog', { name: 'Rapor' });
-  await within(dialog).findByText('“Yapılacaklar” listesinde');
-  return dialog;
-}
 
 describe('card dialog route', () => {
   it('opens from a URL, named after the card', async () => {
