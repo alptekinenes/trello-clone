@@ -1,5 +1,8 @@
+import type { ChecklistDto } from './checklists.js';
+
 export const CARD_LIMITS = {
   TITLE_MAX: 512,
+  DESCRIPTION_MAX: 10_000,
 } as const;
 
 /** What a card tile needs; the board page gets one per active card. */
@@ -17,6 +20,14 @@ export interface CardSummaryDto {
   checklistDone: number;
 }
 
+/** Everything the card dialog needs. Label names and colors come from the board detail. */
+export interface CardDetailDto extends CardSummaryDto {
+  boardId: string;
+  description: string | null;
+  /** Ordered by (position, id). */
+  checklists: ChecklistDto[];
+}
+
 /** Neighbours in the target list; same rules as ListAnchors. */
 export interface CardAnchors {
   afterCardId?: string | null;
@@ -29,6 +40,11 @@ export interface CreateCardRequest extends CardAnchors {
 
 export interface UpdateCardRequest {
   title?: string;
+  /** Plain text. null, or only whitespace, clears it. */
+  description?: string | null;
+  /** ISO 8601 date-time with `Z` or an offset; null clears the due date (and dueComplete). */
+  dueDate?: string | null;
+  dueComplete?: boolean;
   /** true archives the card; false restores it to the end of its list. */
   archived?: boolean;
 }

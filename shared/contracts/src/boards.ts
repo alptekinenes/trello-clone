@@ -1,5 +1,6 @@
-import type { BoardBackground, BoardRole, LabelColor } from './enums.js';
+import type { BoardBackground, BoardRole } from './enums.js';
 import type { CardSummaryDto } from './cards.js';
+import type { LabelDto } from './labels.js';
 import type { ListDto } from './lists.js';
 
 export const BOARD_LIMITS = {
@@ -38,13 +39,6 @@ export interface MemberDto {
   avatarUrl: string | null;
   role: BoardRole;
   joinedAt: string;
-}
-
-export interface LabelDto {
-  id: string;
-  boardId: string;
-  name: string;
-  color: LabelColor;
 }
 
 /** Everything the board page needs in one request. */

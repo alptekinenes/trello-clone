@@ -26,6 +26,9 @@ export const LabelColor = {
 } as const;
 export type LabelColor = (typeof LabelColor)[keyof typeof LabelColor];
 
+/** Every color, in enum order (the order the database sorts and the picker shows them). */
+export const LABEL_COLORS: readonly LabelColor[] = Object.values(LabelColor);
+
 export const BOARD_BACKGROUNDS = [
   'blue',
   'green',
