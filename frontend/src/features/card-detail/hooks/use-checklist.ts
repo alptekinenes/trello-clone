@@ -65,13 +65,16 @@ export function useChecklist(boardId: string, card: CardDetailDto, checklist: Ch
   }
 
   function confirmDelete() {
-    deleteChecklist.mutate(checklist.id, {
-      onSuccess: () => {
+    // mutateAsync, not mutate with callbacks: the answer removes this checklist, and with it
+    // this component, before mutate's own callbacks would run.
+    deleteChecklist.mutateAsync(checklist.id).then(
+      () => {
         // Closing the confirmation first makes the page usable, so the focus can move on.
         flushSync(() => setConfirmingDelete(false));
         document.getElementById(panelButtonId('checklist'))?.focus();
       },
-    });
+      () => undefined, // The failure is shown in the confirmation (and the dialog's alert).
+    );
   }
 
   function cancelDelete() {
