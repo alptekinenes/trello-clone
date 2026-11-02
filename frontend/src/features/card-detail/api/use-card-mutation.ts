@@ -73,7 +73,10 @@ export function useCardMutation<TVariables, TData>({
         syncSummary();
       }
       onRollback?.(variables);
-      showError(typeof errorMessage === 'function' ? errorMessage(error, variables) : errorMessage);
+      showError(
+        cardId,
+        typeof errorMessage === 'function' ? errorMessage(error, variables) : errorMessage,
+      );
     },
     onSuccess: (data, variables) => {
       if (onSuccessCard) updateCard((card) => onSuccessCard(card, data, variables));

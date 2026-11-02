@@ -47,6 +47,8 @@ const CARD: CardDetailDto = withCounters(
 );
 
 function setup(onRollback?: () => void) {
+  // The card's dialog is open, so failures show inside it.
+  useCardDetailStore.getState().open('card-1');
   const queryClient = createTestQueryClient();
   queryClient.setQueryDefaults(boardKeys.all, { staleTime: Infinity });
   queryClient.setQueryDefaults(cardKeys.all, { staleTime: Infinity });
@@ -127,7 +129,7 @@ describe('useMoveChecklistItem', () => {
     expect(ids('a')).toEqual(['a1', 'a2']);
     expect(ids('b')).toEqual(['b1']);
     expect(onRollback).toHaveBeenCalledOnce();
-    expect(useCardDetailStore.getState().error).toBe('Öğe taşınamadı. Tekrar dene.');
+    expect(useCardDetailStore.getState().error?.message).toBe('Öğe taşınamadı. Tekrar dene.');
   });
 
   it('refetches the card after a conflict', async () => {
@@ -143,7 +145,7 @@ describe('useMoveChecklistItem', () => {
     );
 
     await waitFor(() => expect(counter.card).toBe(1));
-    expect(useCardDetailStore.getState().error).toBe(
+    expect(useCardDetailStore.getState().error?.message).toBe(
       'Öğeler başka biri tarafından değiştirildi. Kart yenilendi.',
     );
   });

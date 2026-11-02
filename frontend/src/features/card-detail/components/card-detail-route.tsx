@@ -38,11 +38,15 @@ export function CardDetailRoute() {
   const { boardId = '', cardId = '' } = useParams();
   const { data: board } = useBoard(boardId);
   const { data: card, error, refetch } = useCardDetail(cardId);
+  const openDialogState = useCardDetailStore((state) => state.open);
   const resetDialogState = useCardDetailStore((state) => state.reset);
   const onClose = useCardDetailClose(boardId, cardId);
 
-  // Errors, announcements and open sections belong to this visit of the dialog.
-  useEffect(() => resetDialogState, [resetDialogState]);
+  // Errors, announcements and open sections belong to this visit of this card's dialog.
+  useEffect(() => {
+    openDialogState(cardId);
+    return resetDialogState;
+  }, [cardId, openDialogState, resetDialogState]);
 
   if (card && card.boardId !== boardId) {
     return <Navigate replace to={`/boards/${card.boardId}/c/${card.id}`} />;

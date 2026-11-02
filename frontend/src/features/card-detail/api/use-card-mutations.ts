@@ -42,7 +42,7 @@ export function useRestoreOpenCard(boardId: string, cardId: string) {
   const queryClient = useQueryClient();
   const showError = useCardDetailStore((state) => state.showError);
   const restore = useRestoreCard(boardId, {
-    onError: () => showError('Kart geri yüklenemedi. Listesi arşivde olabilir.'),
+    onError: () => showError(cardId, 'Kart geri yüklenemedi. Listesi arşivde olabilir.'),
   });
   return {
     restore: () =>

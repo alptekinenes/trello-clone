@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { CARD_PATH, CARD_URL, cardDialog, openCard } from '../../../test/card-dialog';
 import { apiError } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
+import { useToastStore } from '../../../shared/store/toast-store';
+import { useCardDetailStore } from '../store/card-detail-store';
 
 const CARD_ID = 'card-1';
 
@@ -313,5 +315,28 @@ describe('dragging items', () => {
 
     expect(within(dialog).getByRole('checkbox', { name: 'Taslak' })).toBeChecked();
     expect(within(dialog).queryByText(/tutuldu/)).not.toBeInTheDocument();
+  });
+});
+
+describe('a failure after the dialog closed', () => {
+  it('goes to a toast and does not show up in the next dialog', async () => {
+    const { user } = openCard(CARD_PATH, { checklists: [TODO_LIST] });
+    server.use(
+      http.patch('*/api/v1/checklist-items/i-1', async () => {
+        await delay(80);
+        return apiError(500, 'INTERNAL_ERROR');
+      }),
+    );
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Taslak' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Kapat' }));
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
+        'Öğe kaydedilemedi. Tekrar dene.',
+      ]),
+    );
+    expect(useCardDetailStore.getState().error).toBeNull();
   });
 });

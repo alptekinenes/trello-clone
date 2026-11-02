@@ -29,7 +29,7 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
     <div className="flex flex-col gap-4">
       {/* pr-10 keeps the alert and banner buttons clear of the dialog's close button. */}
       <div className="flex flex-col gap-4 pr-10 empty:hidden">
-        <CardDetailAlert />
+        <CardDetailAlert cardId={card.id} />
         {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}
       </div>
       <CardTitleEditor boardId={boardId} cardId={card.id} title={card.title} listTitle={listTitle} />

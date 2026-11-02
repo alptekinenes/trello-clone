@@ -26,6 +26,8 @@ const OTHER = testCard({ id: 'card-2', listId: TODO.id, title: 'Diğer', positio
 const BOARD = boardDetail('OWNER', 'Pano', [TODO, DONE], [testCard(CARD), OTHER]);
 
 function setup() {
+  // The card's dialog is open, so failures show inside it.
+  useCardDetailStore.getState().open('card-1');
   const queryClient = createTestQueryClient();
   queryClient.setQueryDefaults(boardKeys.all, { staleTime: Infinity });
   queryClient.setQueryDefaults(cardKeys.all, { staleTime: Infinity });
@@ -115,7 +117,7 @@ describe('useUpdateCard', () => {
     expect(card()?.title).toBe('Rapor');
     expect(tileOf(board(), CARD.id)?.title).toBe('Rapor');
     expect(tileOf(board(), OTHER.id)?.title).toBe('Başka biri');
-    expect(useCardDetailStore.getState().error).toBe('Değişiklik kaydedilemedi. Tekrar dene.');
+    expect(useCardDetailStore.getState().error?.message).toBe('Değişiklik kaydedilemedi. Tekrar dene.');
   });
 
   it('refetches the board only after the last of overlapping mutations', async () => {
