@@ -34,7 +34,7 @@ export function TextField({
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className={`h-10 rounded-md border border-line bg-surface px-3 text-fg placeholder:text-fg-subtle aria-invalid:border-danger ${className}`}
+        className={`h-10 rounded-md border border-line-strong bg-surface px-3 text-fg placeholder:text-fg-subtle aria-invalid:border-danger ${className}`}
         {...inputProps}
       />
       {hint && (

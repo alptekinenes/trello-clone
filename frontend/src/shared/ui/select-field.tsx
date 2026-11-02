@@ -16,7 +16,7 @@ export function SelectField({ label, id, className = '', children, ...props }: S
       </label>
       <select
         id={selectId}
-        className="h-10 rounded-md border border-line bg-surface px-3 text-sm text-fg"
+        className="h-10 rounded-md border border-line-strong bg-surface px-3 text-sm text-fg"
         {...props}
       >
         {children}

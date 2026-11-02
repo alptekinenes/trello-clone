@@ -16,6 +16,7 @@
   --color-surface-hover: var(--ui-surface-hover);
   --color-overlay: var(--ui-overlay);
   --color-line: var(--ui-line);
+  --color-line-strong: var(--ui-line-strong);
 
   --color-fg: var(--ui-fg);
   --color-fg-muted: var(--ui-fg-muted);
