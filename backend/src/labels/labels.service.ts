@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { CreateLabelRequest, LabelDto, UpdateLabelRequest } from '@trello/contracts';
-import { labelNotFound } from '../access/access.errors.js';
+import { cardNotFound, labelNotFound } from '../access/access.errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LABEL_SELECT, toLabelDto } from './label.mapper.js';
@@ -48,10 +48,11 @@ export class LabelsService {
    * deleted at the same moment the foreign key fails and the filter answers 409.
    */
   async assign(boardId: string, cardId: string, labelId: string): Promise<void> {
-    const label = await this.prisma.label.findFirst({
-      where: { id: labelId, boardId },
-      select: { id: true },
-    });
+    const [card, label] = await Promise.all([
+      this.prisma.card.findFirst({ where: { id: cardId, boardId }, select: { id: true } }),
+      this.prisma.label.findFirst({ where: { id: labelId, boardId }, select: { id: true } }),
+    ]);
+    if (!card) throw cardNotFound();
     if (!label) throw labelNotInBoard();
     await this.prisma.cardLabel.createMany({
       data: [{ cardId, labelId }],

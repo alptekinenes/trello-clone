@@ -9,19 +9,20 @@ const CARD = 'card-1';
 const LABEL = 'label-1';
 const ROW = { id: LABEL, boardId: BOARD, name: 'Acil', color: 'RED' };
 
-function setup({ found = true as boolean } = {}) {
+function setup({ found = true as boolean, cardFound = true as boolean } = {}) {
   const label = {
     create: vi.fn().mockResolvedValue(ROW),
     update: vi.fn().mockResolvedValue(ROW),
     deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     findFirst: vi.fn().mockResolvedValue(found ? { id: LABEL } : null),
   };
+  const card = { findFirst: vi.fn().mockResolvedValue(cardFound ? { id: CARD } : null) };
   const cardLabel = {
     createMany: vi.fn().mockResolvedValue({ count: 1 }),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   };
-  const service = new LabelsService({ label, cardLabel } as unknown as PrismaService);
-  return { service, label, cardLabel };
+  const service = new LabelsService({ label, card, cardLabel } as unknown as PrismaService);
+  return { service, label, card, cardLabel };
 }
 
 function codeOf(error: unknown): unknown {
@@ -93,6 +94,17 @@ describe('LabelsService', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.LABEL_NOT_IN_BOARD);
+      expect(cardLabel.createMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses a card of another board with 404 Card not found', async () => {
+      const { service, card, cardLabel } = setup({ cardFound: false });
+
+      const error = await service.assign(BOARD, CARD, LABEL).catch((e: unknown) => e);
+
+      expect(card.findFirst.mock.calls[0][0].where).toEqual({ id: CARD, boardId: BOARD });
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).message).toBe('Card not found');
       expect(cardLabel.createMany).not.toHaveBeenCalled();
     });
   });
