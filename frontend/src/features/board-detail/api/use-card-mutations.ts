@@ -101,11 +101,15 @@ export function useArchiveCard(boardId: string) {
 }
 
 /** Back to its list, at the end. The list must not be archived (400 INVALID_TARGET). */
-export function useRestoreCard(boardId: string, { onError }: { onError?: () => void } = {}) {
+export function useRestoreCard(
+  boardId: string,
+  { onSuccess, onError }: { onSuccess?: () => void; onError?: () => void } = {},
+) {
   return useBoardMutation({
     boardId,
     mutationFn: (cardId: string) => cardsApi.update(cardId, { archived: false }),
     onSuccessCache: (detail, card: CardSummaryDto) => upsertCard(detail, card),
+    onSuccess,
     onError,
   });
 }

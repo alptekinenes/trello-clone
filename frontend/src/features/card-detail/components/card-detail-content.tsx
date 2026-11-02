@@ -2,6 +2,8 @@ import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
 import { Button } from '../../../shared/ui/button';
 import { ArchiveIcon, ChecklistIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
 import { useArchiveOpenCard } from '../hooks/use-archive-open-card';
+import { useFocusArchiveAfterRestore } from '../hooks/use-focus-archive-after-restore';
+import { ARCHIVE_BUTTON_ID } from '../lib/focus-ids';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
 import { CardDescription } from './card-description';
@@ -27,6 +29,7 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
   const listId = tile?.listId ?? card.listId;
   const listTitle = board.lists.find((list) => list.id === listId)?.title ?? null;
   const archived = tile === undefined;
+  useFocusArchiveAfterRestore(archived);
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,7 +60,12 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
             <PanelButton panel="due-date" icon={<ClockIcon />}>
               Son tarih
             </PanelButton>
-            <Button variant="secondary" className="justify-start" onClick={archiveCard}>
+            <Button
+              id={ARCHIVE_BUTTON_ID}
+              variant="secondary"
+              className="justify-start"
+              onClick={archiveCard}
+            >
               <ArchiveIcon />
               Arşivle
             </Button>

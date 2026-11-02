@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { CardDetailDto, ChecklistItemDto } from '@trello/contracts';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -77,6 +77,19 @@ async function setup(onRollback?: () => void) {
   return { result, card, ids };
 }
 
+/**
+ * A request the test holds back until it calls `release`. A fixed delay would race the
+ * test's own polling: on a busy machine the answer could land before the optimistic state
+ * was looked at.
+ */
+function gate() {
+  let release: () => void = () => undefined;
+  const opened = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { opened, release };
+}
+
 const refetchHandlers = (counter: { card: number }) => [
   http.get(`*/api/v1/boards/${BOARD_ID}`, () =>
     HttpResponse.json(boardDetail('OWNER', 'Pano', [TODO], [testCard(CARD)])),
@@ -89,9 +102,10 @@ const refetchHandlers = (counter: { card: number }) => [
 
 describe('useMoveChecklistItem', () => {
   it('moves the item to another checklist before the server answers, between its neighbours', async () => {
+    const answer = gate();
     server.use(
       http.post('*/api/v1/checklist-items/a1/move', async () => {
-        await delay(60);
+        await answer.opened;
         return HttpResponse.json({ id: 'a1', checklistId: 'b', position: 1536 });
       }),
       ...refetchHandlers({ card: 0 }),
@@ -106,14 +120,17 @@ describe('useMoveChecklistItem', () => {
     expect(ids('a')).toEqual(['a2']);
     expect(card()?.checklists[1].items[1].position).toBe(2048);
     expect(card()).toMatchObject({ checklistTotal: 3, checklistDone: 0 });
+    expect(result.current.move.isPending).toBe(true);
+    answer.release();
     await waitFor(() => expect(result.current.move.isSuccess).toBe(true));
   });
 
   it('puts the item back and tells the dialog when the move fails', async () => {
     const onRollback = vi.fn();
+    const answer = gate();
     server.use(
       http.post('*/api/v1/checklist-items/a1/move', async () => {
-        await delay(60);
+        await answer.opened;
         return apiError(500, 'INTERNAL_ERROR');
       }),
       ...refetchHandlers({ card: 0 }),
@@ -124,6 +141,7 @@ describe('useMoveChecklistItem', () => {
       result.current.move.mutate({ itemId: 'a1', checklistId: 'b', afterItemId: null, beforeItemId: 'b1' }),
     );
     await waitFor(() => expect(ids('b')).toEqual(['a1', 'b1']));
+    answer.release();
     await waitFor(() => expect(result.current.move.isError).toBe(true));
 
     expect(ids('a')).toEqual(['a1', 'a2']);

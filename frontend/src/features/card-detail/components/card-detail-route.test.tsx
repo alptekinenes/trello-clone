@@ -19,6 +19,7 @@ import { renderApp } from '../../../test/render';
 import { useAuthStore } from '../../auth/store/auth-store';
 
 const list = LIST;
+const CARD_PATH = `/boards/${BOARD_ID}/c/${CARD_ID}`;
 const tile = () => screen.findByRole('button', { name: 'Rapor' });
 
 describe('card dialog route', () => {

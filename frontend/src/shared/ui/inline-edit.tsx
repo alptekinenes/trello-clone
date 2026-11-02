@@ -10,6 +10,8 @@ interface InlineEditProps {
   maxLength?: number;
   /** Wraps long text over several lines instead of truncating it. */
   wrap?: boolean;
+  /** Id of the view button, for code that hands the focus back to it. */
+  buttonId?: string;
   /** Called with the trimmed text, only when it is non-empty and changed. */
   onSave: (value: string) => void;
   className?: string;
@@ -29,6 +31,7 @@ export function InlineEdit({
   editHint,
   maxLength,
   wrap = false,
+  buttonId,
   onSave,
   className = '',
   inputClassName = '',
@@ -75,6 +78,7 @@ export function InlineEdit({
       <>
         <button
           ref={buttonRef}
+          id={buttonId}
           type="button"
           onClick={start}
           aria-describedby={hintId}

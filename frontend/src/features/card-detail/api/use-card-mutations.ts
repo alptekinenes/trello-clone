@@ -65,6 +65,7 @@ export function useUpdateCard(boardId: string, cardId: string) {
 /** Restores the open (archived) card to its list. The board and the card refetch after it. */
 export function useRestoreOpenCard(boardId: string, cardId: string) {
   const restore = useRestoreCard(boardId, {
+    onSuccess: () => useCardDetailStore.getState().announce('Kart geri yüklendi.'),
     onError: () =>
       useCardDetailStore
         .getState()
