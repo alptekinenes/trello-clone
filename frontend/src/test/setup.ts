@@ -3,6 +3,7 @@ import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 // Test infrastructure may reach into feature internals to reset global state.
 import { resetAuthStore } from '../features/auth/store/auth-store';
+import { resetInvitationIntent } from '../features/invitations/store/invitation-intent-store';
 import { resetCardDetailStore } from '../features/card-detail/store/card-detail-store';
 import { resetCardUi } from '../features/board-detail/store/card-ui-store';
 import { setAuthHandlers } from '../shared/lib/http';
@@ -33,5 +34,6 @@ afterEach(() => {
   resetToasts();
   resetCardUi();
   resetCardDetailStore();
+  resetInvitationIntent();
 });
 afterAll(() => server.close());

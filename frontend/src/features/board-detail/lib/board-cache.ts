@@ -1,9 +1,11 @@
 import {
   type BoardDetailDto,
+  type BoardRole,
   type CardSummaryDto,
   LABEL_COLORS,
   type LabelDto,
   type ListDto,
+  type MemberDto,
 } from '@trello/contracts';
 import { sortByPosition } from '../../../shared/lib/sort-by-position';
 
@@ -88,4 +90,38 @@ export function removeLabel(detail: BoardDetailDto, labelId: string): BoardDetai
         : card,
     ),
   };
+}
+
+/** Same order as the server's: owner first, then admins, then members; earlier joiners first. */
+const MEMBER_ROLE_ORDER: Record<BoardRole, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+
+function sortMembers(members: MemberDto[]): MemberDto[] {
+  return [...members].sort(
+    (a, b) =>
+      MEMBER_ROLE_ORDER[a.role] - MEMBER_ROLE_ORDER[b.role] ||
+      a.joinedAt.localeCompare(b.joinedAt) ||
+      a.userId.localeCompare(b.userId),
+  );
+}
+
+export function upsertMember(detail: BoardDetailDto, member: MemberDto): BoardDetailDto {
+  const others = detail.members.filter((item) => item.userId !== member.userId);
+  return { ...detail, members: sortMembers([...others, member]) };
+}
+
+export function patchMember(
+  detail: BoardDetailDto,
+  userId: string,
+  changes: Partial<MemberDto>,
+): BoardDetailDto {
+  return {
+    ...detail,
+    members: sortMembers(
+      detail.members.map((member) => (member.userId === userId ? { ...member, ...changes } : member)),
+    ),
+  };
+}
+
+export function removeMember(detail: BoardDetailDto, userId: string): BoardDetailDto {
+  return { ...detail, members: detail.members.filter((member) => member.userId !== userId) };
 }

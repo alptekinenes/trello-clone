@@ -17,7 +17,7 @@ interface DialogProps {
 }
 
 const SIZE_CLASS: Record<DialogSize, string> = {
-  md: 'max-w-md p-6',
+  md: 'max-w-md p-4 sm:p-6',
   lg: 'max-w-3xl overflow-y-auto p-4 sm:p-6',
 };
 
@@ -67,9 +67,15 @@ export function Dialog({
       onClose={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
-      className={`m-auto w-full rounded-lg bg-surface text-fg shadow-raised backdrop:bg-overlay ${SIZE_CLASS[size]}`}
+      // The width (a gutter around the panel on narrow screens) comes from index.css.
+      className={`m-auto rounded-lg bg-surface text-fg shadow-raised backdrop:bg-overlay ${SIZE_CLASS[size]}`}
     >
-      <h2 id={titleId} className={hideTitle ? 'sr-only' : 'mb-4 text-lg font-semibold'}>
+      <h2
+        id={titleId}
+        className={
+          hideTitle ? 'sr-only' : `mb-4 text-lg font-semibold ${showCloseButton ? 'pr-12' : ''}`
+        }
+      >
         {title}
       </h2>
       {showCloseButton && (
@@ -77,7 +83,7 @@ export function Dialog({
           type="button"
           aria-label="Kapat"
           onClick={close}
-          className="absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
+          className="absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <CloseIcon />
         </button>

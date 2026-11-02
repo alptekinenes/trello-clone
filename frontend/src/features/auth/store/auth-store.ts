@@ -33,3 +33,10 @@ export const useCurrentUser = () => useAuthStore((state) => state.user);
 export function resetAuthStore(): void {
   useAuthStore.setState(initialState);
 }
+
+/** Calls `listener` whenever a signed-in session ends (logout, or a session the server refused). */
+export function onSignOut(listener: () => void): () => void {
+  return useAuthStore.subscribe((state, previous) => {
+    if (previous.status === 'authenticated' && state.status === 'anonymous') listener();
+  });
+}

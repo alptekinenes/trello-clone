@@ -1,25 +1,27 @@
 import { AUTH_LIMITS } from '@trello/contracts';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { Button } from '../../../shared/ui/button';
+import { CenteredCard } from '../../../shared/ui/centered-card';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { TextField } from '../../../shared/ui/text-field';
 import { useRegisterForm } from '../hooks/use-register-form';
-import { AuthCard } from './auth-card';
 
 export function RegisterPage() {
   const { form, onSubmit, isPending, serverError } = useRegisterForm();
+  // The other page keeps where to return to and the email to fill in.
+  const { search, state } = useLocation();
   const {
     register,
     formState: { errors },
   } = form;
 
   return (
-    <AuthCard
+    <CenteredCard
       title="Hesap oluştur"
       footer={
         <>
           Zaten hesabın var mı?{' '}
-          <Link to="/login" className="font-medium text-primary hover:text-primary-hover">
+          <Link to={{ pathname: '/login', search }} state={state} className="font-medium text-primary hover:text-primary-hover">
             Giriş yap
           </Link>
         </>
@@ -47,6 +49,6 @@ export function RegisterPage() {
           {isPending ? 'Hesap oluşturuluyor…' : 'Kayıt ol'}
         </Button>
       </form>
-    </AuthCard>
+    </CenteredCard>
   );
 }

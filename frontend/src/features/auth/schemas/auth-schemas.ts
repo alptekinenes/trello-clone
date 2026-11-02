@@ -1,12 +1,6 @@
 import { AUTH_LIMITS } from '@trello/contracts';
 import { z } from 'zod';
-
-const email = z
-  .string()
-  .trim()
-  .min(1, { error: 'E-posta adresini gir.' })
-  .max(AUTH_LIMITS.EMAIL_MAX, { error: 'E-posta adresi çok uzun.' })
-  .pipe(z.email({ error: 'Geçerli bir e-posta adresi gir.' }));
+import { emailSchema as email } from '../../../shared/lib/email-schema';
 
 const passwordTooLong = `Parola en fazla ${AUTH_LIMITS.PASSWORD_MAX} karakter olabilir.`;
 

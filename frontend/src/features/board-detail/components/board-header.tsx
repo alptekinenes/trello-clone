@@ -7,8 +7,9 @@ import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { useBoardActions } from '../hooks/use-board-actions';
 import { ArchiveDialog } from './archive-dialog';
 import { LabelsManager } from './labels-manager';
+import { MembersDialog } from './members-dialog';
 
-const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board';
+const TITLE = 'px-2 py-1 text-lg font-semibold text-on-board focus-visible:outline-on-board';
 
 export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
   const { board, members } = detail;
@@ -39,8 +40,11 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
         </p>
       )}
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex flex-wrap items-center gap-3">
         <AvatarStack people={people} label="Pano üyeleri" />
+        <Button variant="on-board" className="h-8 px-3" onClick={actions.openMembers}>
+          Üyeler
+        </Button>
         <Button variant="on-board" className="h-8 px-3" onClick={actions.openLabels}>
           Etiketler
         </Button>
@@ -53,6 +57,8 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
           </Button>
         )}
       </div>
+
+      {actions.membersOpen && <MembersDialog detail={detail} onClose={actions.closeMembers} />}
 
       {actions.labelsOpen && (
         <Dialog title="Etiketler" onClose={actions.closeLabels} showCloseButton>

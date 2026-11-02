@@ -1,7 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { useLocation } from 'react-router';
 import { useLogin } from '../api/use-auth-mutations';
 import { authErrorMessage } from '../lib/auth-error-message';
+import { prefillEmail } from '../lib/redirect-target';
 import { loginSchema } from '../schemas/auth-schemas';
 
 /**
@@ -9,9 +11,10 @@ import { loginSchema } from '../schemas/auth-schemas';
  * GuestRoute sends the user on to the page they came from.
  */
 export function useLoginForm() {
+  const { state } = useLocation();
   const form = useForm({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: prefillEmail(state), password: '' },
   });
   const login = useLogin();
 

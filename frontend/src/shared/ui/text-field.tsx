@@ -34,16 +34,16 @@ export function TextField({
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className={`h-10 rounded-md border border-line-strong bg-surface px-3 text-fg placeholder:text-fg-subtle aria-invalid:border-danger ${className}`}
+        className={`h-10 rounded-md border border-line-strong bg-surface px-3 text-fg placeholder:text-fg-subtle pointer-coarse:min-h-11 aria-invalid:border-danger ${className}`}
         {...inputProps}
       />
       {hint && (
-        <p id={hintId} className="text-xs text-fg-muted">
+        <p id={hintId} className="text-xs break-words text-fg-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-sm text-danger">
+        <p id={errorId} className="text-sm break-words text-danger">
           {error}
         </p>
       )}

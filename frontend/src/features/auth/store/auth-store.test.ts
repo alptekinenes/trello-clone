@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { testUser } from '../../../test/fixtures';
-import { useAuthStore } from './auth-store';
+import { onSignOut, useAuthStore } from './auth-store';
 
 describe('auth store', () => {
   it('starts with an unknown session', () => {
@@ -30,5 +30,18 @@ describe('auth store', () => {
       accessToken: 'token',
       user: { name: 'Yeni Ad' },
     });
+  });
+
+  it('onSignOut tells when a signed-in session ends, but not for the check at page load', () => {
+    const listener = vi.fn();
+    const stop = onSignOut(listener);
+
+    useAuthStore.getState().clearSession();
+    expect(listener).not.toHaveBeenCalled();
+    useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
+    expect(listener).not.toHaveBeenCalled();
+    useAuthStore.getState().clearSession();
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
   });
 });

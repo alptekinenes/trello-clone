@@ -1,10 +1,13 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { apiError, testUser } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
-import { renderApp } from '../../../test/render';
+import { createMemoryRouter } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
+import { routes } from '../../../app/routes';
+import { renderApp, renderWithProviders } from '../../../test/render';
 import { useAuthStore } from '../store/auth-store';
 
 async function fillAndSubmit(values: { name: string; email: string; password: string }) {
@@ -78,5 +81,50 @@ describe('RegisterPage', () => {
     await fillAndSubmit({ name: 'Ayşe', email: 'ayse@example.com', password: 'secret-password' });
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Sunucuya şu an ulaşılamıyor');
+  });
+});
+
+describe('RegisterPage with a returnUrl', () => {
+  const INVITATION_PATH = `/invitations/${'a'.repeat(43)}`;
+
+  it('goes back there after signing up, with the email a link handed over', async () => {
+    useAuthStore.getState().clearSession();
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/auth/register', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ accessToken: 'token', user: testUser }, { status: 201 });
+      }),
+      http.get('*/api/v1/invitations/*', () => new HttpResponse(null, { status: 404 })),
+    );
+    const router = createMemoryRouter(routes, {
+      initialEntries: [
+        {
+          pathname: '/register',
+          search: `?returnUrl=${encodeURIComponent(INVITATION_PATH)}`,
+          state: { email: 'b@example.com' },
+        },
+      ],
+    });
+    renderWithProviders(<RouterProvider router={router} />);
+    expect(await screen.findByLabelText('E-posta')).toHaveValue('b@example.com');
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Ad soyad'), 'Bora Kaya');
+    await user.type(screen.getByLabelText('Parola'), 'secret-password');
+    await user.click(screen.getByRole('button', { name: 'Kayıt ol' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(INVITATION_PATH));
+    expect(body).toEqual({ name: 'Bora Kaya', email: 'b@example.com', password: 'secret-password' });
+  });
+
+  it('keeps it on the link to the login page', () => {
+    useAuthStore.getState().clearSession();
+    renderApp('/register?returnUrl=%2Fboards%2FB');
+
+    expect(screen.getByRole('link', { name: 'Giriş yap' })).toHaveAttribute(
+      'href',
+      '/login?returnUrl=%2Fboards%2FB',
+    );
   });
 });

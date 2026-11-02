@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
 import { expect, type Page } from '@playwright/test';
+import pg from 'pg';
+
+const { Client } = pg;
 
 /**
  * Registers a fresh user through the API. The refresh cookie lands in the
@@ -163,4 +169,92 @@ export function localDateTime(offsetMs: number): string {
   const date = new Date(Date.now() + offsetMs);
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** A mailbox nobody has registered with; the prefix makes a test's addresses easy to tell apart. */
+export function freshEmail(prefix = 'e2e'): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
+}
+
+/** Password of every user `signUpAs` creates. */
+export const PASSWORD = 'secret-password';
+
+/**
+ * Registers a user through the API like `signUp`, with a name and (optionally) an email of
+ * the test's choosing. Returns the access token and the address that was registered.
+ */
+export async function signUpAs(
+  page: Page,
+  name: string,
+  email: string = freshEmail(),
+): Promise<{ token: string; email: string }> {
+  const res = await page.request.post('/api/v1/auth/register', {
+    data: { email, password: PASSWORD, name },
+  });
+  expect(res.ok()).toBe(true);
+  const body = (await res.json()) as { accessToken: string };
+  return { token: body.accessToken, email };
+}
+
+/**
+ * Invites an address through the API. Returns the invite URL when the address was not
+ * registered (an invitation was created), or null when the user was added at once.
+ */
+export async function apiInvite(
+  page: Page,
+  token: string,
+  boardId: string,
+  email: string,
+  role: 'MEMBER' | 'ADMIN' = 'MEMBER',
+): Promise<string | null> {
+  const res = await page.request.post(`/api/v1/boards/${boardId}/invitations`, {
+    headers: authHeaders(token),
+    data: { email, role },
+  });
+  expect(res.status()).toBe(201);
+  const body = (await res.json()) as { result: string; inviteUrl?: string };
+  return body.result === 'INVITATION_CREATED' ? (body.inviteUrl ?? null) : null;
+}
+
+/** The part of an invite URL the app serves, e.g. `/invitations/<token>`. */
+export function inviteTokenPath(inviteUrl: string): string {
+  return new URL(inviteUrl).pathname;
+}
+
+/**
+ * `DATABASE_URL` of the backend the tests run against. Resolved like the backend does it
+ * (@nestjs/config): a variable in the environment wins over backend/.env, which the
+ * backend that Playwright starts inherits from the same environment.
+ */
+function databaseUrl(): string {
+  const raw = process.env.DATABASE_URL ?? readBackendEnv().DATABASE_URL;
+  if (!raw) throw new Error('DATABASE_URL is not set in the environment or in backend/.env');
+  // pg takes a plain connection string; Prisma's `schema` parameter is not part of one.
+  const url = new URL(raw);
+  url.searchParams.delete('schema');
+  return url.toString();
+}
+
+function readBackendEnv(): Record<string, string | undefined> {
+  const path = fileURLToPath(new URL('../../backend/.env', import.meta.url));
+  return parseEnv(readFileSync(path, 'utf8'));
+}
+
+/**
+ * Lets an invitation lapse the only way possible: no endpoint ends one early, and waiting
+ * seven days is not an option. The column is a timestamp without zone that Prisma fills in
+ * UTC, hence the explicit zone. Touches only the pending invitation of this address.
+ */
+export async function expireInvitation(boardId: string, email: string): Promise<void> {
+  const client = new Client({ connectionString: databaseUrl() });
+  await client.connect();
+  try {
+    const result = await client.query(
+      `UPDATE "Invitation" SET "expiresAt" = (now() AT TIME ZONE 'UTC') - interval '1 minute' WHERE "boardId" = $1 AND "email" = $2`,
+      [boardId, email.toLowerCase()],
+    );
+    expect(result.rowCount).toBe(1);
+  } finally {
+    await client.end();
+  }
 }

@@ -21,6 +21,6 @@ export function GuestRoute() {
   const location = useLocation();
 
   if (status === 'unknown') return <PageLoader label={CHECKING} />;
-  if (status === 'authenticated') return <Navigate to={redirectTarget(location.state)} replace />;
+  if (status === 'authenticated') return <Navigate to={redirectTarget(location)} replace />;
   return <Outlet />;
 }

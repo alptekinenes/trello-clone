@@ -7,7 +7,30 @@ interface AvatarPerson {
 
 const SIZE = 'size-8 rounded-full text-xs';
 
-export function Avatar({ person, className = '' }: { person: AvatarPerson; className?: string }) {
+/** `decorative`: the name is written next to the avatar, so it is hidden from screen readers. */
+export function Avatar({
+  person,
+  className = '',
+  decorative = false,
+}: {
+  person: AvatarPerson;
+  className?: string;
+  decorative?: boolean;
+}) {
+  if (decorative) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${SIZE} inline-flex shrink-0 items-center justify-center overflow-hidden bg-surface-sunken font-semibold text-fg ${className}`}
+      >
+        {person.avatarUrl ? (
+          <img src={person.avatarUrl} alt="" className="size-full object-cover" />
+        ) : (
+          initialsOf(person.name)
+        )}
+      </span>
+    );
+  }
   if (person.avatarUrl) {
     return (
       <img

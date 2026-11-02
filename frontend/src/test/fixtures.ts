@@ -7,6 +7,7 @@ import type {
   ErrorCode,
   LabelDto,
   ListDto,
+  MemberDto,
   UserDto,
 } from '@trello/contracts';
 import { HttpResponse } from 'msw';
@@ -104,4 +105,27 @@ export function testCardDetail(
   card: Partial<CardDetailDto> & Pick<CardDetailDto, 'id' | 'listId' | 'title'>,
 ): CardDetailDto {
   return { ...testCard(card), boardId: BOARD_ID, description: null, checklists: [], ...card };
+}
+
+/** Another member of the test board; joins after the test user unless `joinedAt` says otherwise. */
+export function testMember(
+  member: Partial<MemberDto> & Pick<MemberDto, 'userId' | 'name'>,
+): MemberDto {
+  return {
+    email: `${member.userId}@example.com`,
+    avatarUrl: null,
+    role: 'MEMBER',
+    joinedAt: '2026-10-28T09:00:00.000Z',
+    ...member,
+  };
+}
+
+/** The test board seen by the test user in `myRole`, with these other members, in server order. */
+export function boardWithMembers(myRole: BoardRole, others: MemberDto[], title = 'Yol haritası') {
+  const detail = boardDetail(myRole, title);
+  const rank: Record<BoardRole, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+  const members = [...detail.members, ...others].sort(
+    (a, b) => rank[a.role] - rank[b.role] || a.joinedAt.localeCompare(b.joinedAt),
+  );
+  return { ...detail, members };
 }

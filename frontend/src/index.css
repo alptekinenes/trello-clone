@@ -85,6 +85,11 @@
     @apply bg-canvas font-sans text-fg antialiased;
   }
 
+  /* Modals leave a gutter on narrow screens; max-w-* on the dialog caps the width. */
+  dialog {
+    width: calc(100% - 2rem);
+  }
+
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-focus;
   }

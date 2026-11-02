@@ -36,3 +36,26 @@ describe('routes', () => {
     );
   });
 });
+
+describe('invitation route', () => {
+  const PATH = `/invitations/${'c'.repeat(43)}`;
+
+  it('opens for a signed-out visitor instead of sending them to login', async () => {
+    useAuthStore.getState().clearSession();
+    server.use(
+      http.get(`*/api/v1${PATH}`, () =>
+        HttpResponse.json({
+          boardTitle: 'Yol haritası',
+          inviterName: 'Ali Demir',
+          email: 'bora@example.com',
+          role: 'MEMBER',
+          expiresAt: '2026-11-09T14:30:00.000Z',
+        }),
+      ),
+    );
+    const { router } = renderApp(PATH);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Panoya davet' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATH);
+  });
+});

@@ -1,10 +1,13 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { apiError, testUser } from '../../../test/fixtures';
+import { createMemoryRouter } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
+import { routes } from '../../../app/routes';
+import { BOARD_ID, apiError, boardDetail, testUser } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
-import { renderApp } from '../../../test/render';
+import { renderApp, renderWithProviders } from '../../../test/render';
 import { useAuthStore } from '../store/auth-store';
 
 function signedOut() {
@@ -92,5 +95,57 @@ describe('LoginPage', () => {
     await fillAndSubmit('ayse@example.com', 'secret-password');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Çok fazla deneme yaptın');
+  });
+
+  describe('with a returnUrl', () => {
+    const signInHandler = () =>
+      server.use(
+        http.post('*/api/v1/auth/login', () =>
+          HttpResponse.json({ accessToken: 'token', user: testUser }),
+        ),
+        http.get('*/api/v1/boards/*', () => HttpResponse.json(boardDetail())),
+      );
+
+    it('goes there after signing in', async () => {
+      signedOut();
+      signInHandler();
+      const boardPath = `/boards/${BOARD_ID}`;
+      const { router } = renderApp(`/login?returnUrl=${encodeURIComponent(boardPath)}`);
+
+      await fillAndSubmit('ayse@example.com', 'secret-password');
+
+      await waitFor(() => expect(router.state.location.pathname).toBe(boardPath));
+    });
+
+    it('stays within the site', async () => {
+      signedOut();
+      noBoards();
+      signInHandler();
+      const { router } = renderApp('/login?returnUrl=%2F%2Fevil.example');
+
+      await fillAndSubmit('ayse@example.com', 'secret-password');
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/boards'));
+    });
+
+    it('keeps it on the link to the register page', () => {
+      signedOut();
+      renderApp('/login?returnUrl=%2Fboards%2FB');
+
+      expect(screen.getByRole('link', { name: 'Kayıt ol' })).toHaveAttribute(
+        'href',
+        '/register?returnUrl=%2Fboards%2FB',
+      );
+    });
+
+    it('fills in the email a link handed over', async () => {
+      signedOut();
+      const router = createMemoryRouter(routes, {
+        initialEntries: [{ pathname: '/login', state: { email: 'b@example.com' } }],
+      });
+      renderWithProviders(<RouterProvider router={router} />);
+
+      expect(await screen.findByLabelText('E-posta')).toHaveValue('b@example.com');
+    });
   });
 });

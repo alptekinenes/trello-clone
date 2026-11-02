@@ -9,6 +9,14 @@ export const routes: RouteObject[] = [
     element: <RootLayout />,
     children: [
       {
+        // Open to everyone: the page itself asks signed-out visitors to sign in or up.
+        path: 'invitations/:token',
+        lazy: async () => {
+          const { InvitationAcceptPage } = await import('../features/invitations');
+          return { Component: InvitationAcceptPage };
+        },
+      },
+      {
         element: <ProtectedRoute />,
         children: [
           { index: true, element: <Navigate to="/boards" replace /> },
