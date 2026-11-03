@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ErrorCode } from '@trello/contracts';
+import { SOCKET_ID_HEADER, type ApiErrorBody, type ErrorCode } from '@trello/contracts';
 
 export const API_BASE_PATH = '/api/v1';
 
@@ -35,6 +35,22 @@ export function setAuthHandlers(handlers: AuthHandlers | null): void {
   authHandlers = handlers;
 }
 
+/** The same token source, for the socket client (it must not depend on the auth feature either). */
+export function getAuthHandlers(): AuthHandlers | null {
+  return authHandlers;
+}
+
+let socketIdSource: () => string | null = () => null;
+
+/**
+ * Where requests learn the id of the live socket, so the server does not echo
+ * the change back to it. The socket client registers itself; this file cannot
+ * import it (the client reads the auth handlers from here).
+ */
+export function setSocketIdSource(source: () => string | null): void {
+  socketIdSource = source;
+}
+
 export interface RequestOptions {
   /** No Bearer token and no refresh-and-retry. Used by the auth endpoints themselves. */
   skipAuth?: boolean;
@@ -59,7 +75,12 @@ async function readErrorBody(response: Response): Promise<ApiErrorBody | null> {
   }
 }
 
-function send(path: string, init: RequestInit, accessToken: string | null): Promise<Response> {
+function send(
+  path: string,
+  init: RequestInit,
+  accessToken: string | null,
+  socketId: string | null,
+): Promise<Response> {
   const url = new URL(`${API_BASE_PATH}${path}`, window.location.origin);
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
@@ -68,6 +89,9 @@ function send(path: string, init: RequestInit, accessToken: string | null): Prom
   }
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+  if (socketId) {
+    headers.set(SOCKET_ID_HEADER, socketId);
   }
   return fetch(url, { ...init, headers, credentials: 'include' });
 }
@@ -83,12 +107,13 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const auth = options.skipAuth ? null : authHandlers;
-  let response = await send(path, init, auth?.getAccessToken() ?? null);
+  const socketId = options.skipAuth ? null : socketIdSource();
+  let response = await send(path, init, auth?.getAccessToken() ?? null, socketId);
 
   if (response.status === 401 && auth) {
     const freshToken = await auth.refreshAccessToken();
     if (freshToken) {
-      response = await send(path, init, freshToken);
+      response = await send(path, init, freshToken, socketId);
     }
   }
 

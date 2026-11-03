@@ -1,8 +1,10 @@
 import { ErrorCode } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
+import { fakeRealtime } from '../../test/fake-realtime';
 import { server } from '../../test/msw-server';
-import { ApiError, apiRequest, setAuthHandlers } from './http';
+import { ApiError, apiRequest, getAuthHandlers, setAuthHandlers } from './http';
+import { realtime } from './realtime-client';
 
 describe('apiRequest with auth handlers', () => {
   it('sends the access token as a Bearer header', async () => {
@@ -134,5 +136,55 @@ describe('apiRequest', () => {
     const error = await apiRequest('/things').catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 502, body: null, code: undefined });
+  });
+});
+
+describe('apiRequest with a live socket', () => {
+  function captureSocketHeader() {
+    const seen: (string | null)[] = [];
+    server.use(
+      http.get('*/api/v1/things', ({ request }) => {
+        seen.push(request.headers.get('X-Socket-Id'));
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    return seen;
+  }
+
+  it('names the socket in X-Socket-Id so the server does not echo the change back', async () => {
+    setAuthHandlers({ getAccessToken: () => 'token-1', refreshAccessToken: vi.fn() });
+    realtime.start();
+    fakeRealtime.connect();
+    const seen = captureSocketHeader();
+
+    await apiRequest('/things');
+
+    expect(seen).toEqual(['fake-socket-id']);
+  });
+
+  it('sends no X-Socket-Id while the socket is not connected', async () => {
+    setAuthHandlers({ getAccessToken: () => 'token-1', refreshAccessToken: vi.fn() });
+    realtime.start();
+    const seen = captureSocketHeader();
+
+    await apiRequest('/things');
+
+    expect(seen).toEqual([null]);
+  });
+
+  it('sends no X-Socket-Id on skipAuth requests', async () => {
+    realtime.start();
+    fakeRealtime.connect();
+    const seen = captureSocketHeader();
+
+    await apiRequest('/things', {}, { skipAuth: true });
+
+    expect(seen).toEqual([null]);
+  });
+
+  it('hands the token source to the socket client through getAuthHandlers', () => {
+    const handlers = { getAccessToken: () => 'token-1', refreshAccessToken: vi.fn() };
+    setAuthHandlers(handlers);
+    expect(getAuthHandlers()).toBe(handlers);
   });
 });
