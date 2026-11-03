@@ -164,6 +164,41 @@ export async function seedChecklist(
   return id;
 }
 
+/** Adds an item to a checklist through the API and returns its id. */
+export async function apiAddChecklistItem(
+  page: Page,
+  token: string,
+  checklistId: string,
+  content: string,
+): Promise<string> {
+  const res = await page.request.post(`/api/v1/checklists/${checklistId}/items`, {
+    headers: authHeaders(token),
+    data: { content },
+  });
+  expect(res.ok()).toBe(true);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/** Ticks or unticks a checklist item through the API. */
+export async function apiSetItemCompleted(
+  page: Page,
+  token: string,
+  itemId: string,
+  isCompleted: boolean,
+): Promise<void> {
+  const res = await page.request.patch(`/api/v1/checklist-items/${itemId}`, {
+    headers: authHeaders(token),
+    data: { isCompleted },
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/** Deletes a card for good through the API. */
+export async function apiDeleteCard(page: Page, token: string, cardId: string): Promise<void> {
+  const res = await page.request.delete(`/api/v1/cards/${cardId}`, { headers: authHeaders(token) });
+  expect(res.status()).toBe(204);
+}
+
 /** Local "YYYY-MM-DDTHH:mm" for a datetime-local input, `offsetMs` from now (browser and test share the zone). */
 export function localDateTime(offsetMs: number): string {
   const date = new Date(Date.now() + offsetMs);
@@ -257,4 +292,67 @@ export async function expireInvitation(boardId: string, email: string): Promise<
   } finally {
     await client.end();
   }
+}
+
+/*
+ * Realtime: the page's socket.io frames are the only deterministic signal that the connection
+ * is up and the board room joined. Nothing in the UI says so (and a test must not sleep).
+ */
+
+/** A first load of the app can wait on a cold dev server and busy workers; this is not a speed test. */
+const PAGE_LOAD_TIMEOUT = 20_000;
+
+const socketFrames = new WeakMap<Page, string[]>();
+
+/** `40/realtime,{"sid":…}`: the server accepted the connection to the namespace. */
+const CONNECTED_FRAME = /^40\/realtime,/;
+/** `43/realtime,<id>[{"ok":true}]`: the ack of a successful `board:join`. */
+const JOINED_FRAME = /^43\/realtime,\d+\[\{"ok":true\}\]/;
+
+/** Starts recording the text frames the page receives on its socket.io connection. Call before navigating. */
+export function watchRealtime(page: Page): void {
+  const frames: string[] = [];
+  socketFrames.set(page, frames);
+  page.on('websocket', (socket) => {
+    if (!socket.url().includes('/socket.io/')) return;
+    socket.on('framereceived', ({ payload }) => {
+      if (typeof payload === 'string') frames.push(payload);
+    });
+  });
+}
+
+function recordedFrames(page: Page): string[] {
+  const frames = socketFrames.get(page);
+  if (!frames) throw new Error('watchRealtime(page) was not called before navigating');
+  return frames;
+}
+
+/** Waits until the page has received a frame matching `pattern` at least `count` times since watching began. */
+export async function expectFrame(page: Page, pattern: RegExp, count = 1): Promise<void> {
+  await expect
+    .poll(() => recordedFrames(page).filter((frame) => pattern.test(frame)).length, {
+      message: `socket frames matching ${pattern}`,
+      timeout: PAGE_LOAD_TIMEOUT,
+    })
+    .toBeGreaterThanOrEqual(count);
+}
+
+/** Opens a board and waits until its socket joined the board room (`joins` counts from the first page load). */
+export async function openBoardAs(page: Page, boardId: string, title: string, joins = 1): Promise<void> {
+  if (!socketFrames.has(page)) watchRealtime(page);
+  await page.goto(`/boards/${boardId}`);
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({
+    timeout: PAGE_LOAD_TIMEOUT,
+  });
+  await expectFrame(page, JOINED_FRAME, joins);
+}
+
+/** Opens the boards page and waits until the socket is connected (its user room is joined). */
+export async function openBoardsPageAs(page: Page): Promise<void> {
+  if (!socketFrames.has(page)) watchRealtime(page);
+  await page.goto('/boards');
+  await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible({
+    timeout: PAGE_LOAD_TIMEOUT,
+  });
+  await expectFrame(page, CONNECTED_FRAME);
 }
