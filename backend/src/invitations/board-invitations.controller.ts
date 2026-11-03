@@ -17,6 +17,7 @@ import type {
 } from '@trello/contracts';
 import { BoardRole, CurrentBoardRole } from '../access/board-role.decorator.js';
 import { type AuthUser, CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { CreateInvitationDto } from './dto/create-invitation.dto.js';
 import { INVITATION_THROTTLE } from './invitations.constants.js';
 import { InvitationsService } from './invitations.service.js';
@@ -33,8 +34,9 @@ export class BoardInvitationsController {
     @CurrentUser() user: AuthUser,
     @CurrentBoardRole() role: BoardRoleName,
     @Body() body: CreateInvitationDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<CreateInvitationResponse> {
-    return this.invitations.create(boardId, { userId: user.id, role }, body);
+    return this.invitations.create(boardId, { userId: user.id, role }, body, origin);
   }
 
   @Get()

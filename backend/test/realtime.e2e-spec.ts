@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ErrorCode, REALTIME_UNAUTHORIZED, SOCKET_ID_HEADER } from '@trello/contracts';
+import { hashToken, newOpaqueToken } from '../src/common/crypto/opaque-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard.js';
 import { RealtimeService } from '../src/realtime/realtime.service.js';
@@ -31,6 +32,7 @@ import {
   expectReceived,
   sendSentinels,
   type Watcher,
+  watch,
   type World,
 } from './utils/realtime-world.js';
 import { createUser } from './utils/users.js';
@@ -419,6 +421,136 @@ describe('Realtime (e2e, socket.io)', () => {
       for (const watcher of [world.a1, world.a2, world.b1, world.c1]) {
         await expectNothing(watcher);
       }
+    });
+  });
+
+  describe('membership', () => {
+    it('takes a removed member out of the board: tabs are told, later writes are not delivered, joining fails', async () => {
+      const world = await createWorld(app);
+      const context = { boardId: world.boardId, actorId: world.a.user.id };
+
+      await api(app, world.a, world.a1.socket)
+        .delete(`/boards/${world.boardId}/members/${world.b.user.id}`)
+        .expect(204);
+      sendSentinels(app, [world.a, world.b]);
+
+      await expectReceived(world.b1, [event('membership:removed', { boardId: world.boardId })], context);
+      await expectReceived(world.a2, [event('member:removed', { userId: world.b.user.id })], context);
+      await expectNothing(world.a1);
+
+      await api(app, world.a, world.a1.socket)
+        .patch(`/lists/${world.list1.id}`)
+        .send({ title: 'Sonraki yazım' })
+        .expect(200);
+      sendSentinels(app, [world.a, world.b]);
+
+      await expectReceived(
+        world.a2,
+        [event('list:updated', expect.objectContaining({ title: 'Sonraki yazım' }))],
+        context,
+      );
+      await expectNothing(world.b1);
+      await expect(join(world.b1.socket, world.boardId)).resolves.toEqual({
+        ok: false,
+        code: ErrorCode.NOT_FOUND,
+      });
+    });
+
+    it('tells the other tabs of a member who leaves, not the tab that sent the request', async () => {
+      const world = await createWorld(app);
+      const b2 = await watch(app, world.b, world.boardId);
+      const context = { boardId: world.boardId, actorId: world.b.user.id };
+
+      await api(app, world.b, world.b1.socket)
+        .delete(`/boards/${world.boardId}/members/${world.b.user.id}`)
+        .expect(204);
+      sendSentinels(app, [world.a, world.b]);
+
+      await expectReceived(b2, [event('membership:removed', { boardId: world.boardId })], context);
+      await expectNothing(world.b1);
+      const memberRemoved = [event('member:removed', { userId: world.b.user.id })];
+      await expectReceived(world.a1, memberRemoved, context);
+      await expectReceived(world.a2, memberRemoved, context);
+    });
+
+    it('sends a member:updated that has exactly the fields of a MemberDto', async () => {
+      const world = await createWorld(app);
+
+      await api(app, world.a, world.a1.socket)
+        .patch(`/boards/${world.boardId}/members/${world.b.user.id}`)
+        .send({ role: 'ADMIN' })
+        .expect(200);
+
+      const envelope = await expectNext(world.b1.events, 'member:updated');
+      expect(Object.keys(envelope.data).sort()).toEqual(
+        ['avatarUrl', 'email', 'joinedAt', 'name', 'role', 'userId'],
+      );
+      expect(envelope.data).toMatchObject({ userId: world.b.user.id, role: 'ADMIN' });
+      expect(envelope.actorId).toBe(world.a.user.id);
+    });
+
+    it('does not announce an accepted invitation a second time', async () => {
+      const world = await createWorld(app);
+      const token = newOpaqueToken();
+      await app.get(PrismaService).invitation.create({
+        data: {
+          boardId: world.boardId,
+          email: world.d.user.email,
+          role: 'MEMBER',
+          tokenHash: hashToken(token),
+          invitedById: world.a.user.id,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
+      const asD = api(app, world.d, world.d1.socket);
+
+      await asD.post(`/invitations/${token}/accept`).send({}).expect(200);
+      await expectNext(world.b1.events, 'member:added');
+      await expectNext(world.d2.events, 'membership:added');
+
+      await asD.post(`/invitations/${token}/accept`).send({}).expect(200);
+      sendSentinels(app, [world.a, world.b, world.d]);
+
+      await expectNothing(world.b1);
+      await expectNothing(world.d2);
+    });
+
+    it('tells every member about a deleted board, even tabs that never joined it, and then closes the room', async () => {
+      const world = await createWorld(app);
+      const b2 = await watch(app, world.b, null);
+      const context = { boardId: world.boardId, actorId: world.a.user.id };
+      const deleted = [event('board:deleted', { boardId: world.boardId })];
+
+      await api(app, world.a, world.a1.socket).delete(`/boards/${world.boardId}`).expect(204);
+      sendSentinels(app, [world.a, world.b, world.c]);
+
+      await expectReceived(world.b1, deleted, context);
+      await expectReceived(b2, deleted, context);
+      await expectReceived(world.a2, deleted, context);
+      await expectNothing(world.a1);
+      await expectNothing(world.c1);
+
+      sendToBoard(world.boardId, world.a.user.id);
+      sendSentinels(app, [world.a, world.b]);
+      await expectNothing(world.b1);
+      await expectNothing(world.a2);
+    });
+
+    it('does not tell the board when a board is created, only the creator\'s other tabs', async () => {
+      const world = await createWorld(app);
+
+      const res = await api(app, world.a, world.a1.socket)
+        .post('/boards')
+        .send({ title: 'Yeni' })
+        .expect(201);
+      sendSentinels(app, [world.a, world.b, world.c]);
+
+      const envelope = await expectNext(world.a2.events, 'membership:added');
+      expect(envelope.data).toEqual(res.body);
+      expect(envelope.boardId).toBe((res.body as { id: string }).id);
+      await expectNothing(world.a1);
+      await expectNothing(world.b1);
+      await expectNothing(world.c1);
     });
   });
 });

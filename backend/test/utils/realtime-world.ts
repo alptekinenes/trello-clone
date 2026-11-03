@@ -39,13 +39,15 @@ export interface Watcher {
  * One board with three people watching it:
  * - A owns the board and has two sockets (`a1` sends the requests, `a2` is another tab),
  * - B is a member with one socket,
- * - C owns another board and watches that one.
+ * - C owns another board and watches that one,
+ * - D is registered but on no board, and has two sockets (`d1`, `d2`) that joined nothing.
  * Everything is created before any socket joins, so the setup itself broadcasts nothing.
  */
 export interface World {
   a: TestUser;
   b: TestUser;
   c: TestUser;
+  d: TestUser;
   boardId: string;
   otherBoardId: string;
   list1: ListDto;
@@ -65,6 +67,8 @@ export interface World {
   a2: Watcher;
   b1: Watcher;
   c1: Watcher;
+  d1: Watcher;
+  d2: Watcher;
 }
 
 export async function watch(
@@ -81,12 +85,13 @@ export async function watch(
 /** Everything but the sockets: users, boards, lists and cards. */
 export async function createWorldData(
   app: INestApplication,
-): Promise<Omit<World, 'a1' | 'a2' | 'b1' | 'c1'>> {
+): Promise<Omit<World, 'a1' | 'a2' | 'b1' | 'c1' | 'd1' | 'd2'>> {
   const prisma = app.get(PrismaService);
-  const [a, b, c] = [
+  const [a, b, c, d] = [
     await createUser(app, 'Ayşe'),
     await createUser(app, 'Burak'),
     await createUser(app, 'Cem'),
+    await createUser(app, 'Deniz'),
   ];
   const boardId = await createBoard(app, a, 'Pano');
   const otherBoardId = await createBoard(app, c, 'Başka pano');
@@ -123,19 +128,21 @@ export async function createWorldData(
     select: { id: true, checklistId: true },
   });
   return {
-    a, b, c, boardId, otherBoardId, list1, list2, card1, card2, card3,
+    a, b, c, d, boardId, otherBoardId, list1, list2, card1, card2, card3,
     label, checklist1, checklist2, item1, item2,
   };
 }
 
-/** Creates the world and connects its sockets. A, B and C have joined their boards. */
+/** Creates the world and connects its sockets. A, B and C have joined their boards, D has joined none. */
 export async function createWorld(app: INestApplication): Promise<World> {
   const data = await createWorldData(app);
   const a1 = await watch(app, data.a, data.boardId);
   const a2 = await watch(app, data.a, data.boardId);
   const b1 = await watch(app, data.b, data.boardId);
   const c1 = await watch(app, data.c, data.otherBoardId);
-  return { ...data, a1, a2, b1, c1 };
+  const d1 = await watch(app, data.d, null);
+  const d2 = await watch(app, data.d, null);
+  return { ...data, a1, a2, b1, c1, d1, d2 };
 }
 
 /** What the sockets of the world see, in order. */
@@ -207,8 +214,9 @@ export async function expectNothing(watcher: Watcher): Promise<void> {
 }
 
 /** The strings a broadcast must never contain. */
-export function forbiddenStrings(world: World): string[] {
+export function forbiddenStrings(world: World, extra: readonly string[] = []): string[] {
   return [
+    ...extra,
     SECRET_DESCRIPTION,
     NEW_SECRET_DESCRIPTION,
     'tokenHash',
@@ -219,6 +227,8 @@ export function forbiddenStrings(world: World): string[] {
     world.a2.socket.id,
     world.b1.socket.id,
     world.c1.socket.id,
+    world.d1.socket.id,
+    world.d2.socket.id,
   ].filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 

@@ -1,4 +1,5 @@
 import {
+  type BoardInfoDto,
   type BoardRole,
   type BoardSummaryDto,
   isBoardBackground,
@@ -14,15 +15,19 @@ export interface BoardRow {
   updatedAt: Date;
 }
 
-export function toBoardSummary(board: BoardRow, myRole: BoardRole): BoardSummaryDto {
+/** The board fields every member may see; nothing that differs per member. */
+export function toBoardInfo(board: BoardRow): BoardInfoDto {
   return {
     id: board.id,
     title: board.title,
     // Written only through validated DTOs; the fallback guards against manual DB edits.
     background: isBoardBackground(board.background) ? board.background : 'blue',
-    myRole,
     updatedAt: board.updatedAt.toISOString(),
   };
+}
+
+export function toBoardSummary(board: BoardRow, myRole: BoardRole): BoardSummaryDto {
+  return { ...toBoardInfo(board), myRole };
 }
 
 /** Labels every new board starts with, in display order. */

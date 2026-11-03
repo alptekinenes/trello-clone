@@ -6,6 +6,7 @@ import type {
 } from '@trello/contracts';
 import { BoardRole, CurrentBoardRole } from '../access/board-role.decorator.js';
 import { type AuthUser, CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { BoardsService } from './boards.service.js';
 import { CreateBoardDto, UpdateBoardDto } from './dto/board.dto.js';
 
@@ -19,8 +20,12 @@ export class BoardsController {
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() body: CreateBoardDto): Promise<BoardSummaryDto> {
-    return this.boards.create(user.id, body);
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateBoardDto,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<BoardSummaryDto> {
+    return this.boards.create(user.id, body, origin);
   }
 
   @Get(':boardId')
@@ -38,14 +43,18 @@ export class BoardsController {
     @Param('boardId') boardId: string,
     @CurrentBoardRole() role: BoardRoleName,
     @Body() body: UpdateBoardDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<BoardSummaryDto> {
-    return this.boards.update(boardId, role, body);
+    return this.boards.update(boardId, role, body, origin);
   }
 
   @Delete(':boardId')
   @BoardRole('OWNER')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('boardId') boardId: string): Promise<void> {
-    return this.boards.remove(boardId);
+  remove(
+    @Param('boardId') boardId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<void> {
+    return this.boards.remove(boardId, origin);
   }
 }

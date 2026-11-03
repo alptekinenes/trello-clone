@@ -9,6 +9,8 @@ import {
 } from '@trello/contracts';
 import { insufficientRole } from '../access/access.errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import { MEMBER_ORDER, MEMBER_SELECT, toMemberDto } from './member.mapper.js';
 import { cannotChangeOwner, memberNotFound, ownerCannotLeave } from './members.errors.js';
 
@@ -27,7 +29,10 @@ function assertCanRemove(actor: BoardActor, target: MemberRef): void {
 
 @Injectable()
 export class MembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async list(boardId: string): Promise<MemberDto[]> {
     const rows = await this.prisma.boardMember.findMany({
@@ -43,6 +48,7 @@ export class MembersService {
     boardId: string,
     userId: string,
     role: AssignableBoardRole,
+    origin: EventOrigin,
   ): Promise<MemberDto> {
     const target = await this.findRole(boardId, userId);
     if (!canChangeMemberRole('OWNER', target)) throw cannotChangeOwner();
@@ -52,13 +58,31 @@ export class MembersService {
       data: { role },
       select: MEMBER_SELECT,
     });
-    return toMemberDto(row);
+    const member = toMemberDto(row);
+    this.realtime.toBoard(boardId, origin, [{ type: 'member:updated', data: member }]);
+    return member;
   }
 
-  async remove(boardId: string, actor: BoardActor, userId: string): Promise<void> {
+  /**
+   * Removes a member (or lets one leave). Afterwards, in this order: the user's sockets
+   * leave the board room, so they do not get the next event; the others hear that the
+   * member is gone; and the user's own tabs are told they lost the board.
+   */
+  async remove(
+    boardId: string,
+    actor: BoardActor,
+    userId: string,
+    origin: EventOrigin,
+  ): Promise<void> {
     const role = await this.findRole(boardId, userId);
     assertCanRemove(actor, { userId, role });
     await this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId } } });
+    this.realtime.removeUserFromBoard(boardId, userId);
+    this.realtime.toBoard(boardId, origin, [{ type: 'member:removed', data: { userId } }]);
+    this.realtime.toUsers([userId], boardId, origin, {
+      type: 'membership:removed',
+      data: { boardId },
+    });
   }
 
   private async findRole(boardId: string, userId: string): Promise<BoardRole> {

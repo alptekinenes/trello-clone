@@ -12,6 +12,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { AcceptInvitationResponse, InvitationPreviewDto } from '@trello/contracts';
 import { type AuthUser, CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto.js';
 import { INVITATION_THROTTLE } from './invitations.constants.js';
 import { InvitationsService } from './invitations.service.js';
@@ -37,7 +38,8 @@ export class InvitationsController {
     @Param('token') token: string,
     @CurrentUser() user: AuthUser,
     @Body() _body: AcceptInvitationDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<AcceptInvitationResponse> {
-    return this.invitations.accept(token, user.id);
+    return this.invitations.accept(token, user.id, origin);
   }
 }

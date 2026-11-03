@@ -17,11 +17,14 @@ import { boardNotFound, insufficientRole } from '../access/access.errors.js';
 import { invalidAccessToken } from '../auth/auth.errors.js';
 import { hashToken, newOpaqueToken } from '../common/crypto/opaque-token.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { BOARD_SELECT, type BoardRow, toBoardSummary } from '../boards/board.mapper.js';
 import { MailService } from '../mail/mail.service.js';
 import { MEMBER_SELECT, toMemberDto } from '../members/member.mapper.js';
 import type { BoardActor } from '../members/members.service.js';
 import { lockBoard } from '../ordering/locks.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import { normalizeEmail } from '../users/users.service.js';
 import {
   assignableRole,
@@ -54,15 +57,25 @@ interface ExistingInvitation {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** A membership the transaction created, for the events that tell the others about it. */
+interface NewMembership {
+  member: MemberDto;
+  board: BoardRow;
+  role: BoardRole;
+}
+
 /** What the transaction decided; the response (and the mail) are built after it commits. */
 type CreateOutcome =
-  | { result: 'MEMBER_ADDED'; member: MemberDto }
+  | { result: 'MEMBER_ADDED'; member: MemberDto; board: BoardRow }
   | { result: 'INVITATION_CREATED'; invitation: InvitationRow; token: string };
 
 /**
  * Invites people to a board. Every write locks the board row first, so invitations,
  * acceptances and revocations on one board run one after another. Callers check
  * the board role first (BoardAccessGuard); every query here is scoped to the board.
+ * A new membership is broadcast after the transaction committed. An invitation for
+ * an address without an account, or its revocation, is not: the invited person is
+ * not on the board yet, and the token must stay out of every event.
  */
 @Injectable()
 export class InvitationsService {
@@ -72,6 +85,7 @@ export class InvitationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly realtime: RealtimeService,
     config: ConfigService,
   ) {
     this.appUrl = config.getOrThrow<string>('APP_URL');
@@ -87,6 +101,7 @@ export class InvitationsService {
     boardId: string,
     actor: BoardActor,
     input: CreateInvitationRequest,
+    origin: EventOrigin,
   ): Promise<CreateInvitationResponse> {
     if (!canInviteAs(actor.role, input.role)) throw cannotInviteAs();
 
@@ -106,7 +121,11 @@ export class InvitationsService {
         : this.upsertInvitation(tx, boardId, actor, email, input, now);
     });
 
-    if (outcome.result === 'MEMBER_ADDED') return outcome;
+    if (outcome.result === 'MEMBER_ADDED') {
+      const { member, board } = outcome;
+      this.announceMembership(boardId, origin, { member, board, role: input.role });
+      return { result: 'MEMBER_ADDED', member };
+    }
 
     const inviteUrl = `${this.appUrl}/invitations/${outcome.token}`;
     await this.sendMail(outcome.invitation, inviteUrl);
@@ -170,7 +189,11 @@ export class InvitationsService {
    * account's email must both match. Accepting again is fine while the user is
    * still a member; an existing membership keeps its role.
    */
-  async accept(token: string, userId: string): Promise<AcceptInvitationResponse> {
+  async accept(
+    token: string,
+    userId: string,
+    origin: EventOrigin,
+  ): Promise<AcceptInvitationResponse> {
     if (!isInvitationToken(token)) throw invitationNotFound();
     const tokenHash = hashToken(token);
 
@@ -181,7 +204,7 @@ export class InvitationsService {
     if (!found) throw invitationNotFound();
 
     const now = new Date();
-    return this.prisma.$transaction(async (tx): Promise<AcceptInvitationResponse> => {
+    const { boardId, created } = await this.prisma.$transaction(async (tx) => {
       if (!(await lockBoard(tx, found.boardId))) throw invitationNotFound();
 
       // Read again under the lock: a re-invite may have replaced the token meanwhile.
@@ -200,12 +223,12 @@ export class InvitationsService {
       if (invitation.status === 'ACCEPTED') {
         const member = emailMatches && (await this.isMember(tx, boardId, userId));
         if (!member) throw invitationUsed('gone');
-        return { boardId };
+        return { boardId, created: null };
       }
       this.assertUsable(invitation, now);
       if (!emailMatches) throw emailMismatch();
 
-      await tx.boardMember.createMany({
+      const { count } = await tx.boardMember.createMany({
         data: [{ boardId, userId, role: invitation.role }],
         skipDuplicates: true,
       });
@@ -213,8 +236,36 @@ export class InvitationsService {
         where: { id: invitation.id },
         data: { status: 'ACCEPTED', acceptedAt: now },
       });
-      return { boardId };
+      // Already a member (added another way meanwhile): nothing changed for the board.
+      const created = count === 1 ? await this.readMembership(tx, boardId, userId) : null;
+      return { boardId, created: created && { ...created, role: invitation.role } };
     });
+    if (created) this.announceMembership(boardId, origin, created);
+    return { boardId };
+  }
+
+  /** Tells the board's members about the new member, and the new member about the board. */
+  private announceMembership(boardId: string, origin: EventOrigin, created: NewMembership): void {
+    const { member, board, role } = created;
+    this.realtime.toBoard(boardId, origin, [{ type: 'member:added', data: member }]);
+    // The summary carries the recipient's own role only.
+    this.realtime.toUsers([member.userId], boardId, origin, {
+      type: 'membership:added',
+      data: toBoardSummary(board, role),
+    });
+  }
+
+  private async readMembership(
+    tx: Tx,
+    boardId: string,
+    userId: string,
+  ): Promise<{ member: MemberDto; board: BoardRow }> {
+    const member = await tx.boardMember.findUniqueOrThrow({
+      where: { boardId_userId: { boardId, userId } },
+      select: MEMBER_SELECT,
+    });
+    const board = await tx.board.findUniqueOrThrow({ where: { id: boardId }, select: BOARD_SELECT });
+    return { member: toMemberDto(member), board };
   }
 
   /** Revoked, accepted and expired invitations cannot be used, in that order of precedence. */
@@ -261,11 +312,8 @@ export class InvitationsService {
       where: { boardId, email, status: 'PENDING' },
       data: { status: 'ACCEPTED', acceptedAt: now },
     });
-    const member = await tx.boardMember.findUniqueOrThrow({
-      where: { boardId_userId: { boardId, userId } },
-      select: MEMBER_SELECT,
-    });
-    return { result: 'MEMBER_ADDED', member: toMemberDto(member) };
+    const { member, board } = await this.readMembership(tx, boardId, userId);
+    return { result: 'MEMBER_ADDED', member, board };
   }
 
   private async upsertInvitation(

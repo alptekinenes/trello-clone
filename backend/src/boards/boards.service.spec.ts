@@ -1,8 +1,12 @@
+import { NotFoundException } from '@nestjs/common';
 import { toCardSummary } from '../cards/card.mapper.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import type { RealtimeService } from '../realtime/realtime.service.js';
 import { BOARD_SELECT, DEFAULT_LABEL_COLORS, toBoardSummary } from './board.mapper.js';
 import { BoardsService } from './boards.service.js';
 
+const ORIGIN: EventOrigin = { actorId: 'user-1', socketId: 'socket-1' };
 const UPDATED_AT = new Date('2026-10-27T09:00:00.000Z');
 const CARD_ROW = {
   id: 'card-1',
@@ -38,8 +42,28 @@ function setup() {
   const boardMember = {
     findMany: vi.fn().mockResolvedValue([{ role: 'MEMBER', board: BOARD }]),
   };
-  const service = new BoardsService({ board, boardMember, card } as unknown as PrismaService);
-  return { service, board, boardMember, card };
+  const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 'board-1' }]),
+    boardMember: { findMany: vi.fn().mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]) },
+    board: { delete: vi.fn().mockResolvedValue(BOARD) },
+  };
+  const realtime = { toBoard: vi.fn(), toUsers: vi.fn(), closeBoardRoom: vi.fn() };
+  // How many broadcasts had been made when the transaction callback returned.
+  const inTransaction = { broadcasts: -1 };
+  const transaction = vi.fn(async (fn: (client: typeof tx) => unknown) => {
+    const result = await fn(tx);
+    inTransaction.broadcasts =
+      realtime.toBoard.mock.calls.length +
+      realtime.toUsers.mock.calls.length +
+      realtime.closeBoardRoom.mock.calls.length;
+    return result;
+  });
+  const prisma = { board, boardMember, card, $transaction: transaction };
+  const service = new BoardsService(
+    prisma as unknown as PrismaService,
+    realtime as unknown as RealtimeService,
+  );
+  return { service, realtime, inTransaction, tx, transaction, board, boardMember, card };
 }
 
 const SUMMARY = {
@@ -53,7 +77,7 @@ describe('BoardsService', () => {
   it('create makes the creator the owner and adds the default labels', async () => {
     const { service, board } = setup();
 
-    const result = await service.create('user-1', { title: 'Proje', background: 'green' });
+    const result = await service.create('user-1', { title: 'Proje', background: 'green' }, ORIGIN);
 
     expect(result).toEqual({ ...SUMMARY, myRole: 'OWNER' });
     expect(board.create).toHaveBeenCalledWith({
@@ -110,7 +134,7 @@ describe('BoardsService', () => {
   it('update writes only title and background', async () => {
     const { service, board } = setup();
 
-    await service.update('board-1', 'OWNER', { title: 'Yeni' });
+    await service.update('board-1', 'OWNER', { title: 'Yeni' }, ORIGIN);
 
     expect(board.update).toHaveBeenCalledWith({
       where: { id: 'board-1' },
@@ -119,10 +143,101 @@ describe('BoardsService', () => {
     });
   });
 
-  it('remove deletes the board', async () => {
-    const { service, board } = setup();
-    await service.remove('board-1');
-    expect(board.delete).toHaveBeenCalledWith({ where: { id: 'board-1' } });
+  it('remove locks the board, then deletes it', async () => {
+    const { service, tx } = setup();
+
+    await service.remove('board-1', ORIGIN);
+
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.boardMember.findMany.mock.invocationCallOrder[0],
+    );
+    expect(tx.boardMember.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.board.delete.mock.invocationCallOrder[0],
+    );
+    expect(tx.board.delete).toHaveBeenCalledWith({ where: { id: 'board-1' } });
+  });
+
+  it('remove answers 404 when the board is gone', async () => {
+    const { service, tx, realtime } = setup();
+    tx.$queryRaw.mockResolvedValue([]);
+
+    await expect(service.remove('board-1', ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(tx.board.delete).not.toHaveBeenCalled();
+    expect(realtime.toUsers).not.toHaveBeenCalled();
+    expect(realtime.closeBoardRoom).not.toHaveBeenCalled();
+  });
+
+  describe('realtime', () => {
+    it('create tells the creator\'s other tabs with the creator\'s own summary', async () => {
+      const { service, realtime } = setup();
+
+      const summary = await service.create('user-1', { title: 'Proje' }, ORIGIN);
+
+      expect(realtime.toUsers).toHaveBeenCalledOnce();
+      expect(realtime.toUsers).toHaveBeenCalledWith(['user-1'], 'board-1', ORIGIN, {
+        type: 'membership:added',
+        data: summary,
+      });
+      expect(summary.myRole).toBe('OWNER');
+    });
+
+    it('create broadcasts nothing when the write fails', async () => {
+      const { service, realtime, board } = setup();
+      board.create.mockRejectedValue(new Error('boom'));
+
+      await expect(service.create('user-1', { title: 'Proje' }, ORIGIN)).rejects.toThrow('boom');
+
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+
+    it('update broadcasts board:updated without any role', async () => {
+      const { service, realtime } = setup();
+
+      await service.update('board-1', 'OWNER', { title: 'Yeni' }, ORIGIN);
+
+      expect(realtime.toBoard).toHaveBeenCalledOnce();
+      expect(realtime.toBoard).toHaveBeenCalledWith('board-1', ORIGIN, [
+        { type: 'board:updated', data: SUMMARY },
+      ]);
+      expect(JSON.stringify(realtime.toBoard.mock.calls)).not.toContain('myRole');
+    });
+
+    it('update broadcasts nothing when the write fails', async () => {
+      const { service, realtime, board } = setup();
+      board.update.mockRejectedValue(new Error('boom'));
+
+      await expect(service.update('board-1', 'OWNER', {}, ORIGIN)).rejects.toThrow('boom');
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it('remove tells the members as they were at deletion, then empties the room, after the transaction', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      await service.remove('board-1', ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toUsers).toHaveBeenCalledOnce();
+      expect(realtime.toUsers).toHaveBeenCalledWith(['u1', 'u2'], 'board-1', ORIGIN, {
+        type: 'board:deleted',
+        data: { boardId: 'board-1' },
+      });
+      expect(realtime.closeBoardRoom).toHaveBeenCalledWith('board-1');
+      expect(realtime.toUsers.mock.invocationCallOrder[0]).toBeLessThan(
+        realtime.closeBoardRoom.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('remove broadcasts nothing when the transaction rejects', async () => {
+      const { service, realtime, transaction } = setup();
+      transaction.mockRejectedValueOnce(new Error('deadlock'));
+
+      await expect(service.remove('board-1', ORIGIN)).rejects.toThrow('deadlock');
+
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+      expect(realtime.closeBoardRoom).not.toHaveBeenCalled();
+    });
   });
 });
 

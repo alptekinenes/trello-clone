@@ -1,14 +1,21 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants.js';
+import { ModulesContainer } from '@nestjs/core';
 import type {
+  BoardInfoDto,
+  BoardSummaryDto,
   CardChecklistCounts,
   CardSummaryDto,
   ChecklistDto,
   ChecklistItemDto,
+  CreateInvitationResponse,
   LabelDto,
   ListDto,
+  MemberDto,
   PositionRebalancedData,
 } from '@trello/contracts';
 import type { Response, Test } from 'supertest';
+import { hashToken, newOpaqueToken } from '../src/common/crypto/opaque-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createTestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
@@ -26,24 +33,102 @@ import {
   NEW_SECRET_DESCRIPTION,
   sendSentinels,
   watch,
+  type Received,
+  type Watcher,
   type World,
 } from './utils/realtime-world.js';
 
 type Api = ReturnType<typeof api>;
 
+/** What one socket must receive from a request: exactly these events, in this order. */
+interface Audience {
+  watcher: Watcher;
+  events: ExpectedEvent[];
+  /** The board named in the envelope; the world's board unless said otherwise. */
+  boardId?: string;
+}
+
 /**
- * One line of the mutation table (plan 5.5): A sends the request from socket a1.
- * B (member) and A's other tab (a2) must receive exactly `events`, in order;
- * a1 (the sender) and C (another board) must receive nothing.
+ * One line of the mutation table (plan 5.5). The request is sent from the first socket of
+ * `actor` (A's a1 unless said otherwise). The `audience` receives exactly its events;
+ * every other socket of the world receives nothing, which the sentinel proves.
  */
 interface Row {
   /** The endpoint column of the plan table, with the case when one endpoint has several. */
   endpoint: string;
+  actor?: 'a' | 'b' | 'd';
   /** Direct database writes before the request (they broadcast nothing). */
   arrange?: (world: World) => Promise<void>;
   act: (as: Api, world: World) => Test;
   status?: number;
+  audience: (world: World, response: Response) => Audience[] | Promise<Audience[]>;
+  /** Strings that must stay out of every event, besides the usual ones. */
+  secrets?: (world: World, response: Response) => string[];
+}
+
+/** A row whose events go to the board room: B and A's other tab get them. */
+interface BoardRow extends Omit<Row, 'audience' | 'actor' | 'secrets'> {
   events: (world: World, response: Response) => ExpectedEvent[] | Promise<ExpectedEvent[]>;
+}
+
+function viaBoardRoom(row: BoardRow): Row {
+  const { events, ...rest } = row;
+  return {
+    ...rest,
+    audience: async (world, response) => {
+      const expected = await events(world, response);
+      return [
+        { watcher: world.b1, events: expected },
+        { watcher: world.a2, events: expected },
+      ];
+    },
+  };
+}
+
+/** Routes that change data but never broadcast, on purpose (plan 5.5, "Event üretmeyenler"). */
+/** Endpoint labels of the table rows, filled in while the table is built. */
+const ROWS_FOR_COVERAGE: string[] = [];
+
+const ROUTES_WITHOUT_EVENTS = new Set([
+  'POST /auth/register',
+  'POST /auth/login',
+  'POST /auth/refresh',
+  'POST /auth/logout',
+  'PATCH /users/me',
+]);
+
+const METHOD_NAMES: Partial<Record<number, string>> = {
+  [RequestMethod.POST]: 'POST',
+  [RequestMethod.PUT]: 'PUT',
+  [RequestMethod.PATCH]: 'PATCH',
+  [RequestMethod.DELETE]: 'DELETE',
+};
+
+function joinPath(...parts: string[]): string {
+  return `/${parts.map((part) => part.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')}`;
+}
+
+/** Every route of the app that is not a GET, as "METHOD /path" without the global prefix. */
+function writingRoutes(app: INestApplication): string[] {
+  const routes: string[] = [];
+  for (const module of app.get(ModulesContainer).values()) {
+    for (const wrapper of module.controllers.values()) {
+      const controller = wrapper.metatype;
+      if (!controller) continue;
+      const base = Reflect.getMetadata(PATH_METADATA, controller) as string | string[] | undefined;
+      const basePath = Array.isArray(base) ? (base[0] ?? '') : (base ?? '');
+      for (const name of Object.getOwnPropertyNames(controller.prototype)) {
+        const handler = (controller.prototype as Record<string, unknown>)[name];
+        if (typeof handler !== 'function') continue;
+        const method = METHOD_NAMES[Reflect.getMetadata(METHOD_METADATA, handler) as number];
+        if (!method) continue;
+        const own = Reflect.getMetadata(PATH_METADATA, handler) as string | string[] | undefined;
+        const ownPath = Array.isArray(own) ? (own[0] ?? '') : (own ?? '');
+        routes.push(`${method} ${joinPath(basePath, ownPath)}`);
+      }
+    }
+  }
+  return routes.sort();
 }
 
 describe('Realtime events (e2e, socket.io)', () => {
@@ -68,7 +153,7 @@ describe('Realtime events (e2e, socket.io)', () => {
   });
 
   describe('mutation table (plan 5.5)', () => {
-    const listAndCardRows: Row[] = [
+    const listAndCardRows: BoardRow[] = [
       // Lists
       {
         endpoint: 'POST /boards/:boardId/lists',
@@ -209,7 +294,7 @@ describe('Realtime events (e2e, socket.io)', () => {
       return { checklistTotal, checklistDone };
     }
 
-    const labelRows: Row[] = [
+    const labelRows: BoardRow[] = [
       {
         endpoint: 'POST /boards/:boardId/labels',
         act: (as, w) => as.post(`/boards/${w.boardId}/labels`).send({ name: 'Acil', color: 'RED' }),
@@ -262,7 +347,7 @@ describe('Realtime events (e2e, socket.io)', () => {
       },
     ];
 
-    const checklistRows: Row[] = [
+    const checklistRows: BoardRow[] = [
       {
         endpoint: 'POST /cards/:cardId/checklists',
         act: (as, w) => as.post(`/cards/${w.card1.id}/checklists`).send({ title: 'Yeni liste' }),
@@ -364,26 +449,244 @@ describe('Realtime events (e2e, socket.io)', () => {
       },
     ];
 
-    const ROWS: Row[] = [...listAndCardRows, ...labelRows, ...checklistRows];
+    /** An invitation or token a row creates in `arrange` and uses in `act`. */
+    const state = { token: '', invitationId: '' };
 
-    it.each(ROWS)('$endpoint', async (row) => {
+    async function memberOf(world: World, userId: string): Promise<MemberDto> {
+      const res = await api(app, world.a).get(`/boards/${world.boardId}/members`).expect(200);
+      const member = (res.body as MemberDto[]).find((entry) => entry.userId === userId);
+      if (!member) throw new Error('The user is not a member');
+      return member;
+    }
+
+    /** The board as the user sees it in their board list (their own role included). */
+    async function summaryFor(user: World['a'], boardId: string): Promise<BoardSummaryDto> {
+      const res = await api(app, user).get('/boards').expect(200);
+      const summary = (res.body as BoardSummaryDto[]).find((entry) => entry.id === boardId);
+      if (!summary) throw new Error('The board is not in the list');
+      return summary;
+    }
+
+    function infoOf(summary: BoardSummaryDto): BoardInfoDto {
+      return {
+        id: summary.id,
+        title: summary.title,
+        background: summary.background,
+        updatedAt: summary.updatedAt,
+      };
+    }
+
+    const boardRows: Row[] = [
+      {
+        endpoint: 'POST /boards',
+        act: (as) => as.post('/boards').send({ title: 'Yeni pano' }),
+        status: 201,
+        audience: (world, res) => {
+          const summary = res.body as BoardSummaryDto;
+          return [
+            {
+              watcher: world.a2,
+              events: [event('membership:added', summary)],
+              boardId: summary.id,
+            },
+          ];
+        },
+      },
+      {
+        endpoint: 'PATCH /boards/:boardId',
+        act: (as, w) => as.patch(`/boards/${w.boardId}`).send({ title: 'Yeni ad', background: 'green' }),
+        audience: (world, res) => {
+          const events = [event('board:updated', infoOf(res.body as BoardSummaryDto))];
+          return [
+            { watcher: world.b1, events },
+            { watcher: world.a2, events },
+          ];
+        },
+      },
+      {
+        endpoint: 'DELETE /boards/:boardId',
+        act: (as, w) => as.delete(`/boards/${w.boardId}`),
+        status: 204,
+        audience: (world) => {
+          const events = [event('board:deleted', { boardId: world.boardId })];
+          return [
+            { watcher: world.b1, events },
+            { watcher: world.a2, events },
+          ];
+        },
+      },
+      {
+        endpoint: 'PATCH /boards/:boardId/members/:userId',
+        act: (as, w) =>
+          as.patch(`/boards/${w.boardId}/members/${w.b.user.id}`).send({ role: 'ADMIN' }),
+        audience: (world, res) => {
+          const events = [event('member:updated', res.body as MemberDto)];
+          return [
+            { watcher: world.b1, events },
+            { watcher: world.a2, events },
+          ];
+        },
+      },
+      {
+        endpoint: 'DELETE /boards/:boardId/members/:userId (removed by the owner)',
+        act: (as, w) => as.delete(`/boards/${w.boardId}/members/${w.b.user.id}`),
+        status: 204,
+        audience: (world) => [
+          { watcher: world.a2, events: [event('member:removed', { userId: world.b.user.id })] },
+          { watcher: world.b1, events: [event('membership:removed', { boardId: world.boardId })] },
+        ],
+      },
+      {
+        endpoint: 'DELETE /boards/:boardId/members/:userId (leave)',
+        actor: 'b',
+        act: (as, w) => as.delete(`/boards/${w.boardId}/members/${w.b.user.id}`),
+        status: 204,
+        audience: (world) => {
+          const events = [event('member:removed', { userId: world.b.user.id })];
+          return [
+            { watcher: world.a1, events },
+            { watcher: world.a2, events },
+          ];
+        },
+      },
+      {
+        endpoint: 'POST /boards/:boardId/invitations (registered address)',
+        act: (as, w) =>
+          as.post(`/boards/${w.boardId}/invitations`).send({ email: w.d.user.email, role: 'MEMBER' }),
+        status: 201,
+        audience: async (world, res) => {
+          const body = res.body as CreateInvitationResponse;
+          if (body.result !== 'MEMBER_ADDED') throw new Error('Expected MEMBER_ADDED');
+          const members = [event('member:added', body.member)];
+          const summary = await summaryFor(world.d, world.boardId);
+          expect(summary.myRole).toBe('MEMBER');
+          return [
+            { watcher: world.b1, events: members },
+            { watcher: world.a2, events: members },
+            { watcher: world.d1, events: [event('membership:added', summary)] },
+            { watcher: world.d2, events: [event('membership:added', summary)] },
+          ];
+        },
+      },
+      {
+        endpoint: 'POST /boards/:boardId/invitations (unregistered address)',
+        act: (as, w) =>
+          as.post(`/boards/${w.boardId}/invitations`).send({ email: 'kayitsiz@example.com', role: 'MEMBER' }),
+        status: 201,
+        audience: () => [],
+        secrets: (_w, res) => {
+          const body = res.body as CreateInvitationResponse;
+          return body.result === 'INVITATION_CREATED'
+            ? [body.inviteUrl, body.inviteUrl.slice(body.inviteUrl.lastIndexOf('/') + 1)]
+            : [];
+        },
+      },
+      {
+        endpoint: 'DELETE /boards/:boardId/invitations/:invitationId',
+        arrange: async (w) => {
+          const invitation = await prisma.invitation.create({
+            data: {
+              boardId: w.boardId,
+              email: 'bekleyen@example.com',
+              role: 'MEMBER',
+              tokenHash: hashToken(newOpaqueToken()),
+              invitedById: w.a.user.id,
+              expiresAt: new Date(Date.now() + 86_400_000),
+            },
+          });
+          state.invitationId = invitation.id;
+        },
+        act: (as, w) => as.delete(`/boards/${w.boardId}/invitations/${state.invitationId}`),
+        status: 204,
+        audience: () => [],
+        secrets: () => [state.invitationId],
+      },
+      {
+        endpoint: 'POST /invitations/:token/accept',
+        actor: 'd',
+        arrange: async (w) => {
+          state.token = newOpaqueToken();
+          await prisma.invitation.create({
+            data: {
+              boardId: w.boardId,
+              email: w.d.user.email,
+              role: 'ADMIN',
+              tokenHash: hashToken(state.token),
+              invitedById: w.a.user.id,
+              expiresAt: new Date(Date.now() + 86_400_000),
+            },
+          });
+        },
+        act: (as) => as.post(`/invitations/${state.token}/accept`).send({}),
+        audience: async (world, res) => {
+          expect(res.body).toEqual({ boardId: world.boardId });
+          const members = [event('member:added', await memberOf(world, world.d.user.id))];
+          const summary = await summaryFor(world.d, world.boardId);
+          expect(summary.myRole).toBe('ADMIN');
+          return [
+            { watcher: world.a1, events: members },
+            { watcher: world.a2, events: members },
+            { watcher: world.b1, events: members },
+            { watcher: world.d2, events: [event('membership:added', summary)] },
+          ];
+        },
+        secrets: () => [state.token, hashToken(state.token)],
+      },
+    ];
+
+    const ROWS: Row[] = [
+      ...[...listAndCardRows, ...labelRows, ...checklistRows].map(viaBoardRoom),
+      ...boardRows,
+    ];
+
+    ROWS_FOR_COVERAGE.push(...ROWS.map((row) => row.endpoint));
+
+    it.each(ROWS.map((row) => [row.endpoint, row] as const))('%s', async (_endpoint, row) => {
       const world = await createWorld(app);
       await row.arrange?.(world);
+      const actor = { a: world.a, b: world.b, d: world.d }[row.actor ?? 'a'];
+      const sender = { a: world.a1, b: world.b1, d: world.d1 }[row.actor ?? 'a'];
 
-      const response = await row.act(api(app, world.a, world.a1.socket), world);
+      const response = await row.act(api(app, actor, sender.socket), world);
 
       expect(response.status).toBe(row.status ?? 200);
-      const expected = await row.events(world, response);
-      sendSentinels(app, [world.a, world.b, world.c]);
-      const context = { boardId: world.boardId, actorId: world.a.user.id };
-      const received = [
-        ...(await expectReceived(world.b1, expected, context)),
-        ...(await expectReceived(world.a2, expected, context)),
-      ];
-      await expectNothing(world.a1);
-      await expectNothing(world.c1);
+      const audience = await row.audience(world, response);
+      sendSentinels(app, [world.a, world.b, world.c, world.d]);
+      const received: Received[] = [];
+      for (const watcher of [world.a1, world.a2, world.b1, world.c1, world.d1, world.d2]) {
+        const entry = audience.find((candidate) => candidate.watcher === watcher);
+        if (!entry) {
+          await expectNothing(watcher);
+          continue;
+        }
+        const context = { boardId: entry.boardId ?? world.boardId, actorId: actor.user.id };
+        received.push(...(await expectReceived(watcher, entry.events, context)));
+      }
 
-      expectNoLeak(received, forbiddenStrings(world));
+      expectNoLeak(received, forbiddenStrings(world, row.secrets?.(world, response) ?? []));
+    });
+  });
+
+  describe('route coverage', () => {
+    it('has a table row for every route that writes, unless it is listed as event-free on purpose', () => {
+      const routes = writingRoutes(app);
+      // Guards against a scan that finds nothing.
+      expect(routes.length).toBeGreaterThan(30);
+      const covered = new Set(ROWS_FOR_COVERAGE.map((endpoint) => endpoint.split(' (')[0]));
+      const missing = routes.filter(
+        (route) => !covered.has(route) && !ROUTES_WITHOUT_EVENTS.has(route),
+      );
+
+      expect(missing).toEqual([]);
+    });
+
+    it('does not list a route that no longer exists', () => {
+      const routes = new Set(writingRoutes(app));
+      const unknown = [...ROWS_FOR_COVERAGE.map((endpoint) => endpoint.split(' (')[0]), ...ROUTES_WITHOUT_EVENTS].filter(
+        (route) => !routes.has(route),
+      );
+
+      expect(unknown).toEqual([]);
     });
   });
 

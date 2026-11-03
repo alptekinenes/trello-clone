@@ -10,12 +10,22 @@ import { ConfigService } from '@nestjs/config';
 import { ErrorCode, type CreateInvitationResponse } from '@trello/contracts';
 import { hashToken } from '../common/crypto/opaque-token.js';
 import type { MailService } from '../mail/mail.service.js';
+import { toBoardSummary } from '../boards/board.mapper.js';
 import { MEMBER_SELECT } from '../members/member.mapper.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import type { RealtimeService } from '../realtime/realtime.service.js';
 import { INVITATION_ORDER, INVITATION_SELECT } from './invitation.mapper.js';
 import { InvitationsService } from './invitations.service.js';
 
 const BOARD = 'board-1';
+const ORIGIN: EventOrigin = { actorId: 'owner-1', socketId: 'socket-1' };
+const BOARD_ROW = {
+  id: BOARD,
+  title: 'Yol haritası',
+  background: 'blue',
+  updatedAt: new Date('2026-11-02T09:00:00.000Z'),
+};
 const NOW = new Date('2026-11-02T10:00:00.000Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
 const APP_URL = 'https://app.example.com';
@@ -80,6 +90,7 @@ function setup({
       createMany: vi.fn().mockResolvedValue({ count: createdCount }),
       findUniqueOrThrow: vi.fn().mockResolvedValue(MEMBER_ROW),
     },
+    board: { findUniqueOrThrow: vi.fn().mockResolvedValue(BOARD_ROW) },
     invitation: {
       upsert: vi.fn().mockResolvedValue(INVITATION_ROW),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -102,12 +113,17 @@ function setup({
       return Promise.resolve();
     }),
   };
+  const realtime = {
+    toBoard: vi.fn(() => events.push('toBoard')),
+    toUsers: vi.fn(() => events.push('toUsers')),
+  };
   const service = new InvitationsService(
     prisma as unknown as PrismaService,
     mail as unknown as MailService,
+    realtime as unknown as RealtimeService,
     new ConfigService({ APP_URL }),
   );
-  return { service, tx, prisma, mail, events };
+  return { service, tx, prisma, mail, realtime, events };
 }
 
 function codeOf(error: unknown): unknown {
@@ -135,7 +151,7 @@ describe('InvitationsService', () => {
       const { service, prisma } = setup();
 
       const error = await service
-        .create(BOARD, ADMIN, { email: 'a@example.com', role: 'ADMIN' })
+        .create(BOARD, ADMIN, { email: 'a@example.com', role: 'ADMIN' }, ORIGIN)
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ForbiddenException);
@@ -146,17 +162,17 @@ describe('InvitationsService', () => {
     it('lets an admin invite a member and the owner invite an admin', async () => {
       const { service } = setup();
       await expect(
-        service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }),
+        service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN),
       ).resolves.toMatchObject({ result: 'INVITATION_CREATED' });
       await expect(
-        service.create(BOARD, OWNER, { email: 'a@example.com', role: 'ADMIN' }),
+        service.create(BOARD, OWNER, { email: 'a@example.com', role: 'ADMIN' }, ORIGIN),
       ).resolves.toMatchObject({ result: 'INVITATION_CREATED' });
     });
 
     it('takes the board lock before anything else in the transaction', async () => {
       const { service, tx, events } = setup();
 
-      await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' });
+      await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN);
 
       expect(events[0]).toBe('lock');
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
@@ -168,7 +184,7 @@ describe('InvitationsService', () => {
       const { service, tx } = setup({ boardExists: false });
 
       const error = await service
-        .create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' })
+        .create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN)
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(NotFoundException);
@@ -179,7 +195,7 @@ describe('InvitationsService', () => {
     it('normalizes the email before looking the user up', async () => {
       const { service, tx } = setup();
 
-      await service.create(BOARD, OWNER, { email: '  B@Example.COM ', role: 'MEMBER' });
+      await service.create(BOARD, OWNER, { email: '  B@Example.COM ', role: 'MEMBER' }, ORIGIN);
 
       expect(tx.user.findUnique.mock.calls[0][0].where).toEqual({ email: 'b@example.com' });
       expect(tx.invitation.upsert.mock.calls[0][0].where).toEqual({
@@ -194,7 +210,7 @@ describe('InvitationsService', () => {
         const { service, tx, mail } = setup({ existing: waitingAdmin });
 
         const error = await service
-          .create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' })
+          .create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN)
           .catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(ForbiddenException);
@@ -207,7 +223,7 @@ describe('InvitationsService', () => {
         const { service, tx } = setup({ registeredUserId: 'user-2', existing: waitingAdmin });
 
         const error = await service
-          .create(BOARD, ADMIN, { email: 'mehmet@example.com', role: 'MEMBER' })
+          .create(BOARD, ADMIN, { email: 'mehmet@example.com', role: 'MEMBER' }, ORIGIN)
           .catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(ForbiddenException);
@@ -219,7 +235,7 @@ describe('InvitationsService', () => {
         const { service, tx } = setup({ existing: waitingAdmin });
 
         await service
-          .create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' })
+          .create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN)
           .catch((e: unknown) => e);
 
         expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
@@ -234,7 +250,7 @@ describe('InvitationsService', () => {
       it('lets the owner replace it', async () => {
         const { service, tx } = setup({ existing: waitingAdmin });
 
-        await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' });
+        await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN);
 
         expect(tx.invitation.upsert).toHaveBeenCalledOnce();
       });
@@ -242,7 +258,7 @@ describe('InvitationsService', () => {
       it('lets an admin replace a waiting member invitation', async () => {
         const { service, tx } = setup({ existing: stored('PENDING', 'MEMBER') });
 
-        await service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' });
+        await service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN);
 
         expect(tx.invitation.upsert).toHaveBeenCalledOnce();
       });
@@ -254,7 +270,7 @@ describe('InvitationsService', () => {
       ])('lets an admin replace an admin invitation that is %s', async (_, existing) => {
         const { service, tx } = setup({ existing });
 
-        await service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' });
+        await service.create(BOARD, ADMIN, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN);
 
         expect(tx.invitation.upsert).toHaveBeenCalledOnce();
       });
@@ -267,7 +283,7 @@ describe('InvitationsService', () => {
         const result = await service.create(BOARD, OWNER, {
           email: 'mehmet@example.com',
           role: 'ADMIN',
-        });
+        }, ORIGIN);
 
         expect(tx.boardMember.createMany).toHaveBeenCalledWith({
           data: [{ boardId: BOARD, userId: 'user-2', role: 'ADMIN' }],
@@ -295,7 +311,7 @@ describe('InvitationsService', () => {
       it('marks a pending invitation for the same address as accepted', async () => {
         const { service, tx } = setup({ registeredUserId: 'user-2' });
 
-        await service.create(BOARD, OWNER, { email: 'mehmet@example.com', role: 'MEMBER' });
+        await service.create(BOARD, OWNER, { email: 'mehmet@example.com', role: 'MEMBER' }, ORIGIN);
 
         expect(tx.invitation.updateMany).toHaveBeenCalledWith({
           where: { boardId: BOARD, email: 'mehmet@example.com', status: 'PENDING' },
@@ -307,7 +323,7 @@ describe('InvitationsService', () => {
         const { service, tx } = setup({ registeredUserId: 'user-2', createdCount: 0 });
 
         const error = await service
-          .create(BOARD, OWNER, { email: 'mehmet@example.com', role: 'MEMBER' })
+          .create(BOARD, OWNER, { email: 'mehmet@example.com', role: 'MEMBER' }, ORIGIN)
           .catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(ConflictException);
@@ -321,7 +337,7 @@ describe('InvitationsService', () => {
         const { service, tx } = setup();
 
         const result = createdOf(
-          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }),
+          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN),
         );
 
         const token = result.inviteUrl.slice(`${APP_URL}/invitations/`.length);
@@ -337,7 +353,7 @@ describe('InvitationsService', () => {
       it('expires seven days from now and resets the row when re-inviting', async () => {
         const { service, tx } = setup();
 
-        await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'ADMIN' });
+        await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'ADMIN' }, ORIGIN);
 
         const args = tx.invitation.upsert.mock.calls[0][0];
         const expiresAt = new Date(NOW.getTime() + 7 * DAY_MS);
@@ -362,7 +378,7 @@ describe('InvitationsService', () => {
         const { service } = setup();
 
         const result = createdOf(
-          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }),
+          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN),
         );
 
         expect(result.invitation).toEqual({
@@ -379,7 +395,7 @@ describe('InvitationsService', () => {
         const { service, mail, events } = setup();
 
         const result = createdOf(
-          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }),
+          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN),
         );
 
         expect(events).toEqual(['lock', 'commit', 'mail']);
@@ -398,7 +414,7 @@ describe('InvitationsService', () => {
         mail.sendInvitation.mockRejectedValue(new Error('smtp down'));
 
         const result = createdOf(
-          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }),
+          await service.create(BOARD, OWNER, { email: 'a@example.com', role: 'MEMBER' }, ORIGIN),
         );
 
         const token = result.inviteUrl.slice(`${APP_URL}/invitations/`.length);
@@ -514,7 +530,83 @@ describe('InvitationsService', () => {
       expect(tx.invitation.update).toHaveBeenCalledOnce();
     });
   });
+
+  describe('realtime (create)', () => {
+    it('tells the board and the new member after the commit when a registered address is added', async () => {
+      const { service, realtime, events } = setup({ registeredUserId: 'user-2' });
+
+      const result = await service.create(
+        BOARD,
+        OWNER,
+        { email: 'mehmet@example.com', role: 'ADMIN' },
+        ORIGIN,
+      );
+
+      expect(events.indexOf('commit')).toBeLessThan(events.indexOf('toBoard'));
+      expect(events.indexOf('commit')).toBeLessThan(events.indexOf('toUsers'));
+      expect(realtime.toBoard).toHaveBeenCalledOnce();
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'member:added', data: expect.objectContaining({ userId: 'user-2' }) },
+      ]);
+      expect(realtime.toUsers).toHaveBeenCalledOnce();
+      expect(realtime.toUsers).toHaveBeenCalledWith(['user-2'], BOARD, ORIGIN, {
+        type: 'membership:added',
+        // The invited role, not the actor's.
+        data: { ...toBoardSummary(BOARD_ROW, 'ADMIN') },
+      });
+      // The response stays what it was: no board in it.
+      expect(Object.keys(result).sort()).toEqual(['member', 'result']);
+    });
+
+    it('broadcasts nothing for an address without an account, and no event mentions the token', async () => {
+      const { service, realtime } = setup({ registeredUserId: null });
+
+      await service.create(BOARD, OWNER, { email: 'yeni@example.com', role: 'MEMBER' }, ORIGIN);
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the user is already a member', async () => {
+      const { service, realtime } = setup({ registeredUserId: 'user-2', createdCount: 0 });
+
+      await expect(
+        service.create(BOARD, OWNER, { email: 'mehmet@example.com', role: 'MEMBER' }, ORIGIN),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the role is refused', async () => {
+      const { service, realtime } = setup({ registeredUserId: 'user-2' });
+
+      await expect(
+        service.create(BOARD, ADMIN, { email: 'mehmet@example.com', role: 'ADMIN' }, ORIGIN),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('realtime (revoke)', () => {
+    it('broadcasts nothing', async () => {
+      const { service, realtime } = setup({ existing: stored('PENDING') });
+
+      await service.revoke(BOARD, 'inv-1', 'OWNER');
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+  });
 });
+
+const ACCEPTED_MEMBER_ROW = {
+  role: 'ADMIN' as const,
+  joinedAt: new Date('2026-11-02T10:00:00.000Z'),
+  user: { id: 'user-9', name: 'Davetli', email: 'davetli@example.com', avatarUrl: null },
+};
 
 const TOKEN = 'A'.repeat(43);
 const TOKEN_HASH = hashToken(TOKEN);
@@ -530,6 +622,8 @@ interface TokenOptions {
   boardExists?: boolean;
   accountEmail?: string | null;
   isMember?: boolean;
+  /** What createMany reports; 0 means the user became a member some other way meanwhile. */
+  createdCount?: number;
 }
 
 function setupToken({
@@ -538,6 +632,7 @@ function setupToken({
   boardExists = true,
   accountEmail = 'davetli@example.com',
   isMember = false,
+  createdCount = 1,
 }: TokenOptions = {}) {
   const row = stored
     ? {
@@ -555,13 +650,18 @@ function setupToken({
     board: { title: 'Yol haritası' },
   };
 
+  const realtime = { toBoard: vi.fn(), toUsers: vi.fn() };
+  // How many broadcasts had been made when the transaction callback returned.
+  const inTransaction = { broadcasts: -1 };
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue(boardExists ? [{ id: BOARD }] : []),
     user: { findUnique: vi.fn().mockResolvedValue(accountEmail ? { email: accountEmail } : null) },
     boardMember: {
-      createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      createMany: vi.fn().mockResolvedValue({ count: createdCount }),
       findUnique: vi.fn().mockResolvedValue(isMember ? { userId: USER_ID } : null),
+      findUniqueOrThrow: vi.fn().mockResolvedValue(ACCEPTED_MEMBER_ROW),
     },
+    board: { findUniqueOrThrow: vi.fn().mockResolvedValue(BOARD_ROW) },
     invitation: {
       findUnique: vi.fn().mockResolvedValue(reread === 'same' ? row : null),
       update: vi.fn().mockResolvedValue(undefined),
@@ -574,14 +674,19 @@ function setupToken({
         preview,
       ),
     },
-    $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)),
+    $transaction: vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => {
+      const result = await fn(tx);
+      inTransaction.broadcasts = realtime.toBoard.mock.calls.length + realtime.toUsers.mock.calls.length;
+      return result;
+    }),
   };
   const service = new InvitationsService(
     prisma as unknown as PrismaService,
     { sendInvitation: vi.fn() } as unknown as MailService,
+    realtime as unknown as RealtimeService,
     new ConfigService({ APP_URL }),
   );
-  return { service, tx, prisma };
+  return { service, tx, prisma, realtime, inTransaction };
 }
 
 describe('InvitationsService by token', () => {
@@ -662,7 +767,7 @@ describe('InvitationsService by token', () => {
     it('locks the board first, reads again under the lock and adds the member', async () => {
       const { service, tx } = setupToken();
 
-      await expect(service.accept(TOKEN, USER_ID)).resolves.toEqual({ boardId: BOARD });
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).resolves.toEqual({ boardId: BOARD });
 
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.invitation.findUnique.mock.invocationCallOrder[0],
@@ -681,7 +786,7 @@ describe('InvitationsService by token', () => {
     it.each(['abc', 'A'.repeat(44)])('answers 404 for the malformed token %j', async (token) => {
       const { service, prisma } = setupToken();
 
-      await expect(service.accept(token, USER_ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.accept(token, USER_ID, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(prisma.invitation.findUnique).not.toHaveBeenCalled();
       expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -690,7 +795,7 @@ describe('InvitationsService by token', () => {
     it('answers 404 for an unknown token without opening a transaction', async () => {
       const { service, prisma } = setupToken({ stored: null });
 
-      await expect(service.accept(TOKEN, USER_ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -698,7 +803,7 @@ describe('InvitationsService by token', () => {
     it('answers 404 when the board was deleted in the meantime', async () => {
       const { service, tx } = setupToken({ boardExists: false });
 
-      await expect(service.accept(TOKEN, USER_ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(tx.invitation.findUnique).not.toHaveBeenCalled();
     });
@@ -706,20 +811,20 @@ describe('InvitationsService by token', () => {
     it('answers 404 when a re-invite replaced the token before the lock was granted', async () => {
       const { service, tx } = setupToken({ reread: null });
 
-      await expect(service.accept(TOKEN, USER_ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(tx.boardMember.createMany).not.toHaveBeenCalled();
     });
 
     it('answers 401 when the account no longer exists', async () => {
       const { service } = setupToken({ accountEmail: null });
-      await expect(service.accept(TOKEN, USER_ID)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('answers 410 INVITATION_REVOKED', async () => {
       const { service, tx } = setupToken({ stored: { status: 'REVOKED' } });
 
-      const error = await service.accept(TOKEN, USER_ID).catch((e: unknown) => e);
+      const error = await service.accept(TOKEN, USER_ID, ORIGIN).catch((e: unknown) => e);
 
       expect(codeOf(error)).toBe(ErrorCode.INVITATION_REVOKED);
       expect(tx.boardMember.createMany).not.toHaveBeenCalled();
@@ -728,7 +833,7 @@ describe('InvitationsService by token', () => {
     it('answers 410 INVITATION_EXPIRED', async () => {
       const { service, tx } = setupToken({ stored: { expiresAt: NOW } });
 
-      const error = await service.accept(TOKEN, USER_ID).catch((e: unknown) => e);
+      const error = await service.accept(TOKEN, USER_ID, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(GoneException);
       expect(codeOf(error)).toBe(ErrorCode.INVITATION_EXPIRED);
@@ -738,7 +843,7 @@ describe('InvitationsService by token', () => {
     it('answers 403 EMAIL_MISMATCH for another account and changes nothing', async () => {
       const { service, tx } = setupToken({ accountEmail: 'baska@example.com' });
 
-      const error = await service.accept(TOKEN, USER_ID).catch((e: unknown) => e);
+      const error = await service.accept(TOKEN, USER_ID, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ForbiddenException);
       expect(codeOf(error)).toBe(ErrorCode.EMAIL_MISMATCH);
@@ -749,7 +854,7 @@ describe('InvitationsService by token', () => {
     it('is idempotent for the matching account that is still a member', async () => {
       const { service, tx } = setupToken({ stored: { status: 'ACCEPTED' }, isMember: true });
 
-      await expect(service.accept(TOKEN, USER_ID)).resolves.toEqual({ boardId: BOARD });
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).resolves.toEqual({ boardId: BOARD });
 
       expect(tx.boardMember.createMany).not.toHaveBeenCalled();
       expect(tx.invitation.update).not.toHaveBeenCalled();
@@ -758,7 +863,7 @@ describe('InvitationsService by token', () => {
     it('answers 410 INVITATION_USED when an accepted invitation is used by a non-member', async () => {
       const { service } = setupToken({ stored: { status: 'ACCEPTED' }, isMember: false });
 
-      const error = await service.accept(TOKEN, USER_ID).catch((e: unknown) => e);
+      const error = await service.accept(TOKEN, USER_ID, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(GoneException);
       expect(codeOf(error)).toBe(ErrorCode.INVITATION_USED);
@@ -771,9 +876,60 @@ describe('InvitationsService by token', () => {
         isMember: true,
       });
 
-      const error = await service.accept(TOKEN, USER_ID).catch((e: unknown) => e);
+      const error = await service.accept(TOKEN, USER_ID, ORIGIN).catch((e: unknown) => e);
 
       expect(codeOf(error)).toBe(ErrorCode.INVITATION_USED);
+    });
+  });
+
+  describe('realtime', () => {
+    it('tells the board and the new member after the commit, with the invited role', async () => {
+      const { service, realtime, inTransaction } = setupToken();
+
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).resolves.toEqual({ boardId: BOARD });
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toBoard).toHaveBeenCalledOnce();
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        {
+          type: 'member:added',
+          data: expect.objectContaining({ userId: USER_ID, role: 'ADMIN' }),
+        },
+      ]);
+      expect(realtime.toUsers).toHaveBeenCalledOnce();
+      expect(realtime.toUsers).toHaveBeenCalledWith([USER_ID], BOARD, ORIGIN, {
+        type: 'membership:added',
+        data: toBoardSummary(BOARD_ROW, 'ADMIN'),
+      });
+    });
+
+    it('broadcasts nothing when the user was already a member (idempotent accept)', async () => {
+      const { service, realtime } = setupToken({ stored: { status: 'ACCEPTED' }, isMember: true });
+
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).resolves.toEqual({ boardId: BOARD });
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the membership already existed and no row was created', async () => {
+      const { service, realtime } = setupToken({ createdCount: 0 });
+
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).resolves.toEqual({ boardId: BOARD });
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the invitation cannot be used', async () => {
+      const { service, realtime } = setupToken({ accountEmail: 'baska@example.com' });
+
+      await expect(service.accept(TOKEN, USER_ID, ORIGIN)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(realtime.toUsers).not.toHaveBeenCalled();
     });
   });
 });
