@@ -1,4 +1,4 @@
-import { BadRequestException, type PipeTransform } from '@nestjs/common';
+import { type ArgumentMetadata, BadRequestException, type PipeTransform } from '@nestjs/common';
 import { ErrorCode } from '@trello/contracts';
 
 /** Deeper input is left to the validation pipe; request bodies here are flat. */
@@ -12,11 +12,19 @@ export function containsNul(value: unknown, depth = 0): boolean {
 }
 
 /**
+ * Only what the client wrote is checked. Values that custom decorators and gateways inject
+ * (the user, a socket) are not input, and walking a socket's object graph blocked the event loop
+ * for seconds on every `board:join`.
+ */
+const INPUT_TYPES: ReadonlySet<ArgumentMetadata['type']> = new Set(['body', 'query', 'param']);
+
+/**
  * Postgres text cannot store U+0000, so such input is refused with 400 up
  * front instead of failing as a 500 in the database.
  */
 export class RejectNulPipe implements PipeTransform {
-  transform(value: unknown): unknown {
+  transform(value: unknown, metadata?: ArgumentMetadata): unknown {
+    if (metadata && !INPUT_TYPES.has(metadata.type)) return value;
     if (containsNul(value)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_FAILED,

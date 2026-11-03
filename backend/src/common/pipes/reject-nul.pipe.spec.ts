@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, type ArgumentMetadata } from '@nestjs/common';
 import { ErrorCode } from '@trello/contracts';
 import { containsNul, RejectNulPipe } from './reject-nul.pipe.js';
 
@@ -35,5 +35,20 @@ describe('RejectNulPipe', () => {
     expect((error as BadRequestException).getResponse()).toMatchObject({
       code: ErrorCode.VALIDATION_FAILED,
     });
+  });
+
+  it('refuses a NUL character in a body, a query and a route parameter', () => {
+    for (const type of ['body', 'query', 'param'] as const) {
+      const metadata: ArgumentMetadata = { type };
+      expect(() => pipe.transform({ name: 'a\u0000b' }, metadata)).toThrow(BadRequestException);
+    }
+  });
+
+  it('does not walk values that custom decorators and gateways inject (a socket is a huge object graph)', () => {
+    let reads = 0;
+    const injected = new Proxy({}, { ownKeys: () => (reads++, []), getOwnPropertyDescriptor: () => undefined });
+
+    expect(pipe.transform(injected, { type: 'custom' })).toBe(injected);
+    expect(reads).toBe(0);
   });
 });
