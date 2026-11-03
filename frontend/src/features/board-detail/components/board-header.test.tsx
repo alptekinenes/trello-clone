@@ -64,7 +64,7 @@ describe('BoardHeader connection indicator', () => {
     fakeRealtime.rejectHandshake(REALTIME_UNAUTHORIZED);
     await act(async () => {});
 
-    expect(screen.getByText('Canlı güncellemeler kapalı.')).toBeInTheDocument();
+    expect(screen.getAllByText('Canlı güncellemeler kapalı.')).toHaveLength(2);
     const retry = screen.getByRole('button', { name: 'Yeniden bağlan' });
     expect(screen.getByRole('banner')).toContainElement(retry);
     // The header's own controls are still there.

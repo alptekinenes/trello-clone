@@ -41,6 +41,9 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
         </p>
       )}
 
+      {/* Next to the title, not in the right-hand group: when it appears the buttons must not shift. */}
+      <RealtimeStatus />
+
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <AvatarStack people={people} label="Pano üyeleri" />
         <Button variant="on-board" className="h-8 px-3" onClick={actions.openMembers}>
@@ -57,8 +60,6 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
             Panoyu sil
           </Button>
         )}
-        {/* Empty, it must not add a flex gap: a live region has to stay in the DOM. */}
-        <RealtimeStatus className="empty:-ml-3 empty:w-0" />
       </div>
 
       {actions.membersOpen && <MembersDialog detail={detail} onClose={actions.closeMembers} />}

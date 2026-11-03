@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { REALTIME_UNAUTHORIZED } from '@trello/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeRealtime } from '../../test/fake-realtime';
-import { RECONNECT_GRACE_MS } from '../hooks/use-realtime-indicator';
+import { RECONNECT_GRACE_MS, RESTORED_MS } from '../hooks/use-realtime-indicator';
 import { setAuthHandlers } from '../lib/http';
 import { realtime } from '../lib/realtime-client';
 import { useRealtimeStore } from '../store/realtime-store';
@@ -11,7 +11,13 @@ import { RealtimeStatus } from './realtime-status';
 const RECONNECTING = 'Bağlantı koptu. Yeniden bağlanılıyor…';
 const OFFLINE = 'Canlı güncellemeler kapalı.';
 
+const RESTORED = 'Bağlantı yeniden kuruldu.';
+
 const status = () => useRealtimeStore.getState().status;
+
+/** The message is in the screen-reader region and in the visible pill; this is the visible one. */
+const pillText = (text: string) =>
+  screen.queryAllByText(text).find((element) => element.getAttribute('aria-hidden') === 'true');
 
 /** The token refresh answers `answers` in turn, then keeps answering the last one. */
 function signIn(...answers: (string | null)[]) {
@@ -109,15 +115,18 @@ describe('RealtimeStatus', () => {
     connected();
     fakeRealtime.drop('transport close');
     advance(RECONNECT_GRACE_MS);
-    expect(screen.getByText(RECONNECTING)).toBeInTheDocument();
+    expect(pillText(RECONNECTING)).toBeInTheDocument();
 
     fakeRealtime.connect();
+    expect(pillText(RECONNECTING)).toBeUndefined();
+    expect(screen.getByRole('status')).toHaveTextContent(RESTORED);
+    advance(RESTORED_MS);
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
 
     fakeRealtime.drop('ping timeout');
-    expect(screen.queryByText(RECONNECTING)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
     advance(RECONNECT_GRACE_MS);
-    expect(screen.getByText(RECONNECTING)).toBeInTheDocument();
+    expect(pillText(RECONNECTING)).toBeInTheDocument();
   });
 
   it('stops the spinner for people who prefer reduced motion and hides the icon from screen readers', () => {
@@ -127,7 +136,7 @@ describe('RealtimeStatus', () => {
     fakeRealtime.drop('transport close');
     advance(RECONNECT_GRACE_MS);
 
-    const icon = screen.getByRole('status').querySelector('svg');
+    const icon = pillText(RECONNECTING)?.querySelector('svg');
     expect(icon).toHaveAttribute('aria-hidden', 'true');
     expect(icon).toHaveClass('animate-spin', 'motion-reduce:animate-none');
   });
@@ -139,7 +148,7 @@ describe('RealtimeStatus', () => {
 
     await goOffline();
 
-    expect(screen.getByText(OFFLINE)).toHaveClass('text-warning');
+    expect(pillText(OFFLINE)).toHaveClass('text-warning');
     expect(screen.getByRole('button', { name: 'Yeniden bağlan' })).toBeInTheDocument();
   });
 
@@ -153,7 +162,7 @@ describe('RealtimeStatus', () => {
 
     await goOffline();
 
-    expect(screen.getByText(OFFLINE)).toBeInTheDocument();
+    expect(pillText(OFFLINE)).toBeInTheDocument();
   });
 
   it('retries from the button, keeps showing progress and clears once connected', async () => {
@@ -168,6 +177,8 @@ describe('RealtimeStatus', () => {
     // Visible at once: no second grace period after an outage the user already saw.
     expect(screen.getByRole('status')).toHaveTextContent(RECONNECTING);
     expect(screen.queryByRole('button', { name: 'Yeniden bağlan' })).not.toBeInTheDocument();
+    // The button is gone, so the focus moves to the pill instead of falling back to the page.
+    expect(document.activeElement).toBe(pillText(RECONNECTING)?.parentElement);
 
     await settle();
     expect(refreshAccessToken).toHaveBeenCalledTimes(2);
@@ -175,7 +186,8 @@ describe('RealtimeStatus', () => {
     fakeRealtime.connect();
 
     expect(status()).toBe('connected');
-    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(pillText(RECONNECTING)).toBeUndefined();
+    expect(screen.getByRole('status')).toHaveTextContent(RESTORED);
   });
 
   it('goes back to the offline message when the retry fails', async () => {
@@ -188,7 +200,7 @@ describe('RealtimeStatus', () => {
     await settle();
 
     expect(status()).toBe('offline');
-    expect(screen.getByText(OFFLINE)).toBeInTheDocument();
+    expect(pillText(OFFLINE)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Yeniden bağlan' })).toBeEnabled();
   });
 });
