@@ -85,10 +85,10 @@ function viaBoardRoom(row: BoardRow): Row {
   };
 }
 
-/** Routes that change data but never broadcast, on purpose (plan 5.5, "Event üretmeyenler"). */
 /** Endpoint labels of the table rows, filled in while the table is built. */
 const ROWS_FOR_COVERAGE: string[] = [];
 
+/** Routes that change data but never broadcast, on purpose (plan 5.5, "Event üretmeyenler"). */
 const ROUTES_WITHOUT_EVENTS = new Set([
   'POST /auth/register',
   'POST /auth/login',
@@ -560,6 +560,25 @@ describe('Realtime events (e2e, socket.io)', () => {
           const members = [event('member:added', body.member)];
           const summary = await summaryFor(world.d, world.boardId);
           expect(summary.myRole).toBe('MEMBER');
+          return [
+            { watcher: world.b1, events: members },
+            { watcher: world.a2, events: members },
+            { watcher: world.d1, events: [event('membership:added', summary)] },
+            { watcher: world.d2, events: [event('membership:added', summary)] },
+          ];
+        },
+      },
+      {
+        endpoint: 'POST /boards/:boardId/invitations (registered address, as admin)',
+        act: (as, w) =>
+          as.post(`/boards/${w.boardId}/invitations`).send({ email: w.d.user.email, role: 'ADMIN' }),
+        status: 201,
+        audience: async (world, res) => {
+          const body = res.body as CreateInvitationResponse;
+          if (body.result !== 'MEMBER_ADDED') throw new Error('Expected MEMBER_ADDED');
+          const members = [event('member:added', body.member)];
+          const summary = await summaryFor(world.d, world.boardId);
+          expect(summary.myRole).toBe('ADMIN');
           return [
             { watcher: world.b1, events: members },
             { watcher: world.a2, events: members },

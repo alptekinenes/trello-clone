@@ -15,7 +15,7 @@ import type { TestUser } from './users.js';
 
 export type TestSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-export const DEFAULT_WAIT_MS = 2_000;
+export const DEFAULT_WAIT_MS = 5_000;
 
 /** Board id used by sentinel events; no real board has it. */
 const SENTINEL_BOARD_ID = '00000000-0000-4000-8000-0000000000ff';

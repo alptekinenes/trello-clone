@@ -7,6 +7,9 @@ export default defineConfig({
     root: './',
     setupFiles: ['reflect-metadata'],
     include: ['test/**/*.e2e-spec.ts'],
+    // Waits are event-driven; these are only upper bounds, generous enough for a loaded machine.
+    testTimeout: 15_000,
+    hookTimeout: 30_000,
     // Test files share one database, so they run one at a time.
     fileParallelism: false,
     // Fixed env so e2e tests do not depend on a local .env file.

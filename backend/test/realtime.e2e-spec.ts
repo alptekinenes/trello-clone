@@ -456,6 +456,58 @@ describe('Realtime (e2e, socket.io)', () => {
       });
     });
 
+    it('takes every tab of a removed member out of the board, not only the first', async () => {
+      const world = await createWorld(app);
+      const b2 = await watch(app, world.b, world.boardId);
+      const context = { boardId: world.boardId, actorId: world.a.user.id };
+
+      await api(app, world.a, world.a1.socket)
+        .delete(`/boards/${world.boardId}/members/${world.b.user.id}`)
+        .expect(204);
+      sendSentinels(app, [world.a, world.b]);
+      const removed = [event('membership:removed', { boardId: world.boardId })];
+      await expectReceived(world.b1, removed, context);
+      await expectReceived(b2, removed, context);
+
+      await api(app, world.a, world.a1.socket)
+        .patch(`/lists/${world.list1.id}`)
+        .send({ title: 'Sonraki yazım' })
+        .expect(200);
+      sendSentinels(app, [world.a, world.b]);
+
+      await expectNothing(world.b1);
+      await expectNothing(b2);
+      await expect(join(b2.socket, world.boardId)).resolves.toEqual({
+        ok: false,
+        code: ErrorCode.NOT_FOUND,
+      });
+    });
+
+    it('sends nothing for invitation requests that fail', async () => {
+      const world = await createWorld(app);
+
+      await api(app, world.a, world.a1.socket)
+        .post(`/boards/${world.boardId}/invitations`)
+        .send({ email: world.b.user.email, role: 'MEMBER' })
+        .expect(409);
+      await api(app, world.b, world.b1.socket)
+        .post(`/boards/${world.boardId}/invitations`)
+        .send({ email: world.d.user.email, role: 'MEMBER' })
+        .expect(403);
+      await api(app, world.a, world.a1.socket)
+        .post(`/boards/${world.boardId}/invitations`)
+        .send({ email: 'not-an-email', role: 'MEMBER' })
+        .expect(400);
+      await api(app, world.a, world.a1.socket)
+        .delete(`/boards/${world.boardId}/invitations/${MISSING_ID}`)
+        .expect(404);
+      sendSentinels(app, [world.a, world.b, world.c, world.d]);
+
+      for (const watcher of [world.a1, world.a2, world.b1, world.c1, world.d1, world.d2]) {
+        await expectNothing(watcher);
+      }
+    });
+
     it('tells the other tabs of a member who leaves, not the tab that sent the request', async () => {
       const world = await createWorld(app);
       const b2 = await watch(app, world.b, world.boardId);
