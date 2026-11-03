@@ -1,6 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
-  isBoardEventName,
   type BoardDetailDto,
   type BoardEvent,
   type BoardSummaryDto,
@@ -10,6 +9,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useRealtimeEvents } from '../../../shared/hooks/use-realtime-events';
 import { realtime } from '../../../shared/lib/realtime-client';
+import { asBoardEvent } from '../../../shared/lib/realtime-message';
 import { useRealtimeStatus } from '../../../shared/store/realtime-store';
 import { showToast } from '../../../shared/store/toast-store';
 import { useCurrentUser } from '../../auth';
@@ -19,12 +19,6 @@ import { refreshUnlessMutating } from '../api/refresh-board';
 import { archivedCardsKey } from '../api/use-card-mutations';
 import { archivedListsKey } from '../api/use-list-mutations';
 import { applyBoardEvent } from '../lib/apply-board-event';
-
-/** The room events that change the board (user-room events are handled separately). */
-function asBoardEvent(message: RealtimeMessage): BoardEvent | null {
-  // The name tells which side of the union this is; TypeScript cannot narrow the parent by it.
-  return isBoardEventName(message.type) ? (message as BoardEvent) : null;
-}
 
 /** The board is gone for the viewer: removed from it, or it was deleted. */
 function isEviction(message: RealtimeMessage, myUserId: string): boolean {

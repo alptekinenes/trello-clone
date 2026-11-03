@@ -1,0 +1,200 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import type { ChecklistDto, ChecklistItemDto } from '@trello/contracts';
+import { http, HttpResponse } from 'msw';
+import { describe, expect, it } from 'vitest';
+import { fakeRealtime } from '../../../test/fake-realtime';
+import { BOARD_ID, apiError, testCard } from '../../../test/fixtures';
+import { CARD_ID, CARD_PATH, CARD_URL, LIST, cardDialog, openCard } from '../../../test/card-dialog';
+import { server } from '../../../test/msw-server';
+import { cardKeys } from '../api/card-keys';
+
+const here = { boardId: BOARD_ID };
+
+function item(id: string, content: string, position: number, isCompleted = false): ChecklistItemDto {
+  return { id, checklistId: 'cl-1', content, isCompleted, position };
+}
+
+const CHECKLIST: ChecklistDto = {
+  id: 'cl-1',
+  cardId: CARD_ID,
+  title: 'Yapılacaklar',
+  position: 1024,
+  items: [item('i-1', 'Taslak', 1024), item('i-2', 'Gözden geçir', 2048)],
+};
+
+/** Opens the card dialog, then connects the socket and waits for the join's refetch to settle. */
+async function openLiveCard(detail: Parameters<typeof openCard>[1] = {}) {
+  const opened = openCard(CARD_PATH, detail);
+  const dialog = await cardDialog();
+  fakeRealtime.connect();
+  await waitFor(() => expect(fakeRealtime.joins).toEqual([BOARD_ID]));
+  await waitFor(() => expect(opened.queryClient.isFetching()).toBe(0));
+  return { ...opened, dialog };
+}
+
+const summary = (changes: Partial<Parameters<typeof testCard>[0]> = {}) =>
+  testCard({ id: CARD_ID, listId: LIST.id, title: 'Rapor', ...changes });
+
+describe('useCardRealtime: checklists', () => {
+  it('ticks an item and updates the progress when someone else ticks it', async () => {
+    const { dialog } = await openLiveCard({ checklists: [CHECKLIST] });
+    expect(within(dialog).getByRole('checkbox', { name: 'Taslak' })).not.toBeChecked();
+
+    fakeRealtime.serverEmit(
+      'checklist-item:updated',
+      {
+        item: item('i-1', 'Taslak', 1024, true),
+        cardId: CARD_ID,
+        counts: { checklistTotal: 2, checklistDone: 1 },
+      },
+      here,
+    );
+
+    await waitFor(() => expect(within(dialog).getByRole('checkbox', { name: 'Taslak' })).toBeChecked());
+    expect(within(dialog).getByRole('progressbar')).toHaveAttribute(
+      'aria-valuetext',
+      "2 öğeden 1'si tamamlandı",
+    );
+  });
+
+  it('shows a checklist added by someone else', async () => {
+    const { dialog } = await openLiveCard();
+
+    fakeRealtime.serverEmit(
+      'checklist:created',
+      { id: 'cl-9', cardId: CARD_ID, title: 'Yayın', position: 1024, items: [] },
+      here,
+    );
+
+    expect(await within(dialog).findByRole('heading', { name: 'Yayın' })).toBeInTheDocument();
+  });
+
+  it('shows the tile counter on the board after the dialog follows the event', async () => {
+    const { dialog } = await openLiveCard({ checklists: [CHECKLIST] });
+
+    fakeRealtime.serverEmit(
+      'checklist-item:deleted',
+      { id: 'i-2', checklistId: 'cl-1', cardId: CARD_ID, counts: { checklistTotal: 1, checklistDone: 0 } },
+      here,
+    );
+
+    await waitFor(() =>
+      expect(within(dialog).queryByRole('checkbox', { name: 'Gözden geçir' })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('0/1')).toBeInTheDocument();
+  });
+});
+
+describe('useCardRealtime: card fields', () => {
+  it('follows a new title', async () => {
+    await openLiveCard();
+
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: summary({ title: 'Yeni başlık' }), descriptionChanged: false },
+      here,
+    );
+
+    expect(await screen.findByRole('dialog', { name: 'Yeni başlık' })).toBeInTheDocument();
+  });
+
+  it('fetches the card again for a changed description and shows the new text', async () => {
+    const { serverCard } = await openLiveCard({ description: 'Eski metin' });
+    let gets = 0;
+    server.use(
+      http.get(CARD_URL, () => {
+        gets += 1;
+        return HttpResponse.json(serverCard.card);
+      }),
+    );
+    serverCard.card = { ...serverCard.card, description: 'Yeni metin' };
+
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: summary({ hasDescription: true }), descriptionChanged: true },
+      here,
+    );
+
+    expect(await screen.findByText('Yeni metin')).toBeInTheDocument();
+    expect(gets).toBe(1);
+  });
+
+  it('keeps the description draft being typed when the card changes', async () => {
+    const { user, dialog } = await openLiveCard({ description: 'Eski' });
+    await user.click(within(dialog).getByRole('button', { name: 'Açıklamayı düzenle' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Açıklama' }), ' taslak');
+
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: summary({ title: 'Yeni başlık', hasDescription: true }), descriptionChanged: false },
+      here,
+    );
+
+    await screen.findByRole('dialog', { name: 'Yeni başlık' });
+    expect(screen.getByRole('textbox', { name: 'Açıklama' })).toHaveValue('Eski taslak');
+  });
+
+  it('shows the archive banner when the card is archived by someone else', async () => {
+    const { dialog } = await openLiveCard();
+
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: summary({ archivedAt: '2026-11-03T10:00:00.000Z' }), descriptionChanged: false },
+      here,
+    );
+
+    expect(await within(dialog).findByText('Bu kart arşivde.')).toBeInTheDocument();
+  });
+
+  it('ignores events of another board and of other cards', async () => {
+    const { queryClient } = await openLiveCard();
+    const before = queryClient.getQueryData(cardKeys.detail(BOARD_ID, CARD_ID));
+
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: summary({ title: 'Başka pano' }), descriptionChanged: false },
+      { boardId: 'other-board' },
+    );
+    fakeRealtime.serverEmit(
+      'card:updated',
+      { card: testCard({ id: 'card-9', listId: LIST.id, title: 'Başka kart' }), descriptionChanged: false },
+      here,
+    );
+
+    expect(queryClient.getQueryData(cardKeys.detail(BOARD_ID, CARD_ID))).toBe(before);
+    expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
+  });
+});
+
+describe('useCardRealtime: the card is deleted', () => {
+  it('tells the user once and offers the way back to the board', async () => {
+    const { dialog, router, user } = await openLiveCard();
+
+    fakeRealtime.serverEmit('card:deleted', { id: CARD_ID, listId: LIST.id }, here);
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu kart başka biri tarafından silindi.',
+    );
+    expect(within(dialog).queryByRole('button', { name: 'Rapor' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Panoya dön' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
+  });
+
+  it('says the same when the list of the card is deleted', async () => {
+    const { dialog } = await openLiveCard();
+
+    fakeRealtime.serverEmit('list:deleted', { id: LIST.id }, here);
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu kart başka biri tarafından silindi.',
+    );
+  });
+
+  it('keeps the plain "not found" message for a card that was never there', async () => {
+    openCard(CARD_PATH);
+    server.use(http.get(CARD_URL, () => apiError(404, 'NOT_FOUND')));
+
+    expect(await screen.findByText('Kart bulunamadı. Silinmiş olabilir.')).toBeInTheDocument();
+    expect(screen.queryByText('Bu kart başka biri tarafından silindi.')).not.toBeInTheDocument();
+  });
+});

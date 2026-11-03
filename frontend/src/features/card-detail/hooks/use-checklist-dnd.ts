@@ -18,6 +18,7 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { CardDetailDto, ChecklistItemDto } from '@trello/contracts';
 import { useRef, useState } from 'react';
+import { useRealtimeHold } from '../../../shared/hooks/use-realtime-hold';
 import { BoardMouseSensor, BoardTouchSensor } from '../../../shared/lib/dnd-sensors';
 import {
   type Columns,
@@ -72,9 +73,16 @@ export function useChecklistDnd(boardId: string, card: CardDetailDto, container:
   const [dragColumns, setDragColumns] = useState<Columns | null>(null);
   /** Columns right after a drop, shown until the optimistic move reaches the card. */
   const [dropped, setDropped] = useState<{ columns: Columns; card: CardDetailDto } | null>(null);
+  // Other users' changes wait while an item is dragged, and are let through once the drop's
+  // optimistic change is in the cache (or the drag ended without a move).
+  const { hold, release } = useRealtimeHold();
   const moveItem = useMoveChecklistItem(boardId, card.id, {
+    onMoved: release,
     // A rollback restores the very `card` kept in `dropped`; stop showing the drop then.
-    onRollback: () => setDropped(null),
+    onRollback: () => {
+      setDropped(null);
+      release();
+    },
   });
   // Last place announced, so "tutuldu" is not overwritten by "1. sıraya geldi" at once.
   const lastAnnouncedRef = useRef<UniqueIdentifier | null>(null);
@@ -172,6 +180,7 @@ export function useChecklistDnd(boardId: string, card: CardDetailDto, container:
     setActiveId(idOf(active.id));
     setDropped(null);
     setDragColumns(columns);
+    hold();
   }
 
   /** An item that crosses into another checklist joins its column, opening a gap there. */
@@ -196,7 +205,10 @@ export function useChecklistDnd(boardId: string, card: CardDetailDto, container:
     const final = over ? dropColumns(columns, itemId, overItemId(over)) : null;
     const place = final ? neighboursOf(final, itemId) : null;
     setDragColumns(null);
-    if (!final || !place || !before || sameNeighbours(place, before)) return;
+    if (!final || !place || !before || sameNeighbours(place, before)) {
+      release();
+      return;
+    }
 
     setDropped({ columns: final, card });
     moveItem.mutate({
@@ -210,6 +222,7 @@ export function useChecklistDnd(boardId: string, card: CardDetailDto, container:
   function onDragCancel() {
     setActiveId(null);
     setDragColumns(null);
+    release();
   }
 
   return {

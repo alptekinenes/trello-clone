@@ -18,6 +18,11 @@ interface CardMutationOptions<TVariables, TData> {
    * nor rolls back, as the newer one holds the value that counts.
    */
   touches?: (variables: TVariables) => string[];
+  /**
+   * Runs right after the optimistic change is in the cache, with the changed card.
+   * Observers hear about it a tick later, so React state set here renders first.
+   */
+  onOptimistic?: (variables: TVariables, card: CardDetailDto | undefined) => void;
   /** Puts back what `optimistic` changed, taking it from the card as it was before. */
   revert?: (card: CardDetailDto, previous: CardDetailDto, variables: TVariables) => CardDetailDto;
   /** Applied with the server's answer. Write only what this request changed. */
@@ -64,6 +69,7 @@ export function useCardMutation<TVariables, TData>({
   mutationFn,
   optimistic,
   touches,
+  onOptimistic,
   revert,
   onSuccessCard,
   onSuccess,
@@ -100,6 +106,7 @@ export function useCardMutation<TVariables, TData>({
       const previous = queryClient.getQueryData<CardDetailDto>(cardKey);
       const claims = claimParts(cardId, touches?.(variables) ?? []);
       if (optimistic) updateCard((card) => optimistic(card, variables));
+      onOptimistic?.(variables, queryClient.getQueryData<CardDetailDto>(cardKey));
       return { previous, claims };
     },
     onError: (error, variables, context) => {

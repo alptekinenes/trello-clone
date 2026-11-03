@@ -177,7 +177,7 @@ export interface MoveItemVariables {
 export function useMoveChecklistItem(
   boardId: string,
   cardId: string,
-  { onRollback }: { onRollback?: () => void } = {},
+  { onMoved, onRollback }: { onMoved?: () => void; onRollback?: () => void } = {},
 ) {
   return useCardMutation({
     boardId,
@@ -190,6 +190,7 @@ export function useMoveChecklistItem(
       return moveItem(card, itemId, checklistId, position);
     },
     touches: ({ itemId }) => [`item:${itemId}:place`],
+    onOptimistic: () => onMoved?.(),
     revert: (card, previous, { itemId }) => {
       const before = findItem(previous, itemId);
       return before ? moveItem(card, itemId, before.checklistId, before.position) : card;

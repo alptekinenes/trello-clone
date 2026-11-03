@@ -135,6 +135,23 @@ export function patchItem(
   );
 }
 
+/** Gives the item a new position within its checklist, keeping the checklist's order. */
+export function patchItemPosition(card: CardDetailDto, itemId: string, position: number): CardDetailDto {
+  return withChecklists(
+    card,
+    card.checklists.map((checklist) =>
+      checklist.items.some((item) => item.id === itemId)
+        ? {
+            ...checklist,
+            items: sortByPosition(
+              checklist.items.map((item) => (item.id === itemId ? { ...item, position } : item)),
+            ),
+          }
+        : checklist,
+    ),
+  );
+}
+
 /** Takes the item out of its checklist and puts it into `checklistId` at `position`. */
 export function moveItem(
   card: CardDetailDto,

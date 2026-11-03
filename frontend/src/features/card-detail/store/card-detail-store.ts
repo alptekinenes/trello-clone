@@ -12,6 +12,8 @@ interface CardDetailState {
   /** Text for the dialog's live region, e.g. what a drag or a move did. */
   announcement: string;
   openPanel: CardPanel | null;
+  /** The card whose dialog is open was deleted by someone else. */
+  goneCardId: string | null;
   /**
    * A failure of a change to `cardId`. A modal hides the toasts behind its backdrop, so it
    * is shown inside the dialog when that card's dialog is open, and as a toast otherwise
@@ -21,6 +23,7 @@ interface CardDetailState {
   clearError: () => void;
   announce: (message: string) => void;
   setOpenPanel: (panel: CardPanel | null) => void;
+  markGone: (cardId: string) => void;
   /** The dialog of this card opened. */
   open: (cardId: string) => void;
   /** Forgets everything; the dialog calls it when it goes away. */
@@ -32,6 +35,7 @@ export const useCardDetailStore = create<CardDetailState>()((set, get) => ({
   error: null,
   announcement: '',
   openPanel: null,
+  goneCardId: null,
   showError: (cardId, message) => {
     if (get().openCardId === cardId) set({ error: { cardId, message } });
     else showToast(message, { tone: 'error' });
@@ -39,8 +43,11 @@ export const useCardDetailStore = create<CardDetailState>()((set, get) => ({
   clearError: () => set({ error: null }),
   announce: (announcement) => set({ announcement }),
   setOpenPanel: (openPanel) => set({ openPanel }),
-  open: (openCardId) => set({ openCardId, error: null, announcement: '', openPanel: null }),
-  reset: () => set({ openCardId: null, error: null, announcement: '', openPanel: null }),
+  markGone: (goneCardId) => set({ goneCardId }),
+  open: (openCardId) =>
+    set({ openCardId, error: null, announcement: '', openPanel: null, goneCardId: null }),
+  reset: () =>
+    set({ openCardId: null, error: null, announcement: '', openPanel: null, goneCardId: null }),
 }));
 
 /** Test helper. */
