@@ -1,10 +1,12 @@
 import { Link, Outlet } from 'react-router';
 import { UserMenu, useAuthStatus } from '../features/auth';
+import { useBoardListRealtime } from '../features/boards';
 import { useRealtimeConnection } from '../shared/hooks/use-realtime-connection';
 import { Toaster } from '../shared/ui/toaster';
 
 export function RootLayout() {
   useRealtimeConnection(useAuthStatus() === 'authenticated');
+  useBoardListRealtime();
 
   return (
     <div className="flex min-h-full flex-col">
