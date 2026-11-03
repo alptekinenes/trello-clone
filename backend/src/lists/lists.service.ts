@@ -11,20 +11,33 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { lockBoard } from '../ordering/locks.js';
 import { invalidTarget } from '../ordering/ordering.errors.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
-import type { Anchors } from '../ordering/placement.js';
+import type { Anchors, Placement, Sibling } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { rebalanceEvents } from '../realtime/board-events.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import { LIST_ORDER, LIST_SELECT, toListDto } from './list.mapper.js';
 
 type Tx = Prisma.TransactionClient;
 
+/** What a list write returns from its transaction: the result and the siblings that were respread. */
+interface Written<T> {
+  result: T;
+  rebalanced: Sibling[] | null;
+}
+
 /**
  * List CRUD and ordering. Every write that touches positions locks the board
  * row first, so concurrent moves on one board cannot interleave.
+ * Every write is broadcast to the board after its transaction committed.
  * Callers check access first (BoardAccessGuard).
  */
 @Injectable()
 export class ListsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async listForBoard(boardId: string, archived: boolean): Promise<ListDto[]> {
     const lists = await this.prisma.list.findMany({
@@ -35,59 +48,95 @@ export class ListsService {
     return lists.map(toListDto);
   }
 
-  create(boardId: string, input: CreateListRequest): Promise<ListDto> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, boardId);
-      const position = await this.place(tx, boardId, null, {
-        afterId: input.afterListId,
-        beforeId: input.beforeListId,
-      });
-      const list = await tx.list.create({
-        data: { boardId, title: input.title, position },
-        select: LIST_SELECT,
-      });
-      return toListDto(list);
-    });
+  async create(boardId: string, input: CreateListRequest, origin: EventOrigin): Promise<ListDto> {
+    const { result: list, rebalanced } = await this.prisma.$transaction(
+      async (tx): Promise<Written<ListDto>> => {
+        await this.lock(tx, boardId);
+        const placement = await this.place(tx, boardId, null, {
+          afterId: input.afterListId,
+          beforeId: input.beforeListId,
+        });
+        const created = await tx.list.create({
+          data: { boardId, title: input.title, position: placement.position },
+          select: LIST_SELECT,
+        });
+        return { result: toListDto(created), rebalanced: placement.rebalanced };
+      },
+    );
+    this.realtime.toBoard(boardId, origin, [
+      ...rebalanceEvents({ entity: 'list' }, rebalanced),
+      { type: 'list:created', data: list },
+    ]);
+    return list;
   }
 
   /** Renames, archives, or restores the list (a restored list goes to the end). */
-  update(boardId: string, listId: string, input: UpdateListRequest): Promise<ListDto> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, boardId);
-      const current = await this.findOnBoard(tx, boardId, listId);
+  async update(
+    boardId: string,
+    listId: string,
+    input: UpdateListRequest,
+    origin: EventOrigin,
+  ): Promise<ListDto> {
+    const { result: list, rebalanced } = await this.prisma.$transaction(
+      async (tx): Promise<Written<ListDto>> => {
+        await this.lock(tx, boardId);
+        const current = await this.findOnBoard(tx, boardId, listId);
 
-      const data: Prisma.ListUpdateInput = { title: input.title };
-      if (input.archived === true && !current.archivedAt) {
-        data.archivedAt = new Date();
-      }
-      if (input.archived === false && current.archivedAt) {
-        data.archivedAt = null;
-        data.position = await this.place(tx, boardId, listId, {});
-      }
+        const data: Prisma.ListUpdateInput = { title: input.title };
+        let rebalancedSiblings: Sibling[] | null = null;
+        if (input.archived === true && !current.archivedAt) {
+          data.archivedAt = new Date();
+        }
+        if (input.archived === false && current.archivedAt) {
+          data.archivedAt = null;
+          const placement = await this.place(tx, boardId, listId, {});
+          data.position = placement.position;
+          rebalancedSiblings = placement.rebalanced;
+        }
 
-      const list = await tx.list.update({ where: { id: listId }, data, select: LIST_SELECT });
-      return toListDto(list);
-    });
+        const updated = await tx.list.update({ where: { id: listId }, data, select: LIST_SELECT });
+        return { result: toListDto(updated), rebalanced: rebalancedSiblings };
+      },
+    );
+    this.realtime.toBoard(boardId, origin, [
+      ...rebalanceEvents({ entity: 'list' }, rebalanced),
+      { type: 'list:updated', data: list },
+    ]);
+    return list;
   }
 
-  move(boardId: string, listId: string, anchors: MoveListRequest): Promise<MoveListResponse> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, boardId);
-      const current = await this.findOnBoard(tx, boardId, listId);
-      if (current.archivedAt) throw invalidTarget('Archived lists cannot be moved');
+  async move(
+    boardId: string,
+    listId: string,
+    anchors: MoveListRequest,
+    origin: EventOrigin,
+  ): Promise<MoveListResponse> {
+    const { result: moved, rebalanced } = await this.prisma.$transaction(
+      async (tx): Promise<Written<MoveListResponse>> => {
+        await this.lock(tx, boardId);
+        const current = await this.findOnBoard(tx, boardId, listId);
+        if (current.archivedAt) throw invalidTarget('Archived lists cannot be moved');
 
-      const position = await this.place(tx, boardId, listId, {
-        afterId: anchors.afterListId,
-        beforeId: anchors.beforeListId,
-      });
-      await tx.list.update({ where: { id: listId }, data: { position } });
-      return { id: listId, position };
-    });
+        const { position, rebalanced: respread } = await this.place(tx, boardId, listId, {
+          afterId: anchors.afterListId,
+          beforeId: anchors.beforeListId,
+        });
+        await tx.list.update({ where: { id: listId }, data: { position } });
+        return { result: { id: listId, position }, rebalanced: respread };
+      },
+    );
+    this.realtime.toBoard(boardId, origin, [
+      ...rebalanceEvents({ entity: 'list' }, rebalanced),
+      { type: 'list:moved', data: moved },
+    ]);
+    return moved;
   }
 
   /** Cards on the list go with it (cascade). */
-  async remove(listId: string): Promise<void> {
-    await this.prisma.list.delete({ where: { id: listId } });
+  async remove(boardId: string, listId: string, origin: EventOrigin): Promise<void> {
+    const { count } = await this.prisma.list.deleteMany({ where: { id: listId, boardId } });
+    if (count === 0) throw listNotFound();
+    this.realtime.toBoard(boardId, origin, [{ type: 'list:deleted', data: { id: listId } }]);
   }
 
   private async lock(tx: Tx, boardId: string): Promise<void> {
@@ -112,7 +161,7 @@ export class ListsService {
     boardId: string,
     listId: string | null,
     anchors: Anchors,
-  ): Promise<number> {
+  ): Promise<Placement> {
     const siblings = await tx.list.findMany({
       where: { boardId, archivedAt: null, ...(listId ? { id: { not: listId } } : {}) },
       select: { id: true, position: true },

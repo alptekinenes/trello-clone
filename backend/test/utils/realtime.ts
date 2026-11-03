@@ -185,3 +185,19 @@ export function sendSentinel(app: INestApplication, userId: string): void {
     data: { boardId: SENTINEL_BOARD_ID },
   });
 }
+
+/**
+ * Everything the socket receives up to the sentinel, in order (see sendSentinel).
+ * Use it when the number of events is not fixed, e.g. rebalances in a busy test.
+ */
+export async function collectUntilSentinel(
+  recorder: EventRecorder,
+  timeoutMs = DEFAULT_WAIT_MS,
+): Promise<RecordedEvent[]> {
+  const collected: RecordedEvent[] = [];
+  for (;;) {
+    const event = await recorder.next(timeoutMs);
+    if (event.envelope.boardId === SENTINEL_BOARD_ID) return collected;
+    collected.push(event);
+  }
+}

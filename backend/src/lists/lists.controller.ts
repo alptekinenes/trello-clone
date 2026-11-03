@@ -13,6 +13,7 @@ import {
 import type { ListDto, MoveListResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
 import { ArchivedQueryDto } from '../common/dto/archived-query.dto.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { CreateListDto, ListAnchorsDto, UpdateListDto } from './dto/list.dto.js';
 import { ListsService } from './lists.service.js';
 
@@ -28,8 +29,12 @@ export class BoardListsController {
 
   @Post()
   @BoardRole('MEMBER')
-  create(@Param('boardId') boardId: string, @Body() body: CreateListDto): Promise<ListDto> {
-    return this.lists.create(boardId, body);
+  create(
+    @Param('boardId') boardId: string,
+    @Body() body: CreateListDto,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<ListDto> {
+    return this.lists.create(boardId, body, origin);
   }
 }
 
@@ -43,8 +48,9 @@ export class ListsController {
     @CurrentBoardId() boardId: string,
     @Param('listId') listId: string,
     @Body() body: UpdateListDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<ListDto> {
-    return this.lists.update(boardId, listId, body);
+    return this.lists.update(boardId, listId, body, origin);
   }
 
   @Post('move')
@@ -54,14 +60,19 @@ export class ListsController {
     @CurrentBoardId() boardId: string,
     @Param('listId') listId: string,
     @Body() body: ListAnchorsDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<MoveListResponse> {
-    return this.lists.move(boardId, listId, body);
+    return this.lists.move(boardId, listId, body, origin);
   }
 
   @Delete()
   @BoardRole('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('listId') listId: string): Promise<void> {
-    return this.lists.remove(listId);
+  remove(
+    @CurrentBoardId() boardId: string,
+    @Param('listId') listId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<void> {
+    return this.lists.remove(boardId, listId, origin);
   }
 }

@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ErrorCode, POSITION_GAP } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import type { RealtimeService } from '../realtime/realtime.service.js';
 import { ListsService } from './lists.service.js';
 
 const BOARD = 'board-1';
+const ORIGIN: EventOrigin = { actorId: 'user-1', socketId: 'socket-1' };
 const ARCHIVED_AT = new Date('2026-10-27T10:00:00.000Z');
 
 function row(id: string, position: number, archivedAt: Date | null = null) {
@@ -28,17 +31,28 @@ function setup({
       .mockImplementation(({ where, data }) =>
         Promise.resolve(row(where.id, data.position ?? 0, data.archivedAt ?? null)),
       ),
-    delete: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
   };
   const tx = {
     list,
     $queryRaw: vi.fn().mockResolvedValue(boardExists ? [{ id: BOARD }] : []),
   };
+  const realtime = { toBoard: vi.fn() };
+  // How many broadcasts had been made when the transaction callback returned.
+  const inTransaction = { broadcasts: -1 };
   const prisma = {
     ...tx,
-    $transaction: vi.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+    $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => {
+      const result = await fn(tx);
+      inTransaction.broadcasts = realtime.toBoard.mock.calls.length;
+      return result;
+    }),
   };
-  return { service: new ListsService(prisma as unknown as PrismaService), list, tx };
+  const service = new ListsService(
+    prisma as unknown as PrismaService,
+    realtime as unknown as RealtimeService,
+  );
+  return { service, realtime, inTransaction, list, tx };
 }
 
 function codeOf(error: unknown): unknown {
@@ -50,7 +64,7 @@ describe('ListsService', () => {
     it('locks the board and appends after the last list', async () => {
       const { service, list, tx } = setup();
 
-      const result = await service.create(BOARD, { title: 'C' });
+      const result = await service.create(BOARD, { title: 'C' }, ORIGIN);
 
       expect(tx.$queryRaw).toHaveBeenCalledOnce();
       expect(list.create).toHaveBeenCalledWith(
@@ -63,7 +77,7 @@ describe('ListsService', () => {
       const { service, list } = setup();
 
       const error = await service
-        .create(BOARD, { title: 'C', afterListId: 'gone' })
+        .create(BOARD, { title: 'C', afterListId: 'gone' }, ORIGIN)
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ConflictException);
@@ -73,7 +87,7 @@ describe('ListsService', () => {
 
     it('throws 404 when the board was deleted meanwhile', async () => {
       const { service } = setup({ boardExists: false });
-      await expect(service.create(BOARD, { title: 'C' })).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.create(BOARD, { title: 'C' }, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('writes rebalanced positions before creating', async () => {
@@ -84,7 +98,7 @@ describe('ListsService', () => {
         ],
       });
 
-      await service.create(BOARD, { title: 'C', afterListId: 'a' });
+      await service.create(BOARD, { title: 'C', afterListId: 'a' }, ORIGIN);
 
       expect(list.update).toHaveBeenCalledWith({ where: { id: 'a' }, data: { position: 1024 } });
       expect(list.update).toHaveBeenCalledWith({ where: { id: 'b' }, data: { position: 3072 } });
@@ -96,7 +110,7 @@ describe('ListsService', () => {
     it('excludes the moved list from its own siblings', async () => {
       const { service, list } = setup();
 
-      await service.move(BOARD, 'b', { beforeListId: 'a' });
+      await service.move(BOARD, 'b', { beforeListId: 'a' }, ORIGIN);
 
       expect(list.findMany.mock.calls[0][0].where).toEqual({
         boardId: BOARD,
@@ -109,7 +123,7 @@ describe('ListsService', () => {
     it('refuses archived lists with 400 INVALID_TARGET', async () => {
       const { service } = setup({ current: { archivedAt: ARCHIVED_AT } });
 
-      const error = await service.move(BOARD, 'a', {}).catch((e: unknown) => e);
+      const error = await service.move(BOARD, 'a', {}, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.INVALID_TARGET);
@@ -117,7 +131,7 @@ describe('ListsService', () => {
 
     it('throws 404 for a list that is not on the board', async () => {
       const { service } = setup({ current: null });
-      await expect(service.move(BOARD, 'x', {})).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.move(BOARD, 'x', {}, ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -125,7 +139,7 @@ describe('ListsService', () => {
     it('archives without touching the position', async () => {
       const { service, list } = setup();
 
-      await service.update(BOARD, 'a', { archived: true });
+      await service.update(BOARD, 'a', { archived: true }, ORIGIN);
 
       const { data } = list.update.mock.calls[0][0];
       expect(data.archivedAt).toBeInstanceOf(Date);
@@ -135,7 +149,7 @@ describe('ListsService', () => {
     it('keeps the first archive date when archiving twice', async () => {
       const { service, list } = setup({ current: { archivedAt: ARCHIVED_AT } });
 
-      await service.update(BOARD, 'a', { archived: true });
+      await service.update(BOARD, 'a', { archived: true }, ORIGIN);
 
       expect(list.update.mock.calls[0][0].data.archivedAt).toBeUndefined();
     });
@@ -143,13 +157,136 @@ describe('ListsService', () => {
     it('restores an archived list to the end', async () => {
       const { service, list } = setup({ current: { archivedAt: ARCHIVED_AT } });
 
-      await service.update(BOARD, 'c', { archived: false });
+      await service.update(BOARD, 'c', { archived: false }, ORIGIN);
 
       expect(list.update.mock.calls[0][0].data).toEqual({
         title: undefined,
         archivedAt: null,
         position: 2048 + POSITION_GAP,
       });
+    });
+  });
+
+  describe('realtime', () => {
+    it('broadcasts list:created once, after the transaction', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      const list = await service.create(BOARD, { title: 'C' }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toBoard).toHaveBeenCalledOnce();
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'list:created', data: list },
+      ]);
+    });
+
+    it('puts position:rebalanced in front of the event that caused it', async () => {
+      const { service, realtime } = setup({
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      await service.create(BOARD, { title: 'C', afterListId: 'a' }, ORIGIN);
+
+      const events = realtime.toBoard.mock.calls[0][2];
+      expect(events.map((event: { type: string }) => event.type)).toEqual([
+        'position:rebalanced',
+        'list:created',
+      ]);
+      expect(events[0].data).toEqual({
+        entity: 'list',
+        positions: [
+          { id: 'a', position: 1024 },
+          { id: 'b', position: 3072 },
+        ],
+      });
+    });
+
+    it('broadcasts list:updated for a rename and for an archive', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      const renamed = await service.update(BOARD, 'a', { title: 'Yeni' }, ORIGIN);
+      const archived = await service.update(BOARD, 'a', { archived: true }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(1);
+      expect(realtime.toBoard.mock.calls.map(([, , events]) => events)).toEqual([
+        [{ type: 'list:updated', data: renamed }],
+        [{ type: 'list:updated', data: archived }],
+      ]);
+    });
+
+    it('broadcasts list:updated with the new position for a restore', async () => {
+      const { service, realtime } = setup({ current: { archivedAt: ARCHIVED_AT } });
+
+      const restored = await service.update(BOARD, 'c', { archived: false }, ORIGIN);
+
+      expect(restored.position).toBe(2048 + POSITION_GAP);
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'list:updated', data: restored },
+      ]);
+    });
+
+    it('broadcasts list:moved with the id and position only', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      await service.move(BOARD, 'b', { beforeListId: 'a' }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'list:moved', data: { id: 'b', position: 512 } },
+      ]);
+    });
+
+    it('broadcasts rebalanced siblings before list:moved', async () => {
+      const { service, realtime } = setup({
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      await service.move(BOARD, 'c', { afterListId: 'a' }, ORIGIN);
+
+      const events = realtime.toBoard.mock.calls[0][2];
+      expect(events.map((event: { type: string }) => event.type)).toEqual([
+        'position:rebalanced',
+        'list:moved',
+      ]);
+    });
+
+    it('broadcasts list:deleted after the delete', async () => {
+      const { service, realtime, list } = setup();
+
+      await service.remove(BOARD, 'a', ORIGIN);
+
+      expect(list.deleteMany).toHaveBeenCalledWith({ where: { id: 'a', boardId: BOARD } });
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'list:deleted', data: { id: 'a' } },
+      ]);
+    });
+
+    it('answers 404 and broadcasts nothing when no list was deleted', async () => {
+      const { service, realtime, list } = setup();
+      list.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.remove(BOARD, 'a', ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['create', (service: ListsService) => service.create(BOARD, { title: 'C', afterListId: 'gone' }, ORIGIN)],
+      ['update', (service: ListsService) => service.update(BOARD, 'x', { title: 'Y' }, ORIGIN)],
+      ['move', (service: ListsService) => service.move(BOARD, 'x', {}, ORIGIN)],
+    ])('broadcasts nothing when %s fails', async (_name, run) => {
+      const { service, realtime, list } = setup({ current: null });
+      list.findMany.mockResolvedValue([]);
+
+      await expect(run(service)).rejects.toBeInstanceOf(Error);
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
     });
   });
 });

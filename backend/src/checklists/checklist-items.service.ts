@@ -11,7 +11,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { lockCardRow } from '../ordering/locks.js';
 import { invalidTarget } from '../ordering/ordering.errors.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
-import type { Anchors } from '../ordering/placement.js';
+import type { Anchors, Placement } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ITEM_ORDER, ITEM_SELECT, toChecklistItemDto } from './checklist.mapper.js';
 
@@ -47,7 +47,7 @@ export class ChecklistItemsService {
       });
       if (!stillThere) throw checklistNotFound();
 
-      const position = await this.place(tx, checklistId, null, {});
+      const { position } = await this.place(tx, checklistId, null, {});
       const item = await tx.checklistItem.create({
         data: { checklistId, content: input.content, position },
         select: ITEM_SELECT,
@@ -101,7 +101,7 @@ export class ChecklistItemsService {
       });
       if (!target) throw invalidTarget('The target checklist is not on the same card');
 
-      const position = await this.place(tx, target.id, itemId, {
+      const { position } = await this.place(tx, target.id, itemId, {
         afterId: input.afterItemId,
         beforeId: input.beforeItemId,
       });
@@ -144,7 +144,7 @@ export class ChecklistItemsService {
     checklistId: string,
     itemId: string | null,
     anchors: Anchors,
-  ): Promise<number> {
+  ): Promise<Placement> {
     const siblings = await tx.checklistItem.findMany({
       where: { checklistId, ...(itemId ? { id: { not: itemId } } : {}) },
       select: { id: true, position: true },

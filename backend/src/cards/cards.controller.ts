@@ -13,6 +13,7 @@ import {
 import type { CardDetailDto, CardSummaryDto, MoveCardResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
 import { ArchivedQueryDto } from '../common/dto/archived-query.dto.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { CardsService } from './cards.service.js';
 import { CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto.js';
 
@@ -40,8 +41,9 @@ export class ListCardsController {
     @CurrentBoardId() boardId: string,
     @Param('listId') listId: string,
     @Body() body: CreateCardDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<CardSummaryDto> {
-    return this.cards.create(boardId, listId, body);
+    return this.cards.create(boardId, listId, body, origin);
   }
 }
 
@@ -64,8 +66,9 @@ export class CardsController {
     @CurrentBoardId() boardId: string,
     @Param('cardId') cardId: string,
     @Body() body: UpdateCardDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<CardSummaryDto> {
-    return this.cards.update(boardId, cardId, body);
+    return this.cards.update(boardId, cardId, body, origin);
   }
 
   @Post('move')
@@ -75,14 +78,19 @@ export class CardsController {
     @CurrentBoardId() boardId: string,
     @Param('cardId') cardId: string,
     @Body() body: MoveCardDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<MoveCardResponse> {
-    return this.cards.move(boardId, cardId, body);
+    return this.cards.move(boardId, cardId, body, origin);
   }
 
   @Delete()
   @BoardRole('MEMBER')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('cardId') cardId: string): Promise<void> {
-    return this.cards.remove(cardId);
+  remove(
+    @CurrentBoardId() boardId: string,
+    @Param('cardId') cardId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<void> {
+    return this.cards.remove(boardId, cardId, origin);
   }
 }

@@ -1,7 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { ErrorCode, REALTIME_UNAUTHORIZED } from '@trello/contracts';
+import { ErrorCode, REALTIME_UNAUTHORIZED, SOCKET_ID_HEADER } from '@trello/contracts';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard.js';
 import { RealtimeService } from '../src/realtime/realtime.service.js';
 import { createBoard, MISSING_ID } from './utils/board-fixtures.js';
@@ -21,6 +22,17 @@ import {
   sendSentinel,
   tokenOf,
 } from './utils/realtime.js';
+import {
+  api,
+  createWorld,
+  event,
+  type ExpectedEvent,
+  expectNothing,
+  expectReceived,
+  sendSentinels,
+  type Watcher,
+  type World,
+} from './utils/realtime-world.js';
 import { createUser } from './utils/users.js';
 
 describe('Realtime (e2e, socket.io)', () => {
@@ -291,6 +303,122 @@ describe('Realtime (e2e, socket.io)', () => {
       expect(envelope.boardId).toBe(board2);
       sendSentinel(app, user.user.id);
       await expectNextAfterSentinel(events);
+    });
+  });
+
+  describe('broadcast and exclusion', () => {
+    /** The three watchers that must all see a card:moved of `card`, in the order of the sockets given. */
+    async function expectMoved(
+      world: World,
+      watchers: readonly Watcher[],
+      moved: ExpectedEvent<'card:moved'>,
+    ): Promise<void> {
+      sendSentinels(app, [world.a, world.b, world.c]);
+      for (const watcher of watchers) {
+        await expectReceived(watcher, [moved], {
+          boardId: world.boardId,
+          actorId: world.a.user.id,
+        });
+      }
+    }
+
+    it('sends a change to the other members and the sender\'s other tab, not to the sending socket or another board', async () => {
+      const world = await createWorld(app);
+
+      const res = await api(app, world.a, world.a1.socket)
+        .post(`/cards/${world.card1.id}/move`)
+        .send({ listId: world.list2.id })
+        .expect(200);
+
+      const moved = event('card:moved', {
+        id: world.card1.id,
+        fromListId: world.list1.id,
+        toListId: world.list2.id,
+        position: (res.body as { position: number }).position,
+      });
+      expect(res.body).toEqual({ id: moved.data.id, listId: moved.data.toListId, position: moved.data.position });
+      await expectMoved(world, [world.b1, world.a2], moved);
+      await expectNothing(world.a1);
+      await expectNothing(world.c1);
+    });
+
+    it('also sends the change to the sender when the request names no socket', async () => {
+      const world = await createWorld(app);
+
+      const res = await api(app, world.a)
+        .post(`/cards/${world.card1.id}/move`)
+        .send({ listId: world.list2.id })
+        .expect(200);
+
+      const position = (res.body as { position: number }).position;
+      await expectMoved(world, [world.a1, world.a2, world.b1], event('card:moved', {
+        id: world.card1.id,
+        fromListId: world.list1.id,
+        toListId: world.list2.id,
+        position,
+      }));
+    });
+
+    it('does not let a user mute another user\'s socket with its id', async () => {
+      const world = await createWorld(app);
+
+      const res = await api(app, world.a, world.b1.socket)
+        .post(`/cards/${world.card1.id}/move`)
+        .send({ listId: world.list2.id })
+        .expect(200);
+
+      await expectMoved(world, [world.a1, world.a2, world.b1], event('card:moved', {
+        id: world.card1.id,
+        fromListId: world.list1.id,
+        toListId: world.list2.id,
+        position: (res.body as { position: number }).position,
+      }));
+    });
+
+    it.each([
+      ['500 characters', 'x'.repeat(500)],
+      ['a space', 'a b'],
+      ['an unknown socket', 'AAAAAAAAAAAAAAAAAAAA'],
+    ])('ignores an X-Socket-Id of %s', async (_label, header) => {
+      const world = await createWorld(app);
+
+      const res = await api(app, world.a)
+        .post(`/cards/${world.card1.id}/move`)
+        .set(SOCKET_ID_HEADER, header)
+        .send({ listId: world.list2.id })
+        .expect(200);
+
+      await expectMoved(world, [world.a1, world.a2, world.b1], event('card:moved', {
+        id: world.card1.id,
+        fromListId: world.list1.id,
+        toListId: world.list2.id,
+        position: (res.body as { position: number }).position,
+      }));
+    });
+
+    it('sends nothing for a request that fails', async () => {
+      const world = await createWorld(app);
+      const foreignList = await app.get(PrismaService).list.create({
+        data: { boardId: world.otherBoardId, title: 'Yabancı', position: 1024 },
+      });
+      const foreignCard = await app.get(PrismaService).card.create({
+        data: { boardId: world.otherBoardId, listId: foreignList.id, title: 'Yabancı', position: 1024 },
+      });
+      const asA = api(app, world.a, world.a1.socket);
+      const asB = api(app, world.b, world.b1.socket);
+
+      await asA.post(`/lists/${world.list1.id}/cards`).send({ title: '' }).expect(400);
+      await asB.delete(`/lists/${world.list1.id}`).expect(403);
+      await asA.patch(`/cards/${foreignCard.id}`).send({ title: 'Ele geçir' }).expect(404);
+      await asA
+        .post(`/cards/${world.card1.id}/move`)
+        .send({ listId: world.list2.id, afterCardId: world.card2.id })
+        .expect(409);
+
+      sendSentinels(app, [world.a, world.b, world.c]);
+      for (const watcher of [world.a1, world.a2, world.b1, world.c1]) {
+        await expectNothing(watcher);
+      }
     });
   });
 });

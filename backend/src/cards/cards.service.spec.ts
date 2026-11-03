@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ErrorCode, POSITION_GAP } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import type { RealtimeService } from '../realtime/realtime.service.js';
 import { CardsService } from './cards.service.js';
 
 const BOARD = 'board-1';
+const ORIGIN: EventOrigin = { actorId: 'user-1', socketId: 'socket-1' };
 const LIST = 'list-1';
 const OTHER_LIST = 'list-2';
 const ARCHIVED_AT = new Date('2026-10-28T10:00:00.000Z');
@@ -60,14 +63,25 @@ function setup({
         Promise.resolve(row(where.id, LIST, data.position ?? 0, data.archivedAt ?? null)),
       ),
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-    delete: vi.fn(),
+    delete: vi.fn().mockResolvedValue({ listId: LIST }),
   };
   const tx = { card, $queryRaw: vi.fn().mockResolvedValue(locked) };
+  const realtime = { toBoard: vi.fn() };
+  // How many broadcasts had been made when the transaction callback returned.
+  const inTransaction = { broadcasts: -1 };
   const prisma = {
     ...tx,
-    $transaction: vi.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+    $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => {
+      const result = await fn(tx);
+      inTransaction.broadcasts = realtime.toBoard.mock.calls.length;
+      return result;
+    }),
   };
-  return { service: new CardsService(prisma as unknown as PrismaService), card, tx };
+  const service = new CardsService(
+    prisma as unknown as PrismaService,
+    realtime as unknown as RealtimeService,
+  );
+  return { service, realtime, inTransaction, card, tx, prisma };
 }
 
 function codeOf(error: unknown): unknown {
@@ -85,7 +99,7 @@ describe('CardsService', () => {
     it('locks the list and appends after the last card', async () => {
       const { service, card, tx } = setup({ locked: [{ id: LIST, archivedAt: null }] });
 
-      const result = await service.create(BOARD, LIST, { title: 'Yeni' });
+      const result = await service.create(BOARD, LIST, { title: 'Yeni' }, ORIGIN);
 
       expect(tx.$queryRaw).toHaveBeenCalledOnce();
       expect(lockedIds(tx.$queryRaw)).toEqual([BOARD, LIST]);
@@ -101,7 +115,7 @@ describe('CardsService', () => {
     it('inserts before an anchor', async () => {
       const { service, card } = setup({ locked: [{ id: LIST, archivedAt: null }] });
 
-      await service.create(BOARD, LIST, { title: 'İlk', beforeCardId: 'a' });
+      await service.create(BOARD, LIST, { title: 'İlk', beforeCardId: 'a' }, ORIGIN);
 
       expect(card.create.mock.calls[0][0].data.position).toBe(512);
     });
@@ -109,7 +123,7 @@ describe('CardsService', () => {
     it('refuses an archived list with 400 INVALID_TARGET', async () => {
       const { service, card } = setup({ locked: [{ id: LIST, archivedAt: ARCHIVED_AT }] });
 
-      const error = await service.create(BOARD, LIST, { title: 'X' }).catch((e: unknown) => e);
+      const error = await service.create(BOARD, LIST, { title: 'X' }, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.INVALID_TARGET);
@@ -118,7 +132,7 @@ describe('CardsService', () => {
 
     it('throws 404 when the list was deleted meanwhile', async () => {
       const { service } = setup({ locked: [] });
-      await expect(service.create(BOARD, LIST, { title: 'X' })).rejects.toBeInstanceOf(
+      await expect(service.create(BOARD, LIST, { title: 'X' }, ORIGIN)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
@@ -127,7 +141,7 @@ describe('CardsService', () => {
       const { service, card } = setup({ locked: [{ id: LIST, archivedAt: null }] });
 
       const error = await service
-        .create(BOARD, LIST, { title: 'X', afterCardId: 'gone' })
+        .create(BOARD, LIST, { title: 'X', afterCardId: 'gone' }, ORIGIN)
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ConflictException);
@@ -140,7 +154,7 @@ describe('CardsService', () => {
     it('locks the source and target lists and places the card among the target cards', async () => {
       const { service, card, tx } = setup();
 
-      const result = await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' });
+      const result = await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' }, ORIGIN);
 
       expect(lockedIds(tx.$queryRaw)).toEqual([BOARD, LIST, OTHER_LIST]);
       expect(card.findMany.mock.calls[0][0].where).toEqual({
@@ -158,7 +172,7 @@ describe('CardsService', () => {
     it('locks one list for a move inside it', async () => {
       const { service, tx } = setup({ locked: [{ id: LIST, archivedAt: null }] });
 
-      await service.move(BOARD, 'c', { listId: LIST });
+      await service.move(BOARD, 'c', { listId: LIST }, ORIGIN);
 
       expect(lockedIds(tx.$queryRaw)).toEqual([BOARD, LIST]);
     });
@@ -175,7 +189,7 @@ describe('CardsService', () => {
     ])('refuses a target list that is %s with 400 INVALID_TARGET', async (_, locked) => {
       const { service, card } = setup({ locked });
 
-      const error = await service.move(BOARD, 'c', { listId: OTHER_LIST }).catch((e: unknown) => e);
+      const error = await service.move(BOARD, 'c', { listId: OTHER_LIST }, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.INVALID_TARGET);
@@ -185,7 +199,7 @@ describe('CardsService', () => {
     it('refuses archived cards with 400 INVALID_TARGET', async () => {
       const { service } = setup({ reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }] });
 
-      const error = await service.move(BOARD, 'c', { listId: LIST }).catch((e: unknown) => e);
+      const error = await service.move(BOARD, 'c', { listId: LIST }, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.INVALID_TARGET);
@@ -199,7 +213,7 @@ describe('CardsService', () => {
         ],
       });
 
-      const error = await service.move(BOARD, 'c', { listId: OTHER_LIST }).catch((e: unknown) => e);
+      const error = await service.move(BOARD, 'c', { listId: OTHER_LIST }, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(codeOf(error)).toBe(ErrorCode.POSITION_CONFLICT);
@@ -209,7 +223,7 @@ describe('CardsService', () => {
     it('throws 404 for a card that is not on the board', async () => {
       const { service, tx } = setup({ reads: [null] });
 
-      await expect(service.move(BOARD, 'x', { listId: LIST })).rejects.toBeInstanceOf(
+      await expect(service.move(BOARD, 'x', { listId: LIST }, ORIGIN)).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(tx.$queryRaw).not.toHaveBeenCalled();
@@ -223,7 +237,7 @@ describe('CardsService', () => {
         ],
       });
 
-      await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' });
+      await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' }, ORIGIN);
 
       expect(card.update.mock.calls).toEqual([
         [{ where: { id: 'a' }, data: { position: 1024 } }],
@@ -237,8 +251,8 @@ describe('CardsService', () => {
     it('renames and archives without taking a list lock', async () => {
       const { service, card, tx } = setup();
 
-      await service.update(BOARD, 'c', { title: 'Yeni ad' });
-      await service.update(BOARD, 'c', { archived: true });
+      await service.update(BOARD, 'c', { title: 'Yeni ad' }, ORIGIN);
+      await service.update(BOARD, 'c', { archived: true }, ORIGIN);
 
       expect(tx.$queryRaw).not.toHaveBeenCalled();
       expect(card.update.mock.calls[0][0].data).toEqual({ title: 'Yeni ad' });
@@ -247,14 +261,14 @@ describe('CardsService', () => {
 
     it('keeps the first archive date when archiving twice', async () => {
       const { service, card } = setup({ reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }] });
-      await service.update(BOARD, 'c', { archived: true });
+      await service.update(BOARD, 'c', { archived: true }, ORIGIN);
       expect(card.update.mock.calls[0][0].data.archivedAt).toBeUndefined();
     });
 
     it('restores an archived card to the end of its list under the list lock', async () => {
       const { service, card, tx } = setup({ reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }] });
 
-      await service.update(BOARD, 'c', { archived: false });
+      await service.update(BOARD, 'c', { archived: false }, ORIGIN);
 
       expect(lockedIds(tx.$queryRaw)).toEqual([BOARD, LIST]);
       expect(card.update.mock.calls[0][0].data).toEqual({
@@ -270,7 +284,7 @@ describe('CardsService', () => {
         locked: [{ id: LIST, archivedAt: ARCHIVED_AT }],
       });
 
-      const error = await service.update(BOARD, 'c', { archived: false }).catch((e: unknown) => e);
+      const error = await service.update(BOARD, 'c', { archived: false }, ORIGIN).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(codeOf(error)).toBe(ErrorCode.INVALID_TARGET);
@@ -286,7 +300,7 @@ describe('CardsService', () => {
         description: 'Ayrıntı',
         dueDate: '2026-11-05T15:00:00+03:00',
         dueComplete: true,
-      });
+      }, ORIGIN);
 
       const { data } = card.update.mock.calls[0][0];
       expect(data.description).toBe('Ayrıntı');
@@ -297,7 +311,7 @@ describe('CardsService', () => {
     it('resets dueComplete when the due date is cleared', async () => {
       const { service, card } = setup();
 
-      await service.update(BOARD, 'c', { dueDate: null, dueComplete: true });
+      await service.update(BOARD, 'c', { dueDate: null, dueComplete: true }, ORIGIN);
 
       const { data } = card.update.mock.calls[0][0];
       expect(data.dueDate).toBeNull();
@@ -307,7 +321,7 @@ describe('CardsService', () => {
     it('completes the date only if the card still has one, in a single conditional write', async () => {
       const { service, card } = setup();
 
-      await service.update(BOARD, 'c', { dueComplete: true });
+      await service.update(BOARD, 'c', { dueComplete: true }, ORIGIN);
 
       expect(card.updateMany).toHaveBeenCalledWith({
         where: { id: 'c', boardId: BOARD, dueDate: { not: null } },
@@ -319,7 +333,7 @@ describe('CardsService', () => {
     it('writes completion directly when the same request sets the date', async () => {
       const { service, card } = setup();
 
-      await service.update(BOARD, 'c', { dueDate: '2026-11-05T12:00:00Z', dueComplete: true });
+      await service.update(BOARD, 'c', { dueDate: '2026-11-05T12:00:00Z', dueComplete: true }, ORIGIN);
 
       expect(card.updateMany).not.toHaveBeenCalled();
       expect(card.update.mock.calls[0][0].data.dueComplete).toBe(true);
@@ -328,7 +342,7 @@ describe('CardsService', () => {
     it('leaves the due date alone when it is not sent', async () => {
       const { service, card } = setup();
 
-      await service.update(BOARD, 'c', { title: 'Yeni' });
+      await service.update(BOARD, 'c', { title: 'Yeni' }, ORIGIN);
 
       expect(card.update.mock.calls[0][0].data).not.toHaveProperty('dueDate');
     });
@@ -338,10 +352,10 @@ describe('CardsService', () => {
       card.update.mockResolvedValueOnce({ ...row('c', LIST, 1024), description: 'Var' });
       card.update.mockResolvedValueOnce({ ...row('c', LIST, 1024), description: null });
 
-      await expect(service.update(BOARD, 'c', { description: 'Var' })).resolves.toMatchObject({
+      await expect(service.update(BOARD, 'c', { description: 'Var' }, ORIGIN)).resolves.toMatchObject({
         hasDescription: true,
       });
-      const cleared = await service.update(BOARD, 'c', { description: null });
+      const cleared = await service.update(BOARD, 'c', { description: null }, ORIGIN);
       expect(cleared.hasDescription).toBe(false);
       expect(cleared).not.toHaveProperty('description');
     });
@@ -413,6 +427,183 @@ describe('CardsService', () => {
           orderBy: [{ archivedAt: 'desc' }, { id: 'asc' }],
         }),
       );
+    });
+  });
+
+  describe('realtime', () => {
+    function types(realtime: { toBoard: ReturnType<typeof vi.fn> }, call = 0): string[] {
+      return realtime.toBoard.mock.calls[call][2].map((event: { type: string }) => event.type);
+    }
+
+    it('broadcasts card:created once, after the transaction', async () => {
+      const { service, realtime, inTransaction } = setup({
+        locked: [{ id: LIST, archivedAt: null }],
+      });
+
+      const created = await service.create(BOARD, LIST, { title: 'Yeni' }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toBoard).toHaveBeenCalledOnce();
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'card:created', data: created },
+      ]);
+    });
+
+    it('puts position:rebalanced of the list in front of card:created', async () => {
+      const { service, realtime } = setup({
+        locked: [{ id: LIST, archivedAt: null }],
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      await service.create(BOARD, LIST, { title: 'Yeni', afterCardId: 'a' }, ORIGIN);
+
+      expect(types(realtime)).toEqual(['position:rebalanced', 'card:created']);
+      expect(realtime.toBoard.mock.calls[0][2][0].data).toEqual({
+        entity: 'card',
+        listId: LIST,
+        positions: [
+          { id: 'a', position: 1024 },
+          { id: 'b', position: 3072 },
+        ],
+      });
+    });
+
+    it('broadcasts nothing when create fails', async () => {
+      const { service, realtime } = setup({ locked: [] });
+
+      await expect(service.create(BOARD, LIST, { title: 'X' }, ORIGIN)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts card:moved with the list it came from', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(0);
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        {
+          type: 'card:moved',
+          data: { id: 'c', fromListId: LIST, toListId: OTHER_LIST, position: 1536 },
+        },
+      ]);
+    });
+
+    it('names the same list twice for a move inside a list', async () => {
+      const { service, realtime } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+
+      await service.move(BOARD, 'c', { listId: LIST }, ORIGIN);
+
+      expect(realtime.toBoard.mock.calls[0][2][0].data).toMatchObject({
+        fromListId: LIST,
+        toListId: LIST,
+      });
+    });
+
+    it('broadcasts position:rebalanced of the target list before card:moved', async () => {
+      const { service, realtime } = setup({
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' }, ORIGIN);
+
+      expect(types(realtime)).toEqual(['position:rebalanced', 'card:moved']);
+      expect(realtime.toBoard.mock.calls[0][2][0].data).toMatchObject({
+        entity: 'card',
+        listId: OTHER_LIST,
+      });
+    });
+
+    it('broadcasts nothing when a move is refused', async () => {
+      const { service, realtime } = setup({ reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }] });
+
+      await expect(service.move(BOARD, 'c', { listId: LIST }, ORIGIN)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the transaction rejects', async () => {
+      const { service, realtime, prisma } = setup();
+      prisma.$transaction.mockRejectedValueOnce(new Error('deadlock'));
+
+      await expect(service.update(BOARD, 'c', { title: 'Y' }, ORIGIN)).rejects.toThrow('deadlock');
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it('marks card:updated as descriptionChanged only when a description was sent', async () => {
+      const { service, realtime, inTransaction } = setup();
+
+      await service.update(BOARD, 'c', { title: 'Başlık' }, ORIGIN);
+      await service.update(BOARD, 'c', { description: null }, ORIGIN);
+      await service.update(BOARD, 'c', { description: 'Metin' }, ORIGIN);
+
+      expect(inTransaction.broadcasts).toBe(2);
+      const changed = realtime.toBoard.mock.calls.map(
+        ([, , events]) => events[0].data.descriptionChanged,
+      );
+      expect(changed).toEqual([false, true, true]);
+    });
+
+    it('never puts the description text into the broadcast', async () => {
+      const { service, realtime, card } = setup();
+      card.update.mockResolvedValue({ ...row('c', LIST, 1024), description: 'GİZLİ-AÇIKLAMA' });
+
+      const result = await service.update(BOARD, 'c', { description: 'GİZLİ-AÇIKLAMA' }, ORIGIN);
+
+      expect(JSON.stringify(realtime.toBoard.mock.calls)).not.toContain('GİZLİ-AÇIKLAMA');
+      expect(result).not.toHaveProperty('description');
+      expect(realtime.toBoard.mock.calls[0][2][0].data.card).toMatchObject({
+        hasDescription: true,
+      });
+    });
+
+    it('broadcasts card:updated alone for an archive and for a restore (restore goes to the end)', async () => {
+      const archive = setup();
+      const archived = await archive.service.update(BOARD, 'c', { archived: true }, ORIGIN);
+      expect(archived.archivedAt).not.toBeNull();
+      expect(types(archive.realtime)).toEqual(['card:updated']);
+
+      const restore = setup({
+        reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }],
+        locked: [{ id: LIST, archivedAt: null }],
+      });
+      await restore.service.update(BOARD, 'c', { archived: false }, ORIGIN);
+      expect(types(restore.realtime)).toEqual(['card:updated']);
+    });
+
+    it('broadcasts card:deleted with the list the card was on', async () => {
+      const { service, realtime, card } = setup();
+
+      await service.remove(BOARD, 'c', ORIGIN);
+
+      expect(card.delete).toHaveBeenCalledWith({
+        where: { id: 'c', boardId: BOARD },
+        select: { listId: true },
+      });
+      expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
+        { type: 'card:deleted', data: { id: 'c', listId: LIST } },
+      ]);
+    });
+
+    it('broadcasts nothing when the delete fails', async () => {
+      const { service, realtime, card } = setup();
+      card.delete.mockRejectedValue(new Error('P2025'));
+
+      await expect(service.remove(BOARD, 'c', ORIGIN)).rejects.toThrow('P2025');
+
+      expect(realtime.toBoard).not.toHaveBeenCalled();
     });
   });
 });

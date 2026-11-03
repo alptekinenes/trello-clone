@@ -10,6 +10,7 @@ import { cardNotFound, checklistNotFound } from '../access/access.errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { lockCardRow } from '../ordering/locks.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
+import type { Placement } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CHECKLIST_ORDER,
@@ -33,7 +34,7 @@ export class ChecklistsService {
     return this.prisma.$transaction(async (tx) => {
       if (!(await lockCardRow(tx, boardId, cardId))) throw cardNotFound();
 
-      const position = await this.place(tx, cardId, null, {});
+      const { position } = await this.place(tx, cardId, null, {});
       const checklist = await tx.checklist.create({
         data: { cardId, title: input.title, position },
         select: CHECKLIST_SELECT,
@@ -77,7 +78,7 @@ export class ChecklistsService {
       });
       if (!current) throw checklistNotFound();
 
-      const position = await this.place(tx, cardId, checklistId, {
+      const { position } = await this.place(tx, cardId, checklistId, {
         afterId: input.afterChecklistId,
         beforeId: input.beforeChecklistId,
       });
@@ -115,7 +116,7 @@ export class ChecklistsService {
     cardId: string,
     checklistId: string | null,
     anchors: { afterId?: string | null; beforeId?: string | null },
-  ): Promise<number> {
+  ): Promise<Placement> {
     const siblings = await tx.checklist.findMany({
       where: { cardId, ...(checklistId ? { id: { not: checklistId } } : {}) },
       select: { id: true, position: true },
