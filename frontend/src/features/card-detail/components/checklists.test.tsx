@@ -321,9 +321,15 @@ describe('dragging items', () => {
 describe('a failure after the dialog closed', () => {
   it('goes to a toast and does not show up in the next dialog', async () => {
     const { user } = openCard(CARD_PATH, { checklists: [TODO_LIST] });
+    // Held until the dialog is gone: a fixed delay would race the clicks, and on a busy
+    // machine the failure could land while the dialog is still open (an in-dialog error).
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     server.use(
       http.patch('*/api/v1/checklist-items/i-1', async () => {
-        await delay(80);
+        await held;
         return apiError(500, 'INTERNAL_ERROR');
       }),
     );
@@ -331,6 +337,9 @@ describe('a failure after the dialog closed', () => {
 
     await user.click(within(dialog).getByRole('checkbox', { name: 'Taslak' }));
     await user.click(within(dialog).getByRole('button', { name: 'Kapat' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Rapor' })).not.toBeInTheDocument());
+    expect(useToastStore.getState().toasts).toEqual([]);
+    release();
 
     await waitFor(() =>
       expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
