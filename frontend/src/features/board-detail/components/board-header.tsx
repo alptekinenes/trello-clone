@@ -4,6 +4,7 @@ import { Button } from '../../../shared/ui/button';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { Dialog } from '../../../shared/ui/dialog';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
+import { RealtimeStatus } from '../../../shared/ui/realtime-status';
 import { useBoardActions } from '../hooks/use-board-actions';
 import { ArchiveDialog } from './archive-dialog';
 import { LabelsManager } from './labels-manager';
@@ -56,6 +57,8 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
             Panoyu sil
           </Button>
         )}
+        {/* Empty, it must not add a flex gap: a live region has to stay in the DOM. */}
+        <RealtimeStatus className="empty:-ml-3 empty:w-0" />
       </div>
 
       {actions.membersOpen && <MembersDialog detail={detail} onClose={actions.closeMembers} />}
