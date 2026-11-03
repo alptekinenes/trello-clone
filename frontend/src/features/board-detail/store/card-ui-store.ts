@@ -13,9 +13,15 @@ export type FocusTarget = ({ kind: 'card' } & CardPlace) | { kind: 'add-card'; l
 interface CardUiState {
   /** Card whose actions dialog is open. */
   actionsCardId: string | null;
+  /** The list that card was in when the dialog opened. */
+  actionsListId: string | null;
+  /** The open card was removed by someone else, so the dialog closed by itself. */
+  actionsCardVanished: boolean;
   focusTarget: FocusTarget | null;
-  openActions: (cardId: string) => void;
+  openActions: (cardId: string, listId: string) => void;
   closeActions: () => void;
+  /** Closes the dialog of a card that is gone; the focus goes to its list's "Kart ekle". */
+  closeVanishedActions: () => void;
   focusCard: (card: CardPlace) => void;
   focusAddCard: (listId: string) => void;
   clearFocus: () => void;
@@ -25,14 +31,27 @@ interface CardUiState {
 
 export const useCardUiStore = create<CardUiState>()((set) => ({
   actionsCardId: null,
+  actionsListId: null,
+  actionsCardVanished: false,
   focusTarget: null,
-  openActions: (cardId) => set({ actionsCardId: cardId }),
-  closeActions: () => set({ actionsCardId: null }),
+  openActions: (cardId, listId) =>
+    set({ actionsCardId: cardId, actionsListId: listId, actionsCardVanished: false }),
+  closeActions: () => set({ actionsCardId: null, actionsListId: null }),
+  closeVanishedActions: () =>
+    set((state) => ({
+      actionsCardId: null,
+      actionsListId: null,
+      actionsCardVanished: true,
+      focusTarget: state.actionsListId
+        ? { kind: 'add-card', listId: state.actionsListId }
+        : state.focusTarget,
+    })),
   focusCard: ({ id, listId, position }) =>
     set({ focusTarget: { kind: 'card', id, listId, position } }),
   focusAddCard: (listId) => set({ focusTarget: { kind: 'add-card', listId } }),
   clearFocus: () => set({ focusTarget: null }),
-  reset: () => set({ actionsCardId: null, focusTarget: null }),
+  reset: () =>
+    set({ actionsCardId: null, actionsListId: null, actionsCardVanished: false, focusTarget: null }),
 }));
 
 /** True when `card` is the focus target and already rendered in the target place. */

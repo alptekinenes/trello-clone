@@ -19,6 +19,7 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { BoardDetailDto, CardSummaryDto } from '@trello/contracts';
 import { useEffect, useRef, useState } from 'react';
+import { useRealtimeHold } from '../../../shared/hooks/use-realtime-hold';
 import { BoardMouseSensor, BoardTouchSensor } from '../../../shared/lib/dnd-sensors';
 import {
   type Columns,
@@ -67,13 +68,18 @@ function isBelow(active: Active, over: Over): boolean {
 /** Drag-and-drop for the board: lists sort horizontally, cards within and across lists. */
 export function useBoardDnd(boardId: string, detail: BoardDetailDto) {
   const { lists } = detail;
-  const moveList = useMoveList(boardId);
+  // Other users' changes wait while something is dragged, so the layout under the pointer
+  // holds still. They are let through once the drop's optimistic change is in the cache.
+  const { hold, release } = useRealtimeHold();
+  const moveList = useMoveList(boardId, { onMoved: release, onRollback: release });
   const focusCard = useCardUiStore((state) => state.focusCard);
   const moveCard = useMoveCard(boardId, {
+    onMoved: release,
     // A rollback restores the very `cards` array kept in `dropped`; stop showing the drop then.
     // The card remounts in its old list, so it takes the focus back there.
     onRollback: (card) => {
       setDropped(null);
+      release();
       if (card) focusCard(card);
     },
   });
@@ -217,6 +223,7 @@ export function useBoardDnd(boardId: string, detail: BoardDetailDto) {
     lastCollisionRef.current = null;
     setActive({ type: parsed.kind, id: parsed.id });
     setDropped(null);
+    hold();
     if (parsed.kind === 'card') setDragColumns(columns);
   }
 
@@ -244,7 +251,10 @@ export function useBoardDnd(boardId: string, detail: BoardDetailDto) {
 
   function dropList(listId: string, over: Over | null) {
     const anchors = getMoveAnchors(listIds, listDragId(listId), over ? String(over.id) : null);
-    if (!anchors) return;
+    if (!anchors) {
+      release();
+      return;
+    }
     moveList.mutate({
       listId,
       afterListId: anchors.afterId && idOf(anchors.afterId),
@@ -257,7 +267,10 @@ export function useBoardDnd(boardId: string, detail: BoardDetailDto) {
     const final = over ? dropColumns(columns, cardId, overCardId(over)) : null;
     const place = final ? placeOf(final, cardId) : null;
     setDragColumns(null);
-    if (!final || !place || !original || samePlace(place, original)) return;
+    if (!final || !place || !original || samePlace(place, original)) {
+      release();
+      return;
+    }
 
     setDropped({ columns: final, cards: detail.cards });
     moveCard.mutate({
@@ -271,6 +284,7 @@ export function useBoardDnd(boardId: string, detail: BoardDetailDto) {
   function onDragCancel() {
     setActive(null);
     setDragColumns(null);
+    release();
   }
 
   return {

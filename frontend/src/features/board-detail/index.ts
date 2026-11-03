@@ -1,4 +1,5 @@
 export { useBoard } from './api/use-board';
+export { refreshUnlessMutating } from './api/refresh-board';
 export { boardMutationKey } from './api/use-board-mutation';
 export { useRestoreCard } from './api/use-card-mutations';
 export { BoardPage } from './components/board-page';

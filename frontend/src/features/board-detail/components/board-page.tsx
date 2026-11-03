@@ -5,6 +5,7 @@ import { Button } from '../../../shared/ui/button';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { PageLoader } from '../../../shared/ui/page-loader';
 import { useBoard } from '../api/use-board';
+import { useBoardRealtime } from '../hooks/use-board-realtime';
 import { BoardCanvas } from './board-canvas';
 import { BoardHeader } from './board-header';
 
@@ -27,6 +28,7 @@ function BoardNotFound() {
 export function BoardPage() {
   const { boardId = '' } = useParams();
   const { data: detail, error, isPending, refetch, isRefetching } = useBoard(boardId);
+  useBoardRealtime(boardId);
 
   if (isPending) return <PageLoader label="Pano yükleniyor…" />;
   if (isNotFound(error)) return <BoardNotFound />;

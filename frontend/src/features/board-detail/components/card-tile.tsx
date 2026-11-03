@@ -130,7 +130,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         type="button"
         aria-label={`“${card.title}” kartının işlemleri`}
         title="Kart işlemleri"
-        onClick={() => openActions(card.id)}
+        onClick={() => openActions(card.id, card.listId)}
         className="absolute top-1 right-1 inline-flex size-7 items-center justify-center rounded-md bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
       >
         <MoreIcon />

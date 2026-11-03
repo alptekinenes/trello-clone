@@ -45,8 +45,15 @@ export interface MoveListVariables {
   beforeListId: string | null;
 }
 
+interface MoveListOptions {
+  /** Runs once the optimistic move is in the cache. */
+  onMoved?: () => void;
+  /** Runs when the move failed and the cache was restored. */
+  onRollback?: () => void;
+}
+
 /** Optimistic: the list jumps to its new place at once; a stale order (409) reloads the board. */
-export function useMoveList(boardId: string) {
+export function useMoveList(boardId: string, { onMoved, onRollback }: MoveListOptions = {}) {
   return useBoardMutation({
     boardId,
     mutationFn: ({ listId, afterListId, beforeListId }: MoveListVariables) =>
@@ -57,6 +64,8 @@ export function useMoveList(boardId: string) {
       const position = positionBetween(positionOf(afterListId), positionOf(beforeListId));
       return patchList(detail, listId, { position });
     },
+    onOptimistic: () => onMoved?.(),
+    onRollback: () => onRollback?.(),
     onSuccessCache: (detail, { id, position }) => patchList(detail, id, { position }),
     onError: (error) =>
       showToast(
