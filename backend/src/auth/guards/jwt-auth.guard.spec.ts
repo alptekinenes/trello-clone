@@ -9,6 +9,7 @@ const USER = { id: 'user-1', email: 'ayse@example.com' };
 function createContext(
   request: { headers: Record<string, string | undefined>; user?: unknown },
   type = 'http',
+  client: unknown = {},
 ): ExecutionContext {
   class PublicController {}
   return {
@@ -16,6 +17,7 @@ function createContext(
     getHandler: () => function handler() {},
     getClass: () => PublicController,
     switchToHttp: () => ({ getRequest: () => request }),
+    switchToWs: () => ({ getClient: () => client }),
   } as unknown as ExecutionContext;
 }
 
@@ -77,8 +79,25 @@ describe('JwtAuthGuard', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('denies non-HTTP contexts that are not public', async () => {
+  it('lets a WebSocket handler through when the handshake stored a user on the socket', async () => {
+    const { guard, tokens } = setup();
+    const context = createContext({ headers: {} }, 'ws', { data: { user: USER } });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(tokens.verifyAccessToken).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no data', {}],
+    ['no user', { data: {} }],
+    ['an empty user', { data: { user: null } }],
+  ])('denies a WebSocket handler on a socket with %s', async (_label, client) => {
     const { guard } = setup();
-    await expect(guard.canActivate(createContext({ headers: {} }, 'ws'))).resolves.toBe(false);
+    const context = createContext({ headers: {} }, 'ws', client);
+    await expect(guard.canActivate(context)).resolves.toBe(false);
+  });
+
+  it('denies other transports that are not public', async () => {
+    const { guard } = setup();
+    await expect(guard.canActivate(createContext({ headers: {} }, 'rpc'))).resolves.toBe(false);
   });
 });

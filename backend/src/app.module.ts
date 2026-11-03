@@ -15,6 +15,7 @@ import { HealthModule } from './health/health.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { ListsModule } from './lists/lists.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     AuthModule,
     AccessModule,
+    RealtimeModule,
     BoardsModule,
     MembersModule,
     InvitationsModule,

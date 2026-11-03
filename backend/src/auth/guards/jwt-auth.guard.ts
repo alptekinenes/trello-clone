@@ -16,9 +16,14 @@ export function extractBearerToken(header: string | undefined): string | null {
   return token;
 }
 
+interface WsClient {
+  data?: { user?: unknown };
+}
+
 /**
  * Global guard: every HTTP route needs a valid access token unless marked @Public().
- * Other transports are denied here; WebSocket auth happens at connection time.
+ * WebSocket handlers run for sockets whose token was verified at connection time
+ * (the handshake middleware stored the user); any other transport is denied.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -33,7 +38,9 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) return true;
-    if (context.getType() !== 'http') return false;
+    const type = context.getType();
+    if (type === 'ws') return Boolean(context.switchToWs().getClient<WsClient>().data?.user);
+    if (type !== 'http') return false;
 
     const request = context.switchToHttp().getRequest<HttpRequest>();
     const token = extractBearerToken(request.headers.authorization);

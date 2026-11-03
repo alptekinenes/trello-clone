@@ -92,6 +92,40 @@ describe('TokenService', () => {
     });
   });
 
+  describe('verifyAccessTokenWithExpiry', () => {
+    it('returns the user and the expiry in milliseconds', async () => {
+      const token = await service.signAccessToken(USER);
+
+      await expect(service.verifyAccessTokenWithExpiry(token)).resolves.toEqual({
+        user: USER,
+        expiresAt: NOW.getTime() + 900_000,
+      });
+    });
+
+    it('rejects a token without an expiry', async () => {
+      const token = await new JwtService({ secret: SECRET }).signAsync({
+        sub: USER.id,
+        email: USER.email,
+      });
+      await expectAuthError(service.verifyAccessTokenWithExpiry(token), ErrorCode.UNAUTHORIZED);
+    });
+
+    it('rejects an expired token and garbage like verifyAccessToken does', async () => {
+      const token = await service.signAccessToken(USER);
+      vi.setSystemTime(new Date(NOW.getTime() + 901_000));
+      await expectAuthError(service.verifyAccessTokenWithExpiry(token), ErrorCode.UNAUTHORIZED);
+      await expectAuthError(service.verifyAccessTokenWithExpiry('not.a.jwt'), ErrorCode.UNAUTHORIZED);
+    });
+
+    it('still accepts a token without an expiry in verifyAccessToken (behaviour unchanged)', async () => {
+      const token = await new JwtService({ secret: SECRET }).signAsync({
+        sub: USER.id,
+        email: USER.email,
+      });
+      await expect(service.verifyAccessToken(token)).resolves.toEqual(USER);
+    });
+  });
+
   describe('issueRefreshToken', () => {
     it('stores only the hash and returns the raw token with a 7 day expiry', async () => {
       const issued = await service.issueRefreshToken(USER.id, 'Vitest');

@@ -27,6 +27,12 @@ export interface RotatedRefreshToken {
   refreshToken: IssuedRefreshToken;
 }
 
+export interface VerifiedAccessToken {
+  user: AuthUser;
+  /** When the token expires, in ms since epoch. */
+  expiresAt: number;
+}
+
 export { hashToken };
 
 /**
@@ -51,16 +57,14 @@ export class TokenService {
   }
 
   async verifyAccessToken(token: string): Promise<AuthUser> {
-    let payload: Record<string, unknown>;
-    try {
-      payload = await this.jwt.verifyAsync<Record<string, unknown>>(token);
-    } catch {
-      throw invalidAccessToken();
-    }
-    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
-      throw invalidAccessToken();
-    }
-    return { id: payload.sub, email: payload.email };
+    return (await this.decodeAccessToken(token)).user;
+  }
+
+  /** Like verifyAccessToken, and also says when the token expires. A token without `exp` is rejected. */
+  async verifyAccessTokenWithExpiry(token: string): Promise<VerifiedAccessToken> {
+    const { user, exp } = await this.decodeAccessToken(token);
+    if (typeof exp !== 'number') throw invalidAccessToken();
+    return { user, expiresAt: exp * 1000 };
   }
 
   async issueRefreshToken(
@@ -126,6 +130,19 @@ export class TokenService {
       where: { tokenHash: hashToken(token), revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  private async decodeAccessToken(token: string): Promise<{ user: AuthUser; exp: unknown }> {
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.jwt.verifyAsync<Record<string, unknown>>(token);
+    } catch {
+      throw invalidAccessToken();
+    }
+    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
+      throw invalidAccessToken();
+    }
+    return { user: { id: payload.sub, email: payload.email }, exp: payload.exp };
   }
 
   private async revokeFamily(familyId: string, now: Date): Promise<void> {
