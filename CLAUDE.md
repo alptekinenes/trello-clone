@@ -43,6 +43,7 @@ Trello'nun bilinen düzenine yakın, **modern ve minimal** bir tasarım dili:
 - Node **22 LTS** (`.nvmrc`, kök `package.json` `engines`), npm **11+**.
 - React 19.3 · Vite 8.3 · React Router 8.5 · TanStack Query 5.105 · Zustand 5.0 · dnd-kit core 6.3 / sortable 10.0 · React Hook Form 7.91 · Zod 4.6 · Tailwind CSS 4.3 · Vitest 4.1 · Playwright 1.64 · MSW 2.15
 - NestJS 12.3 · Prisma 7.10 (`@prisma/adapter-pg`) · TypeScript 6.0 (backend, contracts) / 7.0 (frontend)
+- Socket.io 4.8 (`socket.io`, `socket.io-client`) · `@nestjs/websockets` + `@nestjs/platform-socket.io` 12.3 (Faz 7)
 
 ### Ortam notları
 - **npm 11 gerekli.** Node 22 ile gelen npm 10.9, bu projenin bağımlılıklarında `Cannot read properties of null (reading 'edgesOut')` hatasıyla çöküyor. npm 11 yoksa `npx -y npm@11 install` kullan.
