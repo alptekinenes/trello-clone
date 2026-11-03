@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { ChecklistDto, MoveChecklistResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { ChecklistsService } from './checklists.service.js';
 import {
   ChecklistAnchorsDto,
@@ -27,8 +28,9 @@ export class CardChecklistsController {
     @CurrentBoardId() boardId: string,
     @Param('cardId') cardId: string,
     @Body() body: CreateChecklistDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<ChecklistDto> {
-    return this.checklists.create(boardId, cardId, body);
+    return this.checklists.create(boardId, cardId, body, origin);
   }
 }
 
@@ -42,8 +44,9 @@ export class ChecklistsController {
     @CurrentBoardId() boardId: string,
     @Param('checklistId') checklistId: string,
     @Body() body: UpdateChecklistDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<ChecklistDto> {
-    return this.checklists.rename(boardId, checklistId, body);
+    return this.checklists.rename(boardId, checklistId, body, origin);
   }
 
   @Post('move')
@@ -53,8 +56,9 @@ export class ChecklistsController {
     @CurrentBoardId() boardId: string,
     @Param('checklistId') checklistId: string,
     @Body() body: ChecklistAnchorsDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<MoveChecklistResponse> {
-    return this.checklists.move(boardId, checklistId, body);
+    return this.checklists.move(boardId, checklistId, body, origin);
   }
 
   @Delete()
@@ -63,7 +67,8 @@ export class ChecklistsController {
   remove(
     @CurrentBoardId() boardId: string,
     @Param('checklistId') checklistId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<void> {
-    return this.checklists.remove(boardId, checklistId);
+    return this.checklists.remove(boardId, checklistId, origin);
   }
 }

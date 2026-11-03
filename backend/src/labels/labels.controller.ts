@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { LabelDto } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { CreateLabelDto, UpdateLabelDto } from './dto/label.dto.js';
 import { LabelsService } from './labels.service.js';
 
@@ -21,8 +22,12 @@ export class BoardLabelsController {
 
   @Post()
   @BoardRole('MEMBER')
-  create(@Param('boardId') boardId: string, @Body() body: CreateLabelDto): Promise<LabelDto> {
-    return this.labels.create(boardId, body);
+  create(
+    @Param('boardId') boardId: string,
+    @Body() body: CreateLabelDto,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<LabelDto> {
+    return this.labels.create(boardId, body, origin);
   }
 }
 
@@ -36,15 +41,20 @@ export class LabelsController {
     @CurrentBoardId() boardId: string,
     @Param('labelId') labelId: string,
     @Body() body: UpdateLabelDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<LabelDto> {
-    return this.labels.update(boardId, labelId, body);
+    return this.labels.update(boardId, labelId, body, origin);
   }
 
   @Delete()
   @BoardRole('MEMBER')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@CurrentBoardId() boardId: string, @Param('labelId') labelId: string): Promise<void> {
-    return this.labels.remove(boardId, labelId);
+  remove(
+    @CurrentBoardId() boardId: string,
+    @Param('labelId') labelId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<void> {
+    return this.labels.remove(boardId, labelId, origin);
   }
 }
 
@@ -60,8 +70,9 @@ export class CardLabelsController {
     @CurrentBoardId() boardId: string,
     @Param('cardId') cardId: string,
     @Param('labelId', ParseUUIDPipe) labelId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<void> {
-    return this.labels.assign(boardId, cardId, labelId);
+    return this.labels.assign(boardId, cardId, labelId, origin);
   }
 
   @Delete()
@@ -71,7 +82,8 @@ export class CardLabelsController {
     @CurrentBoardId() boardId: string,
     @Param('cardId') cardId: string,
     @Param('labelId', ParseUUIDPipe) labelId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<void> {
-    return this.labels.unassign(boardId, cardId, labelId);
+    return this.labels.unassign(boardId, cardId, labelId, origin);
   }
 }

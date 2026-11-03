@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import {
   type CardSummaryDto,
+  type LabelDto,
   type ListDto,
   type RealtimeEnvelope,
   type RealtimeEventMap,
@@ -53,6 +54,13 @@ export interface World {
   card1: CardSummaryDto;
   card2: CardSummaryDto;
   card3: CardSummaryDto;
+  /** A default label of the board; it is on no card. */
+  label: LabelDto;
+  /** Two checklists on card1: the first has an open item and a completed one, the second is empty. */
+  checklist1: { id: string; cardId: string };
+  checklist2: { id: string; cardId: string };
+  item1: { id: string; checklistId: string };
+  item2: { id: string; checklistId: string };
   a1: Watcher;
   a2: Watcher;
   b1: Watcher;
@@ -93,7 +101,31 @@ export async function createWorldData(
     where: { boardId },
     data: { description: SECRET_DESCRIPTION },
   });
-  return { a, b, c, boardId, otherBoardId, list1, list2, card1, card2, card3 };
+  const label = await prisma.label.findFirstOrThrow({
+    where: { boardId },
+    select: { id: true, boardId: true, name: true, color: true },
+    orderBy: { id: 'asc' },
+  });
+  const checklist1 = await prisma.checklist.create({
+    data: { cardId: card1.id, title: 'Liste A', position: 1024 },
+    select: { id: true, cardId: true },
+  });
+  const checklist2 = await prisma.checklist.create({
+    data: { cardId: card1.id, title: 'Liste B', position: 2048 },
+    select: { id: true, cardId: true },
+  });
+  const item1 = await prisma.checklistItem.create({
+    data: { checklistId: checklist1.id, content: 'Madde 1', position: 1024 },
+    select: { id: true, checklistId: true },
+  });
+  const item2 = await prisma.checklistItem.create({
+    data: { checklistId: checklist1.id, content: 'Madde 2', position: 2048, isCompleted: true },
+    select: { id: true, checklistId: true },
+  });
+  return {
+    a, b, c, boardId, otherBoardId, list1, list2, card1, card2, card3,
+    label, checklist1, checklist2, item1, item2,
+  };
 }
 
 /** Creates the world and connects its sockets. A, B and C have joined their boards. */

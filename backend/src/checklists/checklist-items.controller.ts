@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { ChecklistItemDto, MoveChecklistItemResponse } from '@trello/contracts';
 import { BoardRole, CurrentBoardId } from '../access/board-role.decorator.js';
+import { CurrentEventOrigin, type EventOrigin } from '../realtime/event-origin.js';
 import { ChecklistItemsService } from './checklist-items.service.js';
 import {
   CreateChecklistItemDto,
@@ -27,8 +28,9 @@ export class ChecklistItemsCreateController {
     @CurrentBoardId() boardId: string,
     @Param('checklistId') checklistId: string,
     @Body() body: CreateChecklistItemDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<ChecklistItemDto> {
-    return this.items.create(boardId, checklistId, body);
+    return this.items.create(boardId, checklistId, body, origin);
   }
 }
 
@@ -42,8 +44,9 @@ export class ChecklistItemsController {
     @CurrentBoardId() boardId: string,
     @Param('itemId') itemId: string,
     @Body() body: UpdateChecklistItemDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<ChecklistItemDto> {
-    return this.items.update(boardId, itemId, body);
+    return this.items.update(boardId, itemId, body, origin);
   }
 
   @Post('move')
@@ -53,14 +56,19 @@ export class ChecklistItemsController {
     @CurrentBoardId() boardId: string,
     @Param('itemId') itemId: string,
     @Body() body: MoveChecklistItemDto,
+    @CurrentEventOrigin() origin: EventOrigin,
   ): Promise<MoveChecklistItemResponse> {
-    return this.items.move(boardId, itemId, body);
+    return this.items.move(boardId, itemId, body, origin);
   }
 
   @Delete()
   @BoardRole('MEMBER')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@CurrentBoardId() boardId: string, @Param('itemId') itemId: string): Promise<void> {
-    return this.items.remove(boardId, itemId);
+  remove(
+    @CurrentBoardId() boardId: string,
+    @Param('itemId') itemId: string,
+    @CurrentEventOrigin() origin: EventOrigin,
+  ): Promise<void> {
+    return this.items.remove(boardId, itemId, origin);
   }
 }

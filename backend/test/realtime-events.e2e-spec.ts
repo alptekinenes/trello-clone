@@ -1,5 +1,13 @@
 import { INestApplication } from '@nestjs/common';
-import type { CardSummaryDto, ListDto, PositionRebalancedData } from '@trello/contracts';
+import type {
+  CardChecklistCounts,
+  CardSummaryDto,
+  ChecklistDto,
+  ChecklistItemDto,
+  LabelDto,
+  ListDto,
+  PositionRebalancedData,
+} from '@trello/contracts';
 import type { Response, Test } from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createTestApp } from './utils/create-test-app.js';
@@ -35,7 +43,7 @@ interface Row {
   arrange?: (world: World) => Promise<void>;
   act: (as: Api, world: World) => Test;
   status?: number;
-  events: (world: World, response: Response) => ExpectedEvent[];
+  events: (world: World, response: Response) => ExpectedEvent[] | Promise<ExpectedEvent[]>;
 }
 
 describe('Realtime events (e2e, socket.io)', () => {
@@ -192,7 +200,171 @@ describe('Realtime events (e2e, socket.io)', () => {
       },
     ];
 
-    const ROWS: Row[] = [...listAndCardRows];
+    /** The checklist counters of a card as the database has them now. */
+    async function countsOf(cardId: string): Promise<CardChecklistCounts> {
+      const [checklistTotal, checklistDone] = await Promise.all([
+        prisma.checklistItem.count({ where: { checklist: { cardId } } }),
+        prisma.checklistItem.count({ where: { checklist: { cardId }, isCompleted: true } }),
+      ]);
+      return { checklistTotal, checklistDone };
+    }
+
+    const labelRows: Row[] = [
+      {
+        endpoint: 'POST /boards/:boardId/labels',
+        act: (as, w) => as.post(`/boards/${w.boardId}/labels`).send({ name: 'Acil', color: 'RED' }),
+        status: 201,
+        events: (_w, res) => [event('label:created', res.body as LabelDto)],
+      },
+      {
+        endpoint: 'PATCH /labels/:labelId',
+        act: (as, w) => as.patch(`/labels/${w.label.id}`).send({ name: 'Yeni ad' }),
+        events: (_w, res) => [event('label:updated', res.body as LabelDto)],
+      },
+      {
+        endpoint: 'DELETE /labels/:labelId',
+        arrange: async (w) => {
+          await prisma.cardLabel.create({ data: { cardId: w.card1.id, labelId: w.label.id } });
+        },
+        act: (as, w) => as.delete(`/labels/${w.label.id}`),
+        status: 204,
+        events: (w) => [event('label:deleted', { id: w.label.id })],
+      },
+      {
+        endpoint: 'PUT /cards/:cardId/labels/:labelId (new assignment)',
+        act: (as, w) => as.put(`/cards/${w.card1.id}/labels/${w.label.id}`),
+        status: 204,
+        events: (w) => [event('card:label-added', { cardId: w.card1.id, labelId: w.label.id })],
+      },
+      {
+        endpoint: 'PUT /cards/:cardId/labels/:labelId (already assigned)',
+        arrange: async (w) => {
+          await prisma.cardLabel.create({ data: { cardId: w.card1.id, labelId: w.label.id } });
+        },
+        act: (as, w) => as.put(`/cards/${w.card1.id}/labels/${w.label.id}`),
+        status: 204,
+        events: () => [],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/labels/:labelId (assigned)',
+        arrange: async (w) => {
+          await prisma.cardLabel.create({ data: { cardId: w.card1.id, labelId: w.label.id } });
+        },
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/labels/${w.label.id}`),
+        status: 204,
+        events: (w) => [event('card:label-removed', { cardId: w.card1.id, labelId: w.label.id })],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/labels/:labelId (not assigned)',
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/labels/${w.label.id}`),
+        status: 204,
+        events: () => [],
+      },
+    ];
+
+    const checklistRows: Row[] = [
+      {
+        endpoint: 'POST /cards/:cardId/checklists',
+        act: (as, w) => as.post(`/cards/${w.card1.id}/checklists`).send({ title: 'Yeni liste' }),
+        status: 201,
+        events: (_w, res) => [event('checklist:created', res.body as ChecklistDto)],
+      },
+      {
+        endpoint: 'PATCH /checklists/:checklistId',
+        act: (as, w) => as.patch(`/checklists/${w.checklist1.id}`).send({ title: 'Yeni ad' }),
+        events: (w) => [
+          event('checklist:updated', { id: w.checklist1.id, cardId: w.card1.id, title: 'Yeni ad' }),
+        ],
+      },
+      {
+        endpoint: 'POST /checklists/:checklistId/move',
+        act: (as, w) =>
+          as.post(`/checklists/${w.checklist1.id}/move`).send({ afterChecklistId: w.checklist2.id }),
+        events: (w, res) => [
+          event('checklist:moved', {
+            id: w.checklist1.id,
+            cardId: w.card1.id,
+            position: (res.body as { position: number }).position,
+          }),
+        ],
+      },
+      {
+        endpoint: 'DELETE /checklists/:checklistId',
+        act: (as, w) => as.delete(`/checklists/${w.checklist1.id}`),
+        status: 204,
+        events: async (w) => [
+          event('checklist:deleted', {
+            id: w.checklist1.id,
+            cardId: w.card1.id,
+            counts: await countsOf(w.card1.id),
+          }),
+        ],
+      },
+      {
+        endpoint: 'POST /checklists/:checklistId/items',
+        act: (as, w) =>
+          as.post(`/checklists/${w.checklist1.id}/items`).send({ content: 'Yeni madde' }),
+        status: 201,
+        events: async (w, res) => [
+          event('checklist-item:created', {
+            item: res.body as ChecklistItemDto,
+            cardId: w.card1.id,
+            counts: await countsOf(w.card1.id),
+          }),
+        ],
+      },
+      {
+        endpoint: 'PATCH /checklist-items/:itemId (complete)',
+        act: (as, w) => as.patch(`/checklist-items/${w.item1.id}`).send({ isCompleted: true }),
+        events: async (w, res) => [
+          event('checklist-item:updated', {
+            item: res.body as ChecklistItemDto,
+            cardId: w.card1.id,
+            counts: await countsOf(w.card1.id),
+          }),
+        ],
+      },
+      {
+        endpoint: 'PATCH /checklist-items/:itemId (content)',
+        act: (as, w) => as.patch(`/checklist-items/${w.item1.id}`).send({ content: 'Yeni metin' }),
+        events: async (w, res) => [
+          event('checklist-item:updated', {
+            item: res.body as ChecklistItemDto,
+            cardId: w.card1.id,
+            counts: await countsOf(w.card1.id),
+          }),
+        ],
+      },
+      {
+        endpoint: 'POST /checklist-items/:itemId/move',
+        act: (as, w) =>
+          as.post(`/checklist-items/${w.item1.id}/move`).send({ checklistId: w.checklist2.id }),
+        events: (w, res) => [
+          event('checklist-item:moved', {
+            id: w.item1.id,
+            cardId: w.card1.id,
+            fromChecklistId: w.checklist1.id,
+            toChecklistId: w.checklist2.id,
+            position: (res.body as { position: number }).position,
+          }),
+        ],
+      },
+      {
+        endpoint: 'DELETE /checklist-items/:itemId',
+        act: (as, w) => as.delete(`/checklist-items/${w.item2.id}`),
+        status: 204,
+        events: async (w) => [
+          event('checklist-item:deleted', {
+            id: w.item2.id,
+            checklistId: w.checklist1.id,
+            cardId: w.card1.id,
+            counts: await countsOf(w.card1.id),
+          }),
+        ],
+      },
+    ];
+
+    const ROWS: Row[] = [...listAndCardRows, ...labelRows, ...checklistRows];
 
     it.each(ROWS)('$endpoint', async (row) => {
       const world = await createWorld(app);
@@ -201,7 +373,7 @@ describe('Realtime events (e2e, socket.io)', () => {
       const response = await row.act(api(app, world.a, world.a1.socket), world);
 
       expect(response.status).toBe(row.status ?? 200);
-      const expected = row.events(world, response);
+      const expected = await row.events(world, response);
       sendSentinels(app, [world.a, world.b, world.c]);
       const context = { boardId: world.boardId, actorId: world.a.user.id };
       const received = [
@@ -273,6 +445,85 @@ describe('Realtime events (e2e, socket.io)', () => {
       expect(created.data).toEqual(res.body);
     });
 
+    it('sends the new checklist positions of the card before checklist:moved', async () => {
+      const world = await createWorld(app);
+      const third = await prisma.checklist.create({
+        data: { cardId: world.card1.id, title: 'Liste C', position: 3072 },
+      });
+      await prisma.checklist.update({ where: { id: world.checklist1.id }, data: { position: 1 } });
+      await prisma.checklist.update({
+        where: { id: world.checklist2.id },
+        data: { position: 1 + 1e-7 },
+      });
+
+      const res = await api(app, world.a, world.a1.socket)
+        .post(`/checklists/${third.id}/move`)
+        .send({ afterChecklistId: world.checklist1.id })
+        .expect(200);
+
+      const rows = await prisma.checklist.findMany({
+        where: { id: { in: [world.checklist1.id, world.checklist2.id, third.id] } },
+        select: { id: true, position: true },
+      });
+      const stored = new Map(rows.map((row) => [row.id, row.position]));
+      const rebalanced = await expectNext(world.b1.events, 'position:rebalanced');
+      const data = rebalanced.data as Extract<PositionRebalancedData, { entity: 'checklist' }>;
+      expect(data.entity).toBe('checklist');
+      expect(data.cardId).toBe(world.card1.id);
+      expect(data.positions.map((entry) => entry.id).sort()).toEqual(
+        [world.checklist1.id, world.checklist2.id].sort(),
+      );
+      for (const entry of data.positions) expect(entry.position).toBe(stored.get(entry.id));
+      const moved = await expectNext(world.b1.events, 'checklist:moved');
+      expect(moved.data).toEqual({
+        id: third.id,
+        cardId: world.card1.id,
+        position: (res.body as { position: number }).position,
+      });
+      expect(moved.data.position).toBe(stored.get(third.id));
+    });
+
+    it('sends the new item positions of the target checklist before checklist-item:moved', async () => {
+      const world = await createWorld(app);
+      const third = await prisma.checklistItem.create({
+        data: { checklistId: world.checklist2.id, content: 'Madde 3', position: 1024 },
+      });
+      await prisma.checklistItem.update({ where: { id: world.item1.id }, data: { position: 1 } });
+      await prisma.checklistItem.update({
+        where: { id: world.item2.id },
+        data: { position: 1 + 1e-7 },
+      });
+
+      const res = await api(app, world.a, world.a1.socket)
+        .post(`/checklist-items/${third.id}/move`)
+        .send({ checklistId: world.checklist1.id, afterItemId: world.item1.id })
+        .expect(200);
+
+      const rows = await prisma.checklistItem.findMany({
+        where: { id: { in: [world.item1.id, world.item2.id, third.id] } },
+        select: { id: true, position: true },
+      });
+      const stored = new Map(rows.map((row) => [row.id, row.position]));
+      const rebalanced = await expectNext(world.b1.events, 'position:rebalanced');
+      const data = rebalanced.data as Extract<PositionRebalancedData, { entity: 'checklist-item' }>;
+      expect(data.entity).toBe('checklist-item');
+      expect(data.cardId).toBe(world.card1.id);
+      expect(data.checklistId).toBe(world.checklist1.id);
+      expect(data.positions.map((entry) => entry.id).sort()).toEqual(
+        [world.item1.id, world.item2.id].sort(),
+      );
+      for (const entry of data.positions) expect(entry.position).toBe(stored.get(entry.id));
+      const moved = await expectNext(world.b1.events, 'checklist-item:moved');
+      expect(moved.data).toEqual({
+        id: third.id,
+        cardId: world.card1.id,
+        fromChecklistId: world.checklist2.id,
+        toChecklistId: world.checklist1.id,
+        position: (res.body as { position: number }).position,
+      });
+      expect(moved.data.position).toBe(stored.get(third.id));
+    });
+
     it('does not rebalance when the card goes to the end of a list', async () => {
       const world = await createWorld(app);
 
@@ -285,6 +536,48 @@ describe('Realtime events (e2e, socket.io)', () => {
       const moved = await expectNext(world.b1.events, 'card:moved');
       expect(moved.data.toListId).toBe(world.list2.id);
       await expectNothing(world.b1);
+    });
+  });
+
+  describe('checklist counters', () => {
+    it('sends the counters of the database with every checklist event, in commit order', async () => {
+      const world = await createWorld(app);
+      const items = await Promise.all(
+        Array.from({ length: 10 }, (_, index) =>
+          prisma.checklistItem.create({
+            data: { checklistId: world.checklist2.id, content: `Madde ${index}`, position: 1024 * (index + 1) },
+            select: { id: true },
+          }),
+        ),
+      );
+      // item2 of the world is already completed.
+      const doneBefore = 1;
+
+      const responses = await Promise.all(
+        items.map((item) =>
+          api(app, world.a, world.a1.socket)
+            .patch(`/checklist-items/${item.id}`)
+            .send({ isCompleted: true }),
+        ),
+      );
+      expect(responses.map((res) => res.status)).toEqual(Array<number>(items.length).fill(200));
+
+      sendSentinels(app, [world.b]);
+      const received = await collectUntilSentinel(world.b1.events);
+      const counts = received.map(
+        (entry) => (entry.envelope.data as { counts: CardChecklistCounts }).counts,
+      );
+      expect(received.map((entry) => entry.type)).toEqual(
+        Array<string>(items.length).fill('checklist-item:updated'),
+      );
+      expect(counts.map((entry) => entry.checklistDone)).toEqual(
+        Array.from({ length: items.length }, (_, index) => doneBefore + index + 1),
+      );
+      const stored = await prisma.checklistItem.count({
+        where: { checklist: { cardId: world.card1.id }, isCompleted: true },
+      });
+      expect(counts.at(-1)?.checklistDone).toBe(stored);
+      expect(counts.at(-1)?.checklistTotal).toBe(2 + items.length);
     });
   });
 

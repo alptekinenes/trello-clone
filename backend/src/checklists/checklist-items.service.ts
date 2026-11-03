@@ -7,33 +7,43 @@ import type {
   UpdateChecklistItemRequest,
 } from '@trello/contracts';
 import { checklistItemNotFound, checklistNotFound } from '../access/access.errors.js';
-import { Prisma } from '../generated/prisma/client.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { lockCardRow } from '../ordering/locks.js';
 import { invalidTarget } from '../ordering/ordering.errors.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors, Placement } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { rebalanceEvents } from '../realtime/board-events.js';
+import type { EventOrigin } from '../realtime/event-origin.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
+import { countChecklistItems } from './checklist-counts.js';
 import { ITEM_ORDER, ITEM_SELECT, toChecklistItemDto } from './checklist.mapper.js';
 
 type Tx = Prisma.TransactionClient;
 
 /**
- * Items of a checklist. Writes that change positions or delete rows lock the
- * card row first (see lockCardRow); that one lock covers every checklist of the
- * card, so moving an item between two of them is safe too. Every query is
- * scoped to the board. Callers check access first (BoardAccessGuard).
+ * Items of a checklist. Every write locks the card row first (see lockCardRow);
+ * that one lock covers every checklist of the card, so moving an item between
+ * two of them is safe too, and the counters sent with an event are the ones
+ * that write left behind. Every query is scoped to the board.
+ * Every write is broadcast to the board after its transaction committed.
+ * Callers check access first (BoardAccessGuard).
  */
 @Injectable()
 export class ChecklistItemsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   /** Adds an item at the end of the checklist. */
-  create(
+  async create(
     boardId: string,
     checklistId: string,
     input: CreateChecklistItemRequest,
+    origin: EventOrigin,
   ): Promise<ChecklistItemDto> {
-    return this.prisma.$transaction(async (tx) => {
+    const { item, cardId, counts, rebalanced } = await this.prisma.$transaction(async (tx) => {
       const found = await tx.checklist.findFirst({
         where: { id: checklistId, card: { boardId } },
         select: { cardId: true },
@@ -47,80 +57,146 @@ export class ChecklistItemsService {
       });
       if (!stillThere) throw checklistNotFound();
 
-      const { position } = await this.place(tx, checklistId, null, {});
-      const item = await tx.checklistItem.create({
-        data: { checklistId, content: input.content, position },
+      const placement = await this.place(tx, checklistId, null, {});
+      const created = await tx.checklistItem.create({
+        data: { checklistId, content: input.content, position: placement.position },
         select: ITEM_SELECT,
       });
-      return toChecklistItemDto(item);
+      return {
+        item: toChecklistItemDto(created),
+        cardId: found.cardId,
+        counts: await countChecklistItems(tx, found.cardId),
+        rebalanced: placement.rebalanced,
+      };
     });
+    this.realtime.toBoard(boardId, origin, [
+      ...rebalanceEvents({ entity: 'checklist-item', cardId, checklistId }, rebalanced),
+      { type: 'checklist-item:created', data: { item, cardId, counts } },
+    ]);
+    return item;
   }
 
-  /** Edits the text or toggles completion. Changes no positions, so it takes no lock. */
+  /**
+   * Edits the text or toggles completion. It changes no positions, but it takes the card
+   * lock all the same: the counters in the event are counted under it, so writes of one
+   * card are broadcast in the order they committed.
+   */
   async update(
     boardId: string,
     itemId: string,
     input: UpdateChecklistItemRequest,
+    origin: EventOrigin,
   ): Promise<ChecklistItemDto> {
-    try {
-      const item = await this.prisma.checklistItem.update({
-        where: { id: itemId, checklist: { card: { boardId } } },
+    const { item, cardId, counts } = await this.prisma.$transaction(async (tx) => {
+      const lockedCardId = await this.lockCardOf(tx, boardId, itemId);
+      // Re-read under the lock: it may have been deleted while we waited.
+      const current = await tx.checklistItem.findFirst({
+        where: { id: itemId, checklist: { cardId: lockedCardId } },
+        select: { id: true },
+      });
+      if (!current) throw checklistItemNotFound();
+
+      const updated = await tx.checklistItem.update({
+        where: { id: itemId },
         data: { content: input.content, isCompleted: input.isCompleted },
         select: ITEM_SELECT,
       });
-      return toChecklistItemDto(item);
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw checklistItemNotFound();
-      }
-      throw error;
-    }
+      return {
+        item: toChecklistItemDto(updated),
+        cardId: lockedCardId,
+        counts: await countChecklistItems(tx, lockedCardId),
+      };
+    });
+    this.realtime.toBoard(boardId, origin, [
+      { type: 'checklist-item:updated', data: { item, cardId, counts } },
+    ]);
+    return item;
   }
 
   /**
    * Moves the item within its checklist or to another checklist of the same
    * card. The card lock is taken before anything is read for placement.
    */
-  move(
+  async move(
     boardId: string,
     itemId: string,
     input: MoveChecklistItemRequest,
+    origin: EventOrigin,
   ): Promise<MoveChecklistItemResponse> {
-    return this.prisma.$transaction(async (tx) => {
-      const cardId = await this.lockCardOf(tx, boardId, itemId);
-      // Re-read under the lock: it may have been deleted while we waited.
-      const current = await tx.checklistItem.findFirst({
-        where: { id: itemId, checklist: { cardId } },
-        select: { id: true },
-      });
-      if (!current) throw checklistItemNotFound();
+    const { cardId, fromChecklistId, moved, rebalanced } = await this.prisma.$transaction(
+      async (tx) => {
+        const lockedCardId = await this.lockCardOf(tx, boardId, itemId);
+        // Re-read under the lock: it may have been deleted while we waited.
+        const current = await tx.checklistItem.findFirst({
+          where: { id: itemId, checklist: { cardId: lockedCardId } },
+          select: { checklistId: true },
+        });
+        if (!current) throw checklistItemNotFound();
 
-      const target = await tx.checklist.findFirst({
-        where: { id: input.checklistId, cardId },
-        select: { id: true },
-      });
-      if (!target) throw invalidTarget('The target checklist is not on the same card');
+        const target = await tx.checklist.findFirst({
+          where: { id: input.checklistId, cardId: lockedCardId },
+          select: { id: true },
+        });
+        if (!target) throw invalidTarget('The target checklist is not on the same card');
 
-      const { position } = await this.place(tx, target.id, itemId, {
-        afterId: input.afterItemId,
-        beforeId: input.beforeItemId,
-      });
-      await tx.checklistItem.update({
-        where: { id: itemId },
-        data: { checklistId: target.id, position },
-      });
-      return { id: itemId, checklistId: target.id, position };
-    });
+        const placement = await this.place(tx, target.id, itemId, {
+          afterId: input.afterItemId,
+          beforeId: input.beforeItemId,
+        });
+        await tx.checklistItem.update({
+          where: { id: itemId },
+          data: { checklistId: target.id, position: placement.position },
+        });
+        const result: MoveChecklistItemResponse = {
+          id: itemId,
+          checklistId: target.id,
+          position: placement.position,
+        };
+        return {
+          cardId: lockedCardId,
+          fromChecklistId: current.checklistId,
+          moved: result,
+          rebalanced: placement.rebalanced,
+        };
+      },
+    );
+    this.realtime.toBoard(boardId, origin, [
+      ...rebalanceEvents(
+        { entity: 'checklist-item', cardId, checklistId: moved.checklistId },
+        rebalanced,
+      ),
+      {
+        type: 'checklist-item:moved',
+        data: {
+          id: moved.id,
+          cardId,
+          fromChecklistId,
+          toChecklistId: moved.checklistId,
+          position: moved.position,
+        },
+      },
+    ]);
+    return moved;
   }
 
-  remove(boardId: string, itemId: string): Promise<void> {
-    return this.prisma.$transaction(async (tx) => {
-      const cardId = await this.lockCardOf(tx, boardId, itemId);
-      const { count } = await tx.checklistItem.deleteMany({
-        where: { id: itemId, checklist: { cardId } },
+  async remove(boardId: string, itemId: string, origin: EventOrigin): Promise<void> {
+    const { cardId, checklistId, counts } = await this.prisma.$transaction(async (tx) => {
+      const lockedCardId = await this.lockCardOf(tx, boardId, itemId);
+      const current = await tx.checklistItem.findFirst({
+        where: { id: itemId, checklist: { cardId: lockedCardId } },
+        select: { checklistId: true },
       });
-      if (count === 0) throw checklistItemNotFound();
+      if (!current) throw checklistItemNotFound();
+      await tx.checklistItem.delete({ where: { id: itemId } });
+      return {
+        cardId: lockedCardId,
+        checklistId: current.checklistId,
+        counts: await countChecklistItems(tx, lockedCardId),
+      };
     });
+    this.realtime.toBoard(boardId, origin, [
+      { type: 'checklist-item:deleted', data: { id: itemId, checklistId, cardId, counts } },
+    ]);
   }
 
   /** Finds the item's card, then locks it. 404 when either is gone. */
