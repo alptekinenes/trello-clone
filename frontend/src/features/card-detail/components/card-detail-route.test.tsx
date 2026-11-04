@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { UpdateCardRequest } from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { BOARD_ID, apiError, boardDetail, testCard, testLists, testUser } from '../../../test/fixtures';
+import { BOARD_ID, apiError, boardDetail, testCard, testCardDetail, testLists, testUser } from '../../../test/fixtures';
 import {
   BOARD_URL,
   CARD_ID,
@@ -83,9 +83,49 @@ describe('card dialog route', () => {
     );
     const { router } = renderApp(`/boards/${BOARD_ID}/c/nope`);
 
-    expect(await screen.findByText('Kart bulunamadı. Silinmiş olabilir.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kart bulunamadı. Silinmiş olabilir.');
     await userEvent.click(screen.getByRole('button', { name: 'Panoya dön' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
+  });
+
+  it('says in a status region that the card is loading', async () => {
+    useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
+    server.use(
+      http.get(BOARD_URL, () => HttpResponse.json(boardDetail('OWNER', 'Pano', [list], []))),
+      http.get('*/api/v1/cards/slow', async () => {
+        await delay('infinite');
+        return HttpResponse.json({});
+      }),
+    );
+    renderApp(`/boards/${BOARD_ID}/c/slow`);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Kart yükleniyor…');
+  });
+
+  it.each([
+    ['a server error', () => apiError(500, 'INTERNAL_ERROR'), /^Sunucuya şu an ulaşılamıyor/],
+    ['a lost connection', () => HttpResponse.error(), /^Bağlantı kurulamadı/],
+  ])('announces %s and loads the card on retry', async (_, failure, message) => {
+    useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
+    let attempts = 0;
+    server.use(
+      http.get(BOARD_URL, () =>
+        HttpResponse.json(boardDetail('OWNER', 'Pano', [list], [testCard({ id: 'flaky', listId: list.id, title: 'Rapor' })])),
+      ),
+      http.get('*/api/v1/cards/flaky', () => {
+        attempts += 1;
+        return attempts === 1 ? failure() : HttpResponse.json(testCardDetail({ id: 'flaky', listId: list.id, title: 'Rapor' }));
+      }),
+    );
+    renderApp(`/boards/${BOARD_ID}/c/flaky`);
+    const dialog = await screen.findByRole('dialog');
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tekrar dene' }));
+
+    expect(await within(dialog).findByRole('button', { name: 'Rapor' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('redirects to the board the card really belongs to', async () => {

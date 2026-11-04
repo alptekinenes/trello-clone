@@ -118,6 +118,9 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
           items={cards.map((card) => cardDragId(card.id))}
           strategy={verticalListSortingStrategy}
         >
+          {cards.length === 0 && (
+            <p className="px-4 pb-1 text-xs text-fg-muted">Bu listede henüz kart yok.</p>
+          )}
           {cards.length > 0 && (
             <div className="min-h-0 overflow-y-auto overscroll-y-contain">
               {/* pt-1 and px-2 keep the focus ring and hover shadow of the cards from being clipped by the scroll area. */}

@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BoardDetailDto } from '@trello/contracts';
+import { CONFLICT_MESSAGE, isStaleConflict } from '../../../shared/lib/api-error-message';
+import { showToast } from '../../../shared/store/toast-store';
 import { boardKeys } from '../../boards';
 
 /** Shared by every mutation on one board's cache, so they can tell whether others still run. */
@@ -20,7 +22,10 @@ interface BoardMutationOptions<TVariables, TData> {
   /** Applied with the server's answer. */
   onSuccessCache?: (detail: BoardDetailDto, data: TData, variables: TVariables) => BoardDetailDto;
   onSuccess?: (data: TData, variables: TVariables) => void;
+  /** Runs for every failure except a conflict, which the hook answers itself (see `conflictMessage`). */
   onError?: (error: Error, variables: TVariables) => void;
+  /** Toast text for a conflict (someone else changed the board first); default: the generic one. */
+  conflictMessage?: string;
 }
 
 /**
@@ -29,6 +34,8 @@ interface BoardMutationOptions<TVariables, TData> {
  * Only the last running mutation of the board refetches it, so a refetch never
  * wipes out the optimistic change of a mutation that is still on its way.
  * Refetching the board also refreshes the archive queries (same key prefix).
+ * A conflict (409) is handled here for every caller: the change is rolled back, the board is
+ * refetched when this settles, and one toast says what happened; `onError` is skipped.
  */
 export function useBoardMutation<TVariables, TData>({
   boardId,
@@ -39,6 +46,7 @@ export function useBoardMutation<TVariables, TData>({
   onSuccessCache,
   onSuccess,
   onError,
+  conflictMessage = CONFLICT_MESSAGE,
 }: BoardMutationOptions<TVariables, TData>) {
   const queryClient = useQueryClient();
   const key = boardKeys.detail(boardId);
@@ -59,7 +67,8 @@ export function useBoardMutation<TVariables, TData>({
     onError: (error, variables, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
       onRollback?.(variables, context?.previous);
-      onError?.(error, variables);
+      if (isStaleConflict(error)) showToast(conflictMessage, { tone: 'error' });
+      else onError?.(error, variables);
     },
     onSuccess: (data, variables) => {
       if (onSuccessCache) update((detail) => onSuccessCache(detail, data, variables));

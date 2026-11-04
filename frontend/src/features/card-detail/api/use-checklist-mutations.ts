@@ -78,10 +78,8 @@ export function useMoveChecklist(boardId: string, cardId: string) {
       return before ? patchChecklist(card, checklistId, { position: before.position }) : card;
     },
     onSuccessCard: (card, { id, position }) => patchChecklist(card, id, { position }),
-    errorMessage: (error) =>
-      error instanceof ApiError && error.code === ErrorCode.POSITION_CONFLICT
-        ? 'Checklist sırası başka biri tarafından değiştirildi. Kart yenilendi.'
-        : 'Checklist taşınamadı. Tekrar dene.',
+    errorMessage: 'Checklist taşınamadı. Tekrar dene.',
+    conflictMessage: 'Checklist sırası başka biri tarafından değiştirildi. Kart yenilendi.',
   });
 }
 
@@ -170,6 +168,8 @@ export interface MoveItemVariables {
   beforeItemId: string | null;
 }
 
+const ITEMS_CONFLICT_MESSAGE = 'Öğeler başka biri tarafından değiştirildi. Kart yenilendi.';
+
 /**
  * Optimistic: the item jumps to its new place, in its checklist or in another one of the
  * same card. A stale card (409, or a checklist that is gone) is refetched.
@@ -198,9 +198,9 @@ export function useMoveChecklistItem(
     onSuccessCard: (card, { id, checklistId, position }) => moveItem(card, id, checklistId, position),
     onRollback,
     errorMessage: (error) =>
-      error instanceof ApiError &&
-      (error.code === ErrorCode.POSITION_CONFLICT || error.code === ErrorCode.INVALID_TARGET)
-        ? 'Öğeler başka biri tarafından değiştirildi. Kart yenilendi.'
+      error instanceof ApiError && error.code === ErrorCode.INVALID_TARGET
+        ? ITEMS_CONFLICT_MESSAGE
         : 'Öğe taşınamadı. Tekrar dene.',
+    conflictMessage: ITEMS_CONFLICT_MESSAGE,
   });
 }

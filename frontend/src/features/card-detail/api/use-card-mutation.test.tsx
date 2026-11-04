@@ -16,6 +16,7 @@ import { server } from '../../../test/msw-server';
 import { createTestQueryClient } from '../../../test/render';
 import { boardKeys } from '../../boards';
 import { useBoard } from '../../board-detail';
+import { CONFLICT_MESSAGE } from '../../../shared/lib/api-error-message';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { cardKeys } from './card-keys';
 import { useUpdateCard } from './use-card-mutations';
@@ -117,6 +118,25 @@ describe('useUpdateCard', () => {
     expect(tileOf(board(), CARD.id)?.title).toBe('Rapor');
     expect(tileOf(board(), OTHER.id)?.title).toBe('Başka biri');
     expect(useCardDetailStore.getState().error?.message).toBe('Değişiklik kaydedilemedi. Tekrar dene.');
+  });
+
+  it('answers a conflict with the conflict text inside the dialog and reloads the card', async () => {
+    let boardFetches = 0;
+    server.use(
+      http.patch(`*/api/v1/cards/${CARD.id}`, () => apiError(409, 'CONFLICT')),
+      http.get(`*/api/v1/boards/${BOARD_ID}`, () => {
+        boardFetches += 1;
+        return HttpResponse.json(BOARD);
+      }),
+      http.get(`*/api/v1/cards/${CARD.id}`, () => HttpResponse.json(CARD)),
+    );
+    const { result, card } = setup();
+
+    act(() => result.current.mutate({ title: 'Yeni' }));
+
+    await waitFor(() => expect(boardFetches).toBe(1));
+    expect(card()?.title).toBe('Rapor');
+    expect(useCardDetailStore.getState().error?.message).toBe(CONFLICT_MESSAGE);
   });
 
   it('refetches the board only after the last of overlapping mutations', async () => {

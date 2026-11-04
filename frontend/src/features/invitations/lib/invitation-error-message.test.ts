@@ -29,7 +29,7 @@ describe('invitationErrorMessage', () => {
       'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.',
     );
     expect(invitationErrorMessage(new TypeError('network'))).toBe(
-      'Bir şeyler ters gitti. Lütfen tekrar dene.',
+      'Bağlantı kurulamadı. İnternet bağlantını kontrol edip tekrar dene.',
     );
   });
 });

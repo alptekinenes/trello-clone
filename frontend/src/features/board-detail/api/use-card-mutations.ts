@@ -7,15 +7,14 @@ import { patchCard, removeCard, upsertCard, withRebalance } from '../lib/board-c
 import { cardsApi } from './cards-api';
 import { useBoardMutation } from './use-board-mutation';
 
+const CARD_CONFLICT_MESSAGE = 'Kartlar bu sırada başka biri tarafından değiştirildi. Pano yenilendi.';
+
 export const archivedCardsKey = (boardId: string) =>
   [...boardKeys.detail(boardId), 'archived-cards'] as const;
 
-/** The board changed under the user: a stale anchor or a list that is gone. */
-function isStaleBoard(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    (error.code === ErrorCode.POSITION_CONFLICT || error.code === ErrorCode.INVALID_TARGET)
-  );
+/** The target list is gone (400): the board changed under the user. */
+function isGoneTarget(error: unknown): boolean {
+  return error instanceof ApiError && error.code === ErrorCode.INVALID_TARGET;
 }
 
 export function useArchivedCards(boardId: string) {
@@ -74,10 +73,11 @@ export function useMoveCard(boardId: string, { onMoved, onRollback }: MoveCardOp
     // The respread siblings first, then the card itself at the position the server gave it.
     onSuccessCache: (detail, { id, listId, position, rebalanced }) =>
       patchCard(withRebalance(detail, rebalanced), id, { listId, position }),
+    conflictMessage: CARD_CONFLICT_MESSAGE,
     onError: (error) =>
       showToast(
-        isStaleBoard(error)
-          ? 'Kartlar bu sırada başka biri tarafından değiştirildi. Pano yenilendi.'
+        isGoneTarget(error)
+          ? CARD_CONFLICT_MESSAGE
           : 'Kart taşınamadı. Tekrar dene.',
         { tone: 'error' },
       ),

@@ -81,6 +81,15 @@ describe('Cards on the board', () => {
     ).toBeInTheDocument();
   });
 
+  it('says a list is empty, and drops the hint once it has a card', async () => {
+    openBoard([TODO, DOING], testCards(TODO.id, 'Taslak'));
+
+    await screen.findByRole('list', { name: '“Yapılacaklar” kartları' });
+
+    expect(screen.getAllByText('Bu listede henüz kart yok.')).toHaveLength(1);
+    expect(cardTitles('Yapılıyor')).toEqual([]);
+  });
+
   describe('adding a card', () => {
     it('adds the card at the end of its list and keeps the composer open', async () => {
       const { state, user } = openBoard([TODO, DOING], testCards(TODO.id, 'Taslak'));

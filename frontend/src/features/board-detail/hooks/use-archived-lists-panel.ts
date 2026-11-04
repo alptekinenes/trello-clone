@@ -23,7 +23,10 @@ export function useArchivedListsPanel(boardId: string) {
   return {
     lists: archived.data,
     isLoading: archived.isPending,
-    loadError: archived.error ? apiErrorMessage(archived.error) : null,
+    // A failed refresh keeps showing what was loaded.
+    loadError: archived.error && !archived.data ? apiErrorMessage(archived.error) : null,
+    reload: () => void archived.refetch(),
+    isReloading: archived.isRefetching,
     restore: (listId: string) => restore.mutate(listId),
     isRestoring: (listId: string) => restore.isPending && restore.variables === listId,
     restoreError: restore.error ? apiErrorMessage(restore.error) : null,

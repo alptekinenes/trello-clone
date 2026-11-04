@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ErrorCode, type ListDto, positionBetween } from '@trello/contracts';
-import { ApiError } from '../../../shared/lib/http';
+import { type ListDto, positionBetween } from '@trello/contracts';
 import { showToast } from '../../../shared/store/toast-store';
 import { boardKeys } from '../../boards';
 import { patchList, removeList, upsertList, withRebalance } from '../lib/board-cache';
@@ -9,10 +8,6 @@ import { useBoardMutation } from './use-board-mutation';
 
 export const archivedListsKey = (boardId: string) =>
   [...boardKeys.detail(boardId), 'archived-lists'] as const;
-
-function isConflict(error: unknown): boolean {
-  return error instanceof ApiError && error.code === ErrorCode.POSITION_CONFLICT;
-}
 
 export function useArchivedLists(boardId: string) {
   return useQuery({
@@ -69,13 +64,8 @@ export function useMoveList(boardId: string, { onMoved, onRollback }: MoveListOp
     // The respread siblings first, then the list itself at the position the server gave it.
     onSuccessCache: (detail, { id, position, rebalanced }) =>
       patchList(withRebalance(detail, rebalanced), id, { position }),
-    onError: (error) =>
-      showToast(
-        isConflict(error)
-          ? 'Listeler bu sırada başka biri tarafından değiştirildi. Pano yenilendi.'
-          : 'Liste taşınamadı. Tekrar dene.',
-        { tone: 'error' },
-      ),
+    conflictMessage: 'Listeler bu sırada başka biri tarafından değiştirildi. Pano yenilendi.',
+    onError: () => showToast('Liste taşınamadı. Tekrar dene.', { tone: 'error' }),
   });
 }
 

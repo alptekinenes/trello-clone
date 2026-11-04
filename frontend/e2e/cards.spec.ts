@@ -128,6 +128,31 @@ test('a refused drag puts the card back at once, not after the board reloads', a
   await expect(card(page, 'A')).toBeFocused();
 });
 
+test('a conflicting drag (409) says so, reloads the board and shows the server order', async ({ page }) => {
+  const lists = ['Yapılacaklar', 'Bitti'];
+  const boardId = await openSeededBoard(page, lists, { Yapılacaklar: ['A'], Bitti: ['B'] });
+  await expect.poll(() => board(page, lists)).toEqual({ Yapılacaklar: ['A'], Bitti: ['B'] });
+  let reloads = 0;
+  await page.route('**/api/v1/cards/*/move', (route) =>
+    route.fulfill({
+      status: 409,
+      json: { statusCode: 409, code: 'POSITION_CONFLICT', message: 'x' },
+    }),
+  );
+  await page.route(`**/api/v1/boards/${boardId}`, async (route) => {
+    reloads += 1;
+    await route.continue();
+  });
+
+  await dragTo(page, card(page, 'A'), card(page, 'B'), 'top');
+
+  await expect(
+    page.getByText('Kartlar bu sırada başka biri tarafından değiştirildi. Pano yenilendi.'),
+  ).toBeVisible();
+  await expect.poll(() => reloads).toBeGreaterThan(0);
+  await expect.poll(() => board(page, lists)).toEqual({ Yapılacaklar: ['A'], Bitti: ['B'] });
+});
+
 test('reorder cards inside a list with the mouse', async ({ page }) => {
   await openSeededBoard(page, ['Yapılacaklar'], { Yapılacaklar: ['A', 'B', 'C'] });
 

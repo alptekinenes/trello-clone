@@ -15,7 +15,9 @@ function MissingCard() {
   const close = useDialogClose();
   return (
     <div className="flex flex-col items-start gap-3">
-      <p className="text-fg-muted">Kart bulunamadı. Silinmiş olabilir.</p>
+      <p role="alert" className="text-fg-muted">
+        Kart bulunamadı. Silinmiş olabilir.
+      </p>
       <Button variant="secondary" onClick={close}>
         Panoya dön
       </Button>
@@ -37,11 +39,11 @@ function RemovedCard() {
   );
 }
 
-function LoadFailed({ error, retry }: { error: unknown; retry: () => void }) {
+function LoadFailed({ error, retry, retrying }: { error: unknown; retry: () => void; retrying: boolean }) {
   return (
     <div className="flex flex-col items-start gap-3">
       <FormAlert>{apiErrorMessage(error)}</FormAlert>
-      <Button variant="secondary" onClick={retry}>
+      <Button variant="secondary" onClick={retry} loading={retrying}>
         Tekrar dene
       </Button>
     </div>
@@ -52,7 +54,7 @@ function LoadFailed({ error, retry }: { error: unknown; retry: () => void }) {
 export function CardDetailRoute() {
   const { boardId = '', cardId = '' } = useParams();
   const { data: board } = useBoard(boardId);
-  const { data: card, error, refetch } = useCardDetail(boardId, cardId);
+  const { data: card, error, refetch, isRefetching } = useCardDetail(boardId, cardId);
   const openDialogState = useCardDetailStore((state) => state.open);
   const resetDialogState = useCardDetailStore((state) => state.reset);
   const removed = useCardDetailStore((state) => state.goneCardId === cardId);
@@ -76,7 +78,7 @@ export function CardDetailRoute() {
     if (removed) return <RemovedCard />;
     if (card && board) return <CardDetailContent board={board} card={card} />;
     if (isNotFound(error)) return <MissingCard />;
-    if (error) return <LoadFailed error={error} retry={() => void refetch()} />;
+    if (error) return <LoadFailed error={error} retry={() => void refetch()} retrying={isRefetching} />;
     return (
       <p role="status" className="text-fg-muted">
         Kart yükleniyor…

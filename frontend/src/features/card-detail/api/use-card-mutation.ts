@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
+import { CONFLICT_MESSAGE, isStaleConflict } from '../../../shared/lib/api-error-message';
 import { boardKeys } from '../../boards';
 import { boardMutationKey, patchCard } from '../../board-detail';
 import { summaryOf } from '../lib/card-detail-cache';
@@ -31,8 +32,10 @@ interface CardMutationOptions<TVariables, TData> {
   onSuccess?: (variables: TVariables) => void;
   /** Runs right after a failed request's optimistic change was rolled back. */
   onRollback?: (variables: TVariables) => void;
-  /** Shown when the request fails. */
+  /** Shown when the request fails (not for a conflict, see `conflictMessage`). */
   errorMessage: string | ((error: Error, variables: TVariables) => string);
+  /** Shown when someone else changed the card first (409); default: the generic conflict text. */
+  conflictMessage?: string;
 }
 
 /** Newest change per part of a card, by claim number. */
@@ -62,6 +65,7 @@ function release(claims: Claims) {
  * card is copied to its tile on the board (content fields only). A failure puts back
  * only what the change set, so other changes made to the card meanwhile survive.
  * It shares the board's mutation key: only the last running mutation refetches.
+ * A conflict (409) is answered here for every caller with one message and that refetch.
  */
 export function useCardMutation<TVariables, TData>({
   boardId,
@@ -75,6 +79,7 @@ export function useCardMutation<TVariables, TData>({
   onSuccess,
   onRollback,
   errorMessage,
+  conflictMessage = CONFLICT_MESSAGE,
 }: CardMutationOptions<TVariables, TData>) {
   const queryClient = useQueryClient();
   const cardKey = cardKeys.detail(boardId, cardId);
@@ -93,6 +98,12 @@ export function useCardMutation<TVariables, TData>({
   function updateCard(fn: (card: CardDetailDto) => CardDetailDto) {
     queryClient.setQueryData<CardDetailDto>(cardKey, (card) => card && fn(card));
     syncSummary();
+  }
+
+  // A conflict always gets the conflict text; the card is refetched when this mutation settles.
+  function failureMessage(error: Error, variables: TVariables): string {
+    if (isStaleConflict(error)) return conflictMessage;
+    return typeof errorMessage === 'function' ? errorMessage(error, variables) : errorMessage;
   }
 
   return useMutation({
@@ -117,10 +128,7 @@ export function useCardMutation<TVariables, TData>({
       onRollback?.(variables);
       useCardDetailStore
         .getState()
-        .showError(
-          cardId,
-          typeof errorMessage === 'function' ? errorMessage(error, variables) : errorMessage,
-        );
+        .showError(cardId, failureMessage(error, variables));
     },
     onSuccess: (data, variables, context) => {
       if (onSuccessCard && holdsAll(context?.claims ?? [])) {

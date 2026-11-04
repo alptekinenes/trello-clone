@@ -44,7 +44,10 @@ export function useArchivedCardsPanel(boardId: string, activeLists: ListDto[]) {
     cards: archived.data,
     listOf,
     isLoading: archived.isPending,
-    loadError: archived.error ? apiErrorMessage(archived.error) : null,
+    // A failed refresh keeps showing what was loaded.
+    loadError: archived.error && !archived.data ? apiErrorMessage(archived.error) : null,
+    reload: () => void archived.refetch(),
+    isReloading: archived.isRefetching,
     restore: (cardId: string) => restore.mutate(cardId),
     isRestoring: (cardId: string) => restore.isPending && restore.variables === cardId,
     restoreError: restore.error ? apiErrorMessage(restore.error) : null,
