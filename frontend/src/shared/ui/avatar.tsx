@@ -1,11 +1,18 @@
+import { avatarColorClass } from '../lib/avatar-color';
 import { initialsOf } from '../lib/initials';
 
 interface AvatarPerson {
+  /** Seeds the fixed color; falls back to the name when absent. */
+  id?: string;
   name: string;
   avatarUrl: string | null;
 }
 
 const SIZE = 'size-8 rounded-full text-xs';
+
+function colorOf(person: AvatarPerson): string {
+  return avatarColorClass(person.id ?? person.name);
+}
 
 /** `decorative`: the name is written next to the avatar, so it is hidden from screen readers. */
 export function Avatar({
@@ -21,7 +28,7 @@ export function Avatar({
     return (
       <span
         aria-hidden="true"
-        className={`${SIZE} inline-flex shrink-0 items-center justify-center overflow-hidden bg-surface-sunken font-semibold text-fg ${className}`}
+        className={`${SIZE} inline-flex shrink-0 items-center justify-center overflow-hidden font-semibold ${colorOf(person)} ${className}`}
       >
         {person.avatarUrl ? (
           <img src={person.avatarUrl} alt="" className="size-full object-cover" />
@@ -44,7 +51,7 @@ export function Avatar({
   return (
     <span
       title={person.name}
-      className={`${SIZE} inline-flex items-center justify-center bg-surface-sunken font-semibold text-fg ${className}`}
+      className={`${SIZE} inline-flex items-center justify-center font-semibold ${colorOf(person)} ${className}`}
     >
       <span aria-hidden="true">{initialsOf(person.name)}</span>
       <span className="sr-only">{person.name}</span>

@@ -57,6 +57,26 @@
   --color-board-sky: var(--ui-board-sky);
   --color-board-grey: var(--ui-board-grey);
   --color-on-board: var(--ui-on-board);
+  --color-list: var(--ui-list);
+  --color-card: var(--ui-card);
+  --color-card-hover-ring: var(--ui-card-hover-ring);
+  --color-menu: var(--ui-menu);
+
+  --color-avatar-1: var(--ui-avatar-1);
+  --color-avatar-2: var(--ui-avatar-2);
+  --color-avatar-3: var(--ui-avatar-3);
+  --color-avatar-4: var(--ui-avatar-4);
+  --color-avatar-5: var(--ui-avatar-5);
+  --color-avatar-6: var(--ui-avatar-6);
+  --color-avatar-7: var(--ui-avatar-7);
+  --color-avatar-8: var(--ui-avatar-8);
+  --color-on-avatar: var(--ui-on-avatar);
+
+  --background-image-board-sunset: var(--ui-board-gradient-sunset);
+  --background-image-board-ocean: var(--ui-board-gradient-ocean);
+  --background-image-board-forest: var(--ui-board-gradient-forest);
+  --background-image-board-aurora: var(--ui-board-gradient-aurora);
+
   --color-board-bar: var(--ui-board-bar);
   --color-board-control: var(--ui-board-control);
   --color-board-control-hover: var(--ui-board-control-hover);

@@ -40,6 +40,28 @@
   --ui-success-subtle: #dcfff1;
   --ui-focus: #1d7afc;
 
+  /* List column and card surfaces (Trello-like) */
+  --ui-list: #f1f2f4;
+  --ui-card: #ffffff;
+  /* Hover ring of a card: >= 3:1 on card and list (primary blue, 5.2:1 on white) */
+  --ui-card-hover-ring: #0c66e4;
+  /* Popup menu surface */
+  --ui-menu: #ffffff;
+
+  /*
+   * Person avatars: white text on each, contrast 5.2 / 5.34 / 5.39 / 5.17 / 5.19 / 5.19 / 5.36 / 5.49.
+   * Dark theme below swaps to light fills with dark text (5.9 - 8.2).
+   */
+  --ui-avatar-1: #0c66e4;
+  --ui-avatar-2: #177a4f;
+  --ui-avatar-3: #b34a00;
+  --ui-avatar-4: #c9372c;
+  --ui-avatar-5: #6e5dc6;
+  --ui-avatar-6: #ae4787;
+  --ui-avatar-7: #1d7391;
+  --ui-avatar-8: #527320;
+  --ui-on-avatar: #ffffff;
+
   /* Card labels (LabelColor) */
   --ui-label-green: #4bce97;
   --ui-label-yellow: #f5cd47;
@@ -64,8 +86,17 @@
   --ui-board-sky: #227d9b;
   --ui-board-grey: #626f86;
   --ui-on-board: #ffffff;
-  /* Translucent bar and controls on top of a board background */
-  --ui-board-bar: rgb(0 0 0 / 0.24);
+  /*
+   * Gradient board backgrounds. White text contrast of the lighter-luminance stop
+   * (interpolated colors never exceed the stops' luminance): sunset 5.17, ocean 5.20,
+   * forest 5.34, aurora 5.19. Same in light and dark theme (on-board is white in both).
+   */
+  --ui-board-gradient-sunset: linear-gradient(135deg, #b34a00, #c9372c);
+  --ui-board-gradient-ocean: linear-gradient(135deg, #0c66e4, #1d7391);
+  --ui-board-gradient-forest: linear-gradient(135deg, #177a4f, #527320);
+  --ui-board-gradient-aurora: linear-gradient(135deg, #6e5dc6, #ae4787);
+  /* Translucent bar and controls on top of a board background (darker bar: more contrast for white text) */
+  --ui-board-bar: rgb(0 0 0 / 0.32);
   /* Darkening, not lightening: white text stays >= 4.5:1 on every board background (>= 6.6:1 measured). */
   --ui-board-control: rgb(0 0 0 / 0.2);
   --ui-board-control-hover: rgb(0 0 0 / 0.32);
@@ -103,6 +134,19 @@
     --ui-success-subtle: #1c3329;
     --ui-focus: #85b8ff;
     --ui-on-label: #1d2125;
+    --ui-list: #101204;
+    --ui-card: #22272b;
+    --ui-card-hover-ring: #85b8ff;
+    --ui-menu: #282e33;
+    --ui-avatar-1: #579dff;
+    --ui-avatar-2: #4bce97;
+    --ui-avatar-3: #fea362;
+    --ui-avatar-4: #f87168;
+    --ui-avatar-5: #9f8fef;
+    --ui-avatar-6: #e774bb;
+    --ui-avatar-7: #6cc3e0;
+    --ui-avatar-8: #94c748;
+    --ui-on-avatar: #1d2125;
     --ui-shadow-card: 0 1px 1px rgb(3 4 4 / 0.5), 0 0 1px rgb(3 4 4 / 0.5);
     --ui-shadow-raised: 0 4px 8px -2px rgb(3 4 4 / 0.6), 0 0 1px rgb(3 4 4 / 0.6);
     --ui-shadow-drag: 0 12px 24px -6px rgb(3 4 4 / 0.7), 0 0 1px rgb(3 4 4 / 0.6);
@@ -134,6 +178,19 @@
   --ui-success-subtle: #1c3329;
   --ui-focus: #85b8ff;
   --ui-on-label: #1d2125;
+  --ui-list: #101204;
+  --ui-card: #22272b;
+  --ui-card-hover-ring: #85b8ff;
+  --ui-menu: #282e33;
+  --ui-avatar-1: #579dff;
+  --ui-avatar-2: #4bce97;
+  --ui-avatar-3: #fea362;
+  --ui-avatar-4: #f87168;
+  --ui-avatar-5: #9f8fef;
+  --ui-avatar-6: #e774bb;
+  --ui-avatar-7: #6cc3e0;
+  --ui-avatar-8: #94c748;
+  --ui-on-avatar: #1d2125;
   --ui-shadow-card: 0 1px 1px rgb(3 4 4 / 0.5), 0 0 1px rgb(3 4 4 / 0.5);
   --ui-shadow-raised: 0 4px 8px -2px rgb(3 4 4 / 0.6), 0 0 1px rgb(3 4 4 / 0.6);
   --ui-shadow-drag: 0 12px 24px -6px rgb(3 4 4 / 0.7), 0 0 1px rgb(3 4 4 / 0.6);
