@@ -3,7 +3,7 @@ import { ErrorCode, type ListDto, positionBetween } from '@trello/contracts';
 import { ApiError } from '../../../shared/lib/http';
 import { showToast } from '../../../shared/store/toast-store';
 import { boardKeys } from '../../boards';
-import { patchList, removeList, upsertList } from '../lib/board-cache';
+import { patchList, removeList, upsertList, withRebalance } from '../lib/board-cache';
 import { listsApi } from './lists-api';
 import { useBoardMutation } from './use-board-mutation';
 
@@ -66,7 +66,9 @@ export function useMoveList(boardId: string, { onMoved, onRollback }: MoveListOp
     },
     onOptimistic: () => onMoved?.(),
     onRollback: () => onRollback?.(),
-    onSuccessCache: (detail, { id, position }) => patchList(detail, id, { position }),
+    // The respread siblings first, then the list itself at the position the server gave it.
+    onSuccessCache: (detail, { id, position, rebalanced }) =>
+      patchList(withRebalance(detail, rebalanced), id, { position }),
     onError: (error) =>
       showToast(
         isConflict(error)

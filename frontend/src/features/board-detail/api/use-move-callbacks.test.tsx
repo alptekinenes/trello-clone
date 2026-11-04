@@ -35,7 +35,7 @@ describe('useMoveList callbacks (used to release held realtime events)', () => {
     server.use(
       http.post('*/api/v1/lists/list-3/move', async () => {
         await delay(20);
-        return HttpResponse.json({ id: 'list-3', position: 500 });
+        return HttpResponse.json({ id: 'list-3', position: 500, rebalanced: null });
       }),
     );
     const onMoved = vi.fn();
@@ -78,7 +78,7 @@ describe('useMoveCard callbacks (used to release held realtime events)', () => {
   it('calls onMoved with the card as placed by the optimistic move', async () => {
     server.use(
       http.post('*/api/v1/cards/list-1-card-1/move', () =>
-        HttpResponse.json({ id: 'list-1-card-1', listId: 'list-2', position: 1024 }),
+        HttpResponse.json({ id: 'list-1-card-1', listId: 'list-2', position: 1024, rebalanced: null }),
       ),
     );
     const onMoved = vi.fn();

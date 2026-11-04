@@ -241,7 +241,12 @@ describe('Cards on the board', () => {
           state.cards = state.cards.map((card) =>
             card.title === 'Taslak' ? { ...card, listId: DOING.id, position: 512 } : card,
           );
-          return HttpResponse.json({ id: `${TODO.id}-card-1`, listId: DOING.id, position: 512 });
+          return HttpResponse.json({
+            id: `${TODO.id}-card-1`,
+            listId: DOING.id,
+            position: 512,
+            rebalanced: null,
+          });
         }),
       );
 

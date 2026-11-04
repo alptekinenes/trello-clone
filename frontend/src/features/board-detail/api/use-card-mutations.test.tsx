@@ -1,6 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { BoardDetailDto, CardSummaryDto, MoveCardRequest } from '@trello/contracts';
+import type {
+  BoardDetailDto,
+  BoardEvent,
+  CardSummaryDto,
+  MoveCardRequest,
+  PositionRebalancedData,
+} from '@trello/contracts';
 import { delay, http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,6 +15,7 @@ import { BOARD_ID, apiError, boardDetail, testCards, testLists } from '../../../
 import { server } from '../../../test/msw-server';
 import { createTestQueryClient } from '../../../test/render';
 import { boardKeys } from '../../boards';
+import { applyBoardEvent } from '../lib/apply-board-event';
 import { useBoard } from './use-board';
 import { type MoveCardVariables, useMoveCard } from './use-card-mutations';
 
@@ -59,7 +66,7 @@ describe('useMoveCard', () => {
       http.post(`*/api/v1/cards/${A.id}/move`, async ({ request }) => {
         sent = (await request.json()) as MoveCardRequest;
         await delay(200);
-        return HttpResponse.json({ id: A.id, listId: DONE.id, position: 500 });
+        return HttpResponse.json({ id: A.id, listId: DONE.id, position: 500, rebalanced: null });
       }),
       http.get(`*/api/v1/boards/${BOARD_ID}`, () =>
         HttpResponse.json({
@@ -85,6 +92,101 @@ describe('useMoveCard', () => {
     await waitFor(() =>
       expect(cached()?.cards.find((card) => card.id === A.id)?.position).toBe(500),
     );
+  });
+
+  describe('with a rebalance in the answer', () => {
+    // The server respread the cards of "Bitti": A lands at 2000, C moves out to 3000.
+    const REBALANCED = {
+      id: A.id,
+      listId: DONE.id,
+      position: 2000,
+      rebalanced: { entity: 'card', listId: DONE.id, positions: [{ id: C.id, position: 3000 }] },
+    };
+    const positionOf = (detail: BoardDetailDto | undefined, id: string) =>
+      detail?.cards.find((card) => card.id === id)?.position;
+
+    it('shows the card in its right place at once, without waiting for a refetch', async () => {
+      server.use(
+        http.post(`*/api/v1/cards/${A.id}/move`, () => HttpResponse.json(REBALANCED)),
+        http.get(`*/api/v1/boards/${BOARD_ID}`, async () => {
+          await delay(300);
+          return HttpResponse.json(DETAIL);
+        }),
+      );
+      const { result, cached } = setup();
+
+      act(() => result.current.mutate(MOVE_A));
+      await waitFor(() => expect(positionOf(cached(), C.id)).toBe(3000));
+
+      // Without the rebalance C would keep 1024 and A (2000) would jump behind it.
+      expect(columns(cached()).done).toEqual(['A', 'C']);
+      expect(positionOf(cached(), C.id)).toBe(3000);
+      expect(positionOf(cached(), A.id)).toBe(2000);
+    });
+
+    it('is right even while another move is still on its way', async () => {
+      let boardFetches = 0;
+      server.use(
+        http.post(`*/api/v1/cards/${A.id}/move`, () => HttpResponse.json(REBALANCED)),
+        http.post(`*/api/v1/cards/${B.id}/move`, async () => {
+          await delay(500);
+          return HttpResponse.json({ id: B.id, listId: DONE.id, position: 4000, rebalanced: null });
+        }),
+        http.get(`*/api/v1/boards/${BOARD_ID}`, () => {
+          boardFetches += 1;
+          return HttpResponse.json(DETAIL);
+        }),
+      );
+      const { result, cached } = setup();
+
+      act(() => {
+        result.current.mutate({ cardId: B.id, listId: DONE.id, afterCardId: C.id, beforeCardId: null });
+        result.current.mutate(MOVE_A);
+      });
+      // A's answer arrives while B's move still runs: no refetch may fix the order.
+      await waitFor(() => expect(positionOf(cached(), C.id)).toBe(3000));
+
+      expect(boardFetches).toBe(0);
+      expect(columns(cached()).done).toEqual(['A', 'B', 'C']);
+    });
+
+    it('is not changed again by the same rebalance arriving as a socket event', async () => {
+      server.use(
+        http.post(`*/api/v1/cards/${A.id}/move`, () => HttpResponse.json(REBALANCED)),
+        http.get(`*/api/v1/boards/${BOARD_ID}`, async () => {
+          await delay(300);
+          return HttpResponse.json(DETAIL);
+        }),
+      );
+      const { result, cached } = setup();
+      act(() => result.current.mutate(MOVE_A));
+      await waitFor(() => expect(positionOf(cached(), C.id)).toBe(3000));
+      const afterAnswer = cached() as BoardDetailDto;
+      const echo: BoardEvent = { type: 'position:rebalanced', data: REBALANCED.rebalanced as PositionRebalancedData };
+
+      expect(applyBoardEvent(afterAnswer, echo, 'me').detail).toEqual(afterAnswer);
+    });
+  });
+
+  it('keeps the other cards as they are when the answer has no rebalance', async () => {
+    let answered = false;
+    server.use(
+      http.post(`*/api/v1/cards/${A.id}/move`, () => {
+        answered = true;
+        return HttpResponse.json({ id: A.id, listId: DONE.id, position: 512, rebalanced: null });
+      }),
+      http.get(`*/api/v1/boards/${BOARD_ID}`, async () => {
+        await delay(300);
+        return HttpResponse.json(DETAIL);
+      }),
+    );
+    const { result, cached } = setup();
+
+    act(() => result.current.mutate(MOVE_A));
+    await waitFor(() => expect(answered).toBe(true));
+
+    expect(cached()?.cards.find((card) => card.id === C.id)).toEqual(C);
+    expect(columns(cached())).toEqual({ todo: ['B'], done: ['A', 'C'] });
   });
 
   it('rolls back and shows an error when the move fails', async () => {

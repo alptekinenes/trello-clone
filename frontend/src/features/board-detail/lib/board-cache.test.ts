@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { boardDetail, boardWithMembers, testLists, testMember, testUser } from '../../../test/fixtures';
-import { patchList, patchMember, removeList, removeMember, upsertList, upsertMember } from './board-cache';
+import { boardDetail, boardWithMembers, testCards, testLists, testMember, testUser } from '../../../test/fixtures';
+import {
+  applyRebalance,
+  patchList,
+  patchMember,
+  removeList,
+  removeMember,
+  upsertList,
+  upsertMember,
+} from './board-cache';
 
 const titles = (detail: { lists: { title: string }[] }) => detail.lists.map((l) => l.title);
 
@@ -56,5 +64,58 @@ describe('member helpers', () => {
   it('removeMember drops the member and leaves the input untouched', () => {
     expect(names(removeMember(detail, 'u-ayse'))).toEqual([testUser.name, 'Bora']);
     expect(names(detail)).toEqual([testUser.name, 'Ayşe', 'Bora']);
+  });
+});
+
+describe('applyRebalance', () => {
+  const [TODO, DONE] = testLists('Yapılacaklar', 'Bitti');
+  const detail = boardDetail('OWNER', 'Pano', [TODO, DONE], [
+    ...testCards(TODO.id, 'A', 'B', 'C'),
+    ...testCards(DONE.id, 'D'),
+  ]);
+  const todoIds = (d: typeof detail) => d.cards.filter((c) => c.listId === TODO.id).map((c) => c.title);
+  const cardData = (positions: [string, number][]) => ({
+    entity: 'card' as const,
+    listId: TODO.id,
+    positions: positions.map(([id, position]) => ({ id, position })),
+  });
+
+  it('respreads the cards of that list and leaves other lists alone', () => {
+    const result = applyRebalance(
+      detail,
+      cardData([[`${TODO.id}-card-1`, 4000], [`${TODO.id}-card-2`, 1000]]),
+    );
+
+    expect(todoIds(result.detail)).toEqual(['B', 'C', 'A']);
+    expect(result.detail.cards.find((c) => c.title === 'D')).toEqual(
+      detail.cards.find((c) => c.title === 'D'),
+    );
+    expect(result.refetch).toBe(false);
+  });
+
+  it('respreads the lists', () => {
+    const result = applyRebalance(detail, {
+      entity: 'list',
+      positions: [{ id: TODO.id, position: 5000 }],
+    });
+    expect(titles(result.detail)).toEqual(['Bitti', 'Yapılacaklar']);
+    expect(result.refetch).toBe(false);
+  });
+
+  it('asks for a refetch when it names an unknown sibling', () => {
+    const result = applyRebalance(detail, cardData([['ghost', 5]]));
+    expect(result.refetch).toBe(true);
+  });
+
+  it('is idempotent and leaves the input untouched', () => {
+    const data = cardData([[`${TODO.id}-card-1`, 3000]]);
+    const once = applyRebalance(detail, data);
+    expect(applyRebalance(once.detail, data)).toEqual(once);
+    expect(todoIds(detail)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('does not touch the board for checklist rebalances', () => {
+    const data = { entity: 'checklist' as const, cardId: 'x', positions: [{ id: 'k', position: 1 }] };
+    expect(applyRebalance(detail, data)).toEqual({ detail, refetch: false });
   });
 });

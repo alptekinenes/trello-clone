@@ -3,7 +3,7 @@ import { type CardSummaryDto, ErrorCode, positionBetween } from '@trello/contrac
 import { ApiError } from '../../../shared/lib/http';
 import { showToast } from '../../../shared/store/toast-store';
 import { boardKeys } from '../../boards';
-import { patchCard, removeCard, upsertCard } from '../lib/board-cache';
+import { patchCard, removeCard, upsertCard, withRebalance } from '../lib/board-cache';
 import { cardsApi } from './cards-api';
 import { useBoardMutation } from './use-board-mutation';
 
@@ -71,7 +71,9 @@ export function useMoveCard(boardId: string, { onMoved, onRollback }: MoveCardOp
       if (card) onMoved?.(card);
     },
     onRollback: ({ cardId }, detail) => onRollback?.(detail?.cards.find((item) => item.id === cardId)),
-    onSuccessCache: (detail, { id, listId, position }) => patchCard(detail, id, { listId, position }),
+    // The respread siblings first, then the card itself at the position the server gave it.
+    onSuccessCache: (detail, { id, listId, position, rebalanced }) =>
+      patchCard(withRebalance(detail, rebalanced), id, { listId, position }),
     onError: (error) =>
       showToast(
         isStaleBoard(error)

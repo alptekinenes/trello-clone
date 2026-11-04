@@ -4,6 +4,7 @@ import type { BoardDetailDto } from '@trello/contracts';
 import { useEffect } from 'react';
 import { usePrefersReducedMotion } from '../../../shared/hooks/use-prefers-reduced-motion';
 import { useBoardDnd } from '../hooks/use-board-dnd';
+import { useVanishedCardCleanup } from '../hooks/use-vanished-card-cleanup';
 import { useCardUiStore } from '../store/card-ui-store';
 import { AddListComposer } from './add-list-composer';
 import { BoardList, ListDragPreview } from './board-list';
@@ -21,15 +22,8 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
   const reducedMotion = usePrefersReducedMotion();
   const actionsCardId = useCardUiStore((state) => state.actionsCardId);
   const resetCardUi = useCardUiStore((state) => state.reset);
-  const closeVanishedActions = useCardUiStore((state) => state.closeVanishedActions);
-  const actionsCardVanished = useCardUiStore((state) => state.actionsCardVanished);
   const actionsCard = detail.cards.find((card) => card.id === actionsCardId) ?? null;
-  // Someone else archived or deleted the card the dialog is open on.
-  const actionsCardGone = actionsCardId !== null && actionsCard === null;
-
-  useEffect(() => {
-    if (actionsCardGone) closeVanishedActions();
-  }, [actionsCardGone, closeVanishedActions]);
+  const vanishedStatus = useVanishedCardCleanup(detail);
 
   // An open dialog or a pending focus belongs to this visit of the board.
   useEffect(() => () => resetCardUi(), [resetCardUi]);
@@ -60,7 +54,7 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
         </DragOverlay>
       </DndContext>
       <p role="status" className="sr-only">
-        {actionsCardVanished ? 'Kart başka biri tarafından kaldırıldı.' : ''}
+        {vanishedStatus.text && <span key={vanishedStatus.id}>{vanishedStatus.text}</span>}
       </p>
       <AddListComposer boardId={boardId} hasLists={detail.lists.length > 0} />
       {actionsCard && (

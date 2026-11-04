@@ -16,6 +16,7 @@ import {
 } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
+import { focusCardTile, useCardUiStore } from '../store/card-ui-store';
 
 const BOARD_URL = `*/api/v1/boards/${BOARD_ID}`;
 const [TODO, DOING] = testLists('Yapılacaklar', 'Yapılıyor');
@@ -121,5 +122,65 @@ describe('the card actions dialog when the card is removed by someone else', () 
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Gözden geçir' })).not.toBeInTheDocument());
     expect(screen.getByRole('dialog', { name: 'Kart işlemleri' })).toBeInTheDocument();
+  });
+});
+
+describe('the card UI state when a card leaves the cache', () => {
+  const idleCardUi = { actionsCardId: null, actionsListId: null, focusTarget: null };
+  const removeFirstCard = () =>
+    fakeRealtime.serverEmit('card:deleted', { id: `${TODO.id}-card-1`, listId: TODO.id }, { boardId: BOARD_ID });
+
+  it('forgets everything when the whole list of the open dialog goes away', async () => {
+    const { user } = await openLiveBoard(testCards(TODO.id, 'Taslak'));
+    await user.click(screen.getByRole('button', { name: '“Taslak” kartının işlemleri' }));
+
+    fakeRealtime.serverEmit('list:deleted', { id: TODO.id }, { boardId: BOARD_ID });
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // The "Kart ekle" button it would have focused is gone too: nothing may stay pending.
+    expect(useCardUiStore.getState()).toMatchObject(idleCardUi);
+  });
+
+  it('drops a pending card focus when that card is removed', async () => {
+    await openLiveBoard(testCards(TODO.id, 'Taslak', 'Gözden geçir'));
+    // A place the card is not in yet, so the focus stays pending.
+    act(() => focusCardTile({ id: `${TODO.id}-card-1`, listId: DOING.id, position: 99_999 }));
+    expect(useCardUiStore.getState().focusTarget).not.toBeNull();
+
+    removeFirstCard();
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Taslak' })).not.toBeInTheDocument());
+    expect(useCardUiStore.getState().focusTarget).toBeNull();
+  });
+
+  it('does not open the dialog again when the card comes back', async () => {
+    const { user } = await openLiveBoard(testCards(TODO.id, 'Taslak'));
+    const [card] = testCards(TODO.id, 'Taslak');
+    await user.click(screen.getByRole('button', { name: '“Taslak” kartının işlemleri' }));
+
+    removeFirstCard();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fakeRealtime.serverEmit('card:created', card, { boardId: BOARD_ID });
+
+    expect(await screen.findByRole('button', { name: 'Taslak' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(useCardUiStore.getState().actionsCardId).toBeNull();
+  });
+
+  it('announces a removal once and not again for later events', async () => {
+    const { user } = await openLiveBoard(testCards(TODO.id, 'Taslak', 'Gözden geçir'));
+    const announced = () =>
+      screen
+        .getAllByRole('status')
+        .filter((element) => element.textContent === 'Kart başka biri tarafından kaldırıldı.');
+    await user.click(screen.getByRole('button', { name: '“Taslak” kartının işlemleri' }));
+    removeFirstCard();
+    await waitFor(() => expect(announced()).toHaveLength(1));
+
+    emitIncoming();
+    await screen.findByRole('button', { name: 'Canlı kart' });
+
+    expect(announced()).toHaveLength(1);
+    expect(useCardUiStore.getState()).toMatchObject({ actionsCardId: null, actionsListId: null });
   });
 });

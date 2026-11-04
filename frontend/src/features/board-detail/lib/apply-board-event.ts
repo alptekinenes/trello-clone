@@ -1,5 +1,7 @@
-import type { BoardDetailDto, BoardEvent, PositionRebalancedData } from '@trello/contracts';
+import type { BoardDetailDto, BoardEvent } from '@trello/contracts';
 import {
+  type AppliedPositions,
+  applyRebalance,
   patchCard,
   patchList,
   removeCard,
@@ -12,11 +14,7 @@ import {
   upsertMember,
 } from './board-cache';
 
-export interface AppliedBoardEvent {
-  detail: BoardDetailDto;
-  /** The cache cannot follow this event alone (e.g. a restored list's cards); refetch the board. */
-  refetch: boolean;
-}
+export type AppliedBoardEvent = AppliedPositions;
 
 const done = (detail: BoardDetailDto): AppliedBoardEvent => ({ detail, refetch: false });
 const needsRefetch = (detail: BoardDetailDto): AppliedBoardEvent => ({ detail, refetch: true });
@@ -39,38 +37,6 @@ function withLabelIds(
 ): BoardDetailDto {
   const card = detail.cards.find((item) => item.id === cardId);
   return card ? patchCard(detail, cardId, { labelIds: change(card.labelIds) }) : detail;
-}
-
-function applyRebalance(detail: BoardDetailDto, data: PositionRebalancedData): AppliedBoardEvent {
-  switch (data.entity) {
-    case 'list': {
-      const positions = new Map(data.positions.map((item) => [item.id, item.position]));
-      const known = detail.lists.filter((list) => positions.has(list.id));
-      const next = known.reduce(
-        (acc, list) => patchList(acc, list.id, { position: positions.get(list.id) ?? list.position }),
-        detail,
-      );
-      return known.length === positions.size ? done(next) : needsRefetch(next);
-    }
-    case 'card': {
-      const positions = new Map(data.positions.map((item) => [item.id, item.position]));
-      const known = detail.cards.filter(
-        (card) => card.listId === data.listId && positions.has(card.id),
-      );
-      const next = known.reduce(
-        (acc, card) => patchCard(acc, card.id, { position: positions.get(card.id) ?? card.position }),
-        detail,
-      );
-      return known.length === positions.size ? done(next) : needsRefetch(next);
-    }
-    case 'checklist':
-    case 'checklist-item':
-      return done(detail);
-    default: {
-      const unhandled: never = data;
-      return unhandled;
-    }
-  }
 }
 
 /**

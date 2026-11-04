@@ -10,18 +10,26 @@ type CardPlace = Pick<CardSummaryDto, 'id' | 'listId' | 'position'>;
  */
 export type FocusTarget = ({ kind: 'card' } & CardPlace) | { kind: 'add-card'; listId: string };
 
+/** What is still on the board. */
+export interface Presence {
+  hasCard: (cardId: string) => boolean;
+  hasList: (listId: string) => boolean;
+}
+
 interface CardUiState {
   /** Card whose actions dialog is open. */
   actionsCardId: string | null;
   /** The list that card was in when the dialog opened. */
   actionsListId: string | null;
-  /** The open card was removed by someone else, so the dialog closed by itself. */
-  actionsCardVanished: boolean;
   focusTarget: FocusTarget | null;
   openActions: (cardId: string, listId: string) => void;
   closeActions: () => void;
-  /** Closes the dialog of a card that is gone; the focus goes to its list's "Kart ekle". */
-  closeVanishedActions: () => void;
+  /**
+   * Forgets what points at a card or list that left the board: the open dialog
+   * (the focus then goes to its list's "Kart ekle", if that list is still there)
+   * and a pending focus. Returns true when it closed a dialog.
+   */
+  forgetGone: (present: Presence) => boolean;
   focusCard: (card: CardPlace) => void;
   focusAddCard: (listId: string) => void;
   clearFocus: () => void;
@@ -29,30 +37,39 @@ interface CardUiState {
   reset: () => void;
 }
 
-export const useCardUiStore = create<CardUiState>()((set) => ({
+export const useCardUiStore = create<CardUiState>()((set, get) => ({
   actionsCardId: null,
   actionsListId: null,
-  actionsCardVanished: false,
   focusTarget: null,
-  openActions: (cardId, listId) =>
-    set({ actionsCardId: cardId, actionsListId: listId, actionsCardVanished: false }),
+  openActions: (cardId, listId) => set({ actionsCardId: cardId, actionsListId: listId }),
   closeActions: () => set({ actionsCardId: null, actionsListId: null }),
-  closeVanishedActions: () =>
-    set((state) => ({
-      actionsCardId: null,
-      actionsListId: null,
-      actionsCardVanished: true,
-      focusTarget: state.actionsListId
-        ? { kind: 'add-card', listId: state.actionsListId }
-        : state.focusTarget,
-    })),
+  forgetGone: (present) => {
+    const state = get();
+    const dialogGone = state.actionsCardId !== null && !present.hasCard(state.actionsCardId);
+    const focusGone = state.focusTarget !== null && !isPresent(state.focusTarget, present);
+    if (!dialogGone && !focusGone) return false;
+    const addCardList =
+      dialogGone && state.actionsListId !== null && present.hasList(state.actionsListId)
+        ? state.actionsListId
+        : null;
+    const keptFocus = focusGone ? null : state.focusTarget;
+    set({
+      actionsCardId: dialogGone ? null : state.actionsCardId,
+      actionsListId: dialogGone ? null : state.actionsListId,
+      focusTarget: addCardList ? { kind: 'add-card', listId: addCardList } : keptFocus,
+    });
+    return dialogGone;
+  },
   focusCard: ({ id, listId, position }) =>
     set({ focusTarget: { kind: 'card', id, listId, position } }),
   focusAddCard: (listId) => set({ focusTarget: { kind: 'add-card', listId } }),
   clearFocus: () => set({ focusTarget: null }),
-  reset: () =>
-    set({ actionsCardId: null, actionsListId: null, actionsCardVanished: false, focusTarget: null }),
+  reset: () => set({ actionsCardId: null, actionsListId: null, focusTarget: null }),
 }));
+
+function isPresent(target: FocusTarget, present: Presence): boolean {
+  return target.kind === 'card' ? present.hasCard(target.id) : present.hasList(target.listId);
+}
 
 /** True when `card` is the focus target and already rendered in the target place. */
 export function isFocusTarget(target: FocusTarget | null, card: CardPlace): boolean {
