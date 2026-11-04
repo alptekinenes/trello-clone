@@ -19,6 +19,7 @@ Trello'nun bilinen düzenine yakın, **modern ve minimal** bir tasarım dili:
 - **Tipografi:** sistem font yığını, sınırlı boyut ölçeği, net hiyerarşi.
 - **Tema:** açık ve koyu tema (token'lar üzerinden).
 - **Hareket:** kısa ve yumuşak geçişler; `prefers-reduced-motion` desteklenir.
+- **Mobil:** 640 px altında liste sütunu ekran genişliğinin %85'i, yatay scroll-snap ile tek sütun görünümü (sürüklerken snap kapalı); dokunmatikte (`pointer-coarse:`) etkileşimli öğeler en az 44×44 px. Sütunlar ekran yüksekliğiyle sınırlıdır, kartlar sütun içinde kayar.
 
 ## Teknoloji Seti
 
@@ -44,17 +45,21 @@ Trello'nun bilinen düzenine yakın, **modern ve minimal** bir tasarım dili:
 - React 19.3 · Vite 8.3 · React Router 8.5 · TanStack Query 5.105 · Zustand 5.0 · dnd-kit core 6.3 / sortable 10.0 · React Hook Form 7.91 · Zod 4.6 · Tailwind CSS 4.3 · Vitest 4.1 · Playwright 1.64 · MSW 2.15
 - NestJS 12.3 · Prisma 7.10 (`@prisma/adapter-pg`) · TypeScript 6.0 (backend, contracts) / 7.0 (frontend)
 - Socket.io 4.8 (`socket.io`, `socket.io-client`) · `@nestjs/websockets` + `@nestjs/platform-socket.io` 12.3 (Faz 7)
+- `@axe-core/playwright` 4.14.0 (frontend devDependency, Faz 8)
 
 ### Ortam notları
 - **npm 11 gerekli.** Node 22 ile gelen npm 10.9, bu projenin bağımlılıklarında `Cannot read properties of null (reading 'edgesOut')` hatasıyla çöküyor. npm 11 yoksa `npx -y npm@11 install` kullan.
 - npm 11, Prisma'nın install script'lerini onaysız çalıştırmaz; gerekmiyor (`prisma generate` ve `migrate diff` script'ler olmadan çalışıyor).
 - Bu makinede `C:\Program Files\nodejs` altında ayrıca Node 26 kurulu ve PATH'te nvm'den önce geliyor. Node 22'yi kullanmak için PATH sırasını düzelt ya da komutlardan önce nvm'in Node 22 klasörünü PATH'in başına ekle.
+- **`NODE_ENV` zorunlu** (`development` | `test` | `production`, varsayılanı yok): `backend/.env`'de yoksa backend açılmaz. Production'da ayrıca `APP_URL`, tek bir origin olarak `CORS_ORIGIN` ve `change-me` ile başlamayan `JWT_ACCESS_SECRET` gerekir.
+- Ayarlanabilir env'ler: `TRUST_PROXY` (güvenilen ters vekil sayısı, 0–10, varsayılan 0; gerçek vekil sayısıyla tam eşleşmeli), `API_RATE_LIMIT_PER_MINUTE` (genel sınır, varsayılan 300), `AUTH_RATE_LIMIT_PER_MINUTE`, `INVITATION_RATE_LIMIT_PER_MINUTE`. Tam tablo `README.md` ve `backend/.env.example`'da.
 
 ## Klasör Yapısı
 
 ```
 trello-clone/
 ├── CLAUDE.md
+├── README.md                  # Kurulum, env tablosu, komutlar, prod notları
 ├── package.json               # npm workspaces: shared/contracts, backend, frontend
 ├── docker-compose.yml         # Yerel PostgreSQL (dev: trello, test: trello_test)
 ├── .claude/agents/            # Subagent tanımları
@@ -129,7 +134,7 @@ trello-clone/
 - **Performans**: gereksiz `useEffect` yazma (türetilebilen değeri render'da hesapla); liste öğelerinde stabil `key`; ölçülmüş bir sorun yoksa erken `memo`/`useMemo` kullanma.
 - **Ortak UI** (`shared/ui`): `Dialog` (native `<dialog>` + `showModal`; sadece açıkken render edilir, Escape ile kapanır, odağı açana geri verir), `ConfirmDialog`, `InlineEdit`, `Avatar`/`AvatarStack`, `Button` (`primary`, `secondary`, `ghost`, `danger`, `on-board`). Board arka plan sınıfları `shared/lib/board-background.ts`'te. jsdom `showModal`'ı desteklemediği için `src/test/setup.ts`'te küçük bir yerine-geçen var.
 - **Güvenlik**: `dangerouslySetInnerHTML` kullanma (zorunluysa sanitize et).
-- **Erişilebilirlik**: semantik HTML, klavye ile kullanılabilirlik, görünür odak, ARIA etiketleri, modal'larda odak tuzağı, sürükle-bırak için klavye alternatifi ve ekran okuyucu duyuruları.
+- **Erişilebilirlik**: semantik HTML, klavye ile kullanılabilirlik, görünür odak, ARIA etiketleri, modal'larda odak tuzağı, sürükle-bırak için klavye alternatifi ve ekran okuyucu duyuruları. Yeni bir sayfa veya diyalog `frontend/e2e/a11y.spec.ts` axe taramasına (açık + koyu tema, 320 px) eklenir; eşik `critical` + `serious` ihlal sayısı 0'dır. Bastırma yalnız gerekçeli yanlış pozitifte ve dar kapsamlı yapılır (`disableRules` yok).
 
 ### Backend (NestJS)
 - Özellik başına modül (`*.module.ts`, `*.controller.ts`, `*.service.ts`, `dto/`).
@@ -196,7 +201,8 @@ npm run lint
 npm run test:e2e -w backend                  # Supertest (trello_test DB'sini her testte sıfırlar)
 npm run test:e2e -w frontend                 # Playwright (backend + frontend'i kendisi açar; dev DB'yi kullanır)
 # Not: Playwright çok sayıda kayıt yapar. Çalışan bir dev backend'i yeniden kullanıyorsa
-# backend/.env'de AUTH_RATE_LIMIT_PER_MINUTE yüksek olmalı (ör. 1000); aksi halde 10/dk sınırına takılır.
+# backend/.env'de AUTH_RATE_LIMIT_PER_MINUTE, INVITATION_RATE_LIMIT_PER_MINUTE ve API_RATE_LIMIT_PER_MINUTE yüksek olmalı (ör. 1000);
+# aksi halde auth 10/dk, genel 300/dk sınırına takılır. Playwright kendi backend'ini açarsa bunları kendisi 1000 yapar.
 # Dev backend .env değişikliklerini izlemez; .env değişince yeniden başlat.
 npm run typecheck -w backend
 npm run typecheck -w frontend
