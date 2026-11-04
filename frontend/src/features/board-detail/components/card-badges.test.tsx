@@ -85,6 +85,28 @@ describe('card tile badges', () => {
     expect(within(tile).getByText('3/3').parentElement).toHaveClass('text-success');
   });
 
+  it('lays the tile out as labels, title, then badges in due date, description, checklist order', async () => {
+    const tile = await openBoardWith({
+      labelIds: ['label-red'],
+      dueDate: '2026-11-20T09:00:00.000Z',
+      hasDescription: true,
+      checklistTotal: 2,
+      checklistDone: 1,
+    });
+
+    const parts = [
+      within(tile).getByRole('list', { name: 'Etiketler' }),
+      within(tile).getByText('Rapor', { selector: 'p' }),
+      within(tile).getByText(/Son tarih:/),
+      within(tile).getByText('Açıklaması var'),
+      within(tile).getByText('1/2'),
+    ];
+    parts.slice(1).forEach((part, index) => {
+      expect(parts[index].compareDocumentPosition(part) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+    expect(within(tile).queryByRole('list', { name: /üye/i })).not.toBeInTheDocument();
+  });
+
   it('keeps the card named by its title only', async () => {
     const tile = await openBoardWith({
       labelIds: ['label-red'],
