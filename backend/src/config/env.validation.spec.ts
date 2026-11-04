@@ -150,6 +150,12 @@ describe('production-only rules', () => {
     expect(validateEnv(production).CORS_ORIGIN).toBe('https://app.example.com');
   });
 
+  it('stores the CORS_ORIGIN that it validated, without surrounding spaces', () => {
+    const env = validateEnv({ ...production, CORS_ORIGIN: ' https://app.example.com ' });
+
+    expect(env.CORS_ORIGIN).toBe('https://app.example.com');
+  });
+
   it('requires an explicit CORS_ORIGIN instead of the localhost default', () => {
     expect(() => validateEnv({ ...production, CORS_ORIGIN: undefined })).toThrow(
       /CORS_ORIGIN: must be set in production/,

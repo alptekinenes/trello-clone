@@ -163,6 +163,8 @@ function productionProblems(config: Record<string, unknown>): string[] {
 /** Validates process env on startup; the app refuses to boot with a bad config. */
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
   const env = plainToInstance(EnvironmentVariables, config, { enableImplicitConversion: true });
+  // The production check trims, so the value the app uses must be the trimmed one too.
+  if (typeof env.CORS_ORIGIN === 'string') env.CORS_ORIGIN = env.CORS_ORIGIN.trim();
   const errors = validateSync(env, { skipMissingProperties: false });
   const problems = errors.map(
     (e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
