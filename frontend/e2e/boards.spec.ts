@@ -89,6 +89,8 @@ test.describe('a 320 px wide screen with touch', () => {
       page.getByRole('button', { name: '“Birinci kart” kartının işlemleri' }),
       page.getByRole('button', { name: '“Yapılacaklar” listesine kart ekle' }),
       page.getByRole('button', { name: 'Başka liste ekle' }),
+      page.getByRole('button', { name: 'Pano değiştir' }),
+      page.getByRole('link', { name: 'Pano', exact: true }),
     ];
     for (const target of targets) {
       const box = await target.boundingBox();
@@ -110,6 +112,21 @@ test.describe('a 320 px wide screen with touch', () => {
       expect(box?.height, 'list menu item height').toBeGreaterThanOrEqual(43.5);
     }
     await page.keyboard.press('Escape');
+
+    // The board switcher opens above the bar, inside the 320 px screen, and covers no list.
+    await page.getByRole('button', { name: 'Pano değiştir' }).tap();
+    const switcher = page.getByRole('menu', { name: 'Pano değiştir' });
+    const switcherBox = await switcher.boundingBox();
+    expect(switcherBox?.x).toBeGreaterThanOrEqual(0);
+    expect((switcherBox?.x ?? 0) + (switcherBox?.width ?? 0)).toBeLessThanOrEqual(320);
+    for (const item of await switcher.getByRole('menuitemradio').all()) {
+      const box = await item.boundingBox();
+      expect(box?.height, 'switcher item height').toBeGreaterThanOrEqual(43.5);
+    }
+    await page.keyboard.press('Escape');
+    const barBox = await page.getByRole('navigation', { name: 'Pano gezintisi' }).boundingBox();
+    const listBox = await page.locator('[data-list-id]').first().boundingBox();
+    if (barBox && listBox) expect(listBox.y + listBox.height).toBeLessThanOrEqual(barBox.y + 0.5);
 
     // The board menu opens inside the 320 px screen and its items are touch-sized.
     await page.getByRole('button', { name: 'Pano menüsü' }).tap();
@@ -140,7 +157,7 @@ test('the owner changes the background; it survives a reload and shows live to a
   baseURL,
 }) => {
   const surface = (target: typeof page) =>
-    target.getByRole('heading', { level: 1 }).locator('xpath=ancestor::header/..');
+    target.getByRole('heading', { level: 1 }).locator('xpath=ancestor::header/../..');
 
   const memberContext = await browser.newContext({ baseURL, locale: 'tr-TR' });
   try {
@@ -220,4 +237,30 @@ test('the board menu works by keyboard and gives focus back to its button after 
 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test('the board switcher moves to another board by keyboard and keeps the focus on its button', async ({
+  page,
+}) => {
+  const token = await signUp(page, 'Geçiş Testçi');
+  const firstId = await seedBoard(page, token, 'Birinci pano');
+  await seedBoard(page, token, 'İkinci pano');
+  await page.goto(`/boards/${firstId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Birinci pano' })).toBeVisible();
+  const trigger = page.getByRole('button', { name: 'Pano değiştir' });
+
+  await trigger.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitemradio', { name: 'Birinci pano' })).toBeFocused();
+  await expect(page.getByRole('menuitemradio', { name: 'Birinci pano' })).toBeChecked();
+  await page.getByRole('menuitemradio', { name: 'İkinci pano' }).focus();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByRole('heading', { level: 1, name: 'İkinci pano' })).toBeVisible();
+  await expect(page).not.toHaveURL(new RegExp(firstId));
+  await expect(trigger).toBeFocused();
+
+  await trigger.press('ArrowDown');
+  await page.getByRole('menuitem', { name: 'Tüm panolar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible();
 });

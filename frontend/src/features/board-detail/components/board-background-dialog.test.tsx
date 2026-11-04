@@ -84,7 +84,7 @@ function recordBackgrounds(queryClient: QueryClient): BoardBackground[] {
 }
 
 /** The element that paints the board background. */
-const boardSurface = () => screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement;
+const boardSurface = () => screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement?.parentElement;
 
 describe('changing the board background', () => {
   it('offers no menu item to a MEMBER', async () => {

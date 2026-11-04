@@ -44,6 +44,10 @@ interface MenuProps {
   containerClassName?: string;
   /** Where the panel sits under the trigger. */
   align?: 'start' | 'end';
+  /** Opens under the trigger (default) or above it, for triggers at the bottom of the screen. */
+  side?: 'bottom' | 'top';
+  /** Extra classes of the panel, e.g. a fixed width or a scrollable height. */
+  panelClassName?: string;
   children: ReactNode;
 }
 
@@ -60,6 +64,8 @@ export function Menu({
   triggerId,
   containerClassName = '',
   align = 'start',
+  side = 'bottom',
+  panelClassName = '',
   children,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
@@ -162,7 +168,7 @@ export function Menu({
             tabIndex={-1}
             aria-label={label}
             onKeyDown={handleMenuKeyDown}
-            className={`absolute top-full z-30 mt-1 min-w-56 rounded-md bg-menu p-1 text-fg shadow-raised ${align === 'end' ? 'right-0' : 'left-0'}`}
+            className={`absolute z-30 min-w-56 rounded-md bg-menu p-1 text-fg shadow-raised ${side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} ${align === 'end' ? 'right-0' : 'left-0'} ${panelClassName}`}
           >
             {children}
           </div>

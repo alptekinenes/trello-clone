@@ -210,7 +210,7 @@ describe('useBoardRealtime: applying events', () => {
     );
 
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Mor' })).toBeChecked());
-    expect(screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement).toHaveClass('bg-board-purple');
+    expect(screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement?.parentElement).toHaveClass('bg-board-purple');
   });
 
   it('removes the invitation section when my role drops below admin', async () => {

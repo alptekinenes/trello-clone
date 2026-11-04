@@ -221,6 +221,13 @@ function defineScreens(mode: Mode): void {
       await expectNoA11yViolations(page);
     });
 
+    test('board switcher open', async ({ page }) => {
+      await openRichBoard(page);
+      await page.getByRole('button', { name: 'Pano değiştir' }).click();
+      await expect(page.getByRole('menu', { name: 'Pano değiştir' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
     test('list menu open', async ({ page }) => {
       await openRichBoard(page);
       await page.getByRole('button', { name: '“Yapılacaklar” listesinin işlemleri' }).click();

@@ -4,6 +4,7 @@ import { BOARD_BACKGROUND_CLASS } from '../../../shared/lib/board-background';
 import { Button } from '../../../shared/ui/button';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { PageLoader } from '../../../shared/ui/page-loader';
+import { BoardSwitcher } from '../../boards';
 import { useBoard } from '../api/use-board';
 import { useBoardRealtime } from '../hooks/use-board-realtime';
 import { BoardCanvas } from './board-canvas';
@@ -25,40 +26,54 @@ function BoardNotFound() {
   );
 }
 
+function BoardLoadFailed({ error, retrying, onRetry }: { error: unknown; retrying: boolean; onRetry: () => void }) {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-3 px-4 py-12">
+      <FormAlert>{apiErrorMessage(error)}</FormAlert>
+      <Button variant="secondary" onClick={onRetry} loading={retrying}>
+        Tekrar dene
+      </Button>
+    </div>
+  );
+}
+
 export function BoardPage() {
   const { boardId = '' } = useParams();
   const { data: detail, error, isPending, refetch, isRefetching } = useBoard(boardId);
   useBoardRealtime(boardId);
+  const notFound = !isPending && isNotFound(error);
 
-  if (isPending) return <PageLoader label="Pano yükleniyor…" />;
-  if (isNotFound(error)) return <BoardNotFound />;
-  // A failed refresh keeps showing the board (and a card dialog open on it).
-  if (error && !detail) {
-    return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-3 px-4 py-12">
-        <FormAlert>{apiErrorMessage(error)}</FormAlert>
-        <Button variant="secondary" onClick={() => void refetch()} loading={isRefetching}>
-          Tekrar dene
-        </Button>
-      </div>
-    );
-  }
-
+  // The switcher stays mounted while another board loads, so the focus it holds is not lost.
   return (
-    <div className={`flex min-h-0 flex-1 flex-col ${BOARD_BACKGROUND_CLASS[detail.board.background]}`}>
-      <BoardHeader detail={detail} />
-      {error && (
-        <div className="flex items-center gap-3 bg-danger-subtle px-4 py-2 text-sm text-danger">
-          <p role="alert" className="flex-1">
-            Pano yenilenemedi.
-          </p>
-          <Button variant="secondary" className="h-8 px-3" onClick={() => void refetch()} loading={isRefetching}>
-            Tekrar dene
-          </Button>
-        </div>
-      )}
-      <BoardCanvas detail={detail} />
-      <Outlet />
+    <div
+      className={`flex min-h-0 flex-1 flex-col ${detail ? BOARD_BACKGROUND_CLASS[detail.board.background] : ''}`}
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        {isPending ? (
+          <PageLoader label="Pano yükleniyor…" />
+        ) : notFound ? (
+          <BoardNotFound />
+        ) : !detail ? (
+          <BoardLoadFailed error={error} retrying={isRefetching} onRetry={() => void refetch()} />
+        ) : (
+          <>
+            <BoardHeader detail={detail} />
+            {error && (
+              <div className="flex items-center gap-3 bg-danger-subtle px-4 py-2 text-sm text-danger">
+                <p role="alert" className="flex-1">
+                  Pano yenilenemedi.
+                </p>
+                <Button variant="secondary" className="h-8 px-3" onClick={() => void refetch()} loading={isRefetching}>
+                  Tekrar dene
+                </Button>
+              </div>
+            )}
+            <BoardCanvas detail={detail} />
+            <Outlet />
+          </>
+        )}
+      </div>
+      {!notFound && <BoardSwitcher currentBoardId={boardId} />}
     </div>
   );
 }
