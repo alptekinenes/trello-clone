@@ -8,6 +8,7 @@ import {
   expectFrame,
   keyboardDragReady,
   openBoardAs,
+  openBoardMenuItem,
   openBoardsPageAs,
   seedBoard,
   seedCard,
@@ -133,7 +134,7 @@ async function addCards(page: Page, listTitle: string, titles: string[]): Promis
 }
 
 async function openMembers(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Üyeler', exact: true }).click();
+  await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Pano üyeleri' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -265,7 +266,7 @@ test.describe('deleting a board', () => {
     await openBoardsPageAs(b);
     await expect(b.getByRole('link', { name: title })).toBeVisible();
 
-    await a.getByRole('button', { name: 'Panoyu sil' }).click();
+    await openBoardMenuItem(a, 'Panoyu sil');
     await a.getByRole('dialog', { name: 'Pano silinsin mi?' }).getByRole('button', { name: 'Panoyu sil' }).click();
 
     await expect(a).toHaveURL('/boards');
@@ -278,7 +279,7 @@ test.describe('deleting a board', () => {
     await openBoardAs(a, boardId, title);
     await openBoardAs(b, boardId, title);
 
-    await a.getByRole('button', { name: 'Panoyu sil' }).click();
+    await openBoardMenuItem(a, 'Panoyu sil');
     await a.getByRole('dialog', { name: 'Pano silinsin mi?' }).getByRole('button', { name: 'Panoyu sil' }).click();
 
     await expect(b).toHaveURL('/boards');
@@ -358,7 +359,7 @@ test('A archives a card and B loses it; A restores it and B gets it back at the 
   await a.getByRole('dialog', { name: 'Kart işlemleri' }).getByRole('button', { name: 'Arşivle' }).click();
   await expect.poll(() => cardsByList(b, lists)).toEqual({ Yapılacaklar: ['İkinci'] });
 
-  await a.getByRole('button', { name: 'Arşiv', exact: true }).click();
+  await openBoardMenuItem(a, 'Arşiv');
   const archive = a.getByRole('dialog', { name: 'Arşiv' });
   await archive.getByRole('button', { name: '“Birinci” kartını geri yükle' }).click();
   await expect(archive.getByText('Arşivde kart yok.')).toBeVisible();

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiInvite, openBoardAs, seedBoard, signUp, signUpAs, watchRealtime } from './helpers.js';
+import { apiInvite, openBoardAs, openBoardMenuItem, seedBoard, signUp, signUpAs, watchRealtime } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -36,7 +36,7 @@ test('create, open, rename and delete a board', async ({ page }) => {
   await page.getByRole('link', { name: 'Yeniden adlandırıldı' }).click();
 
   // Delete
-  await page.getByRole('button', { name: 'Panoyu sil' }).click();
+  await openBoardMenuItem(page, 'Panoyu sil');
   const confirm = page.getByRole('dialog', { name: 'Pano silinsin mi?' });
   await confirm.getByRole('button', { name: 'Panoyu sil' }).click();
 
@@ -81,11 +81,8 @@ test.describe('a 320 px wide screen with touch', () => {
 
     const targets = [
       page.getByRole('button', { name: 'Dokunmatik pano' }),
-      page.getByRole('button', { name: 'Üyeler', exact: true }),
-      page.getByRole('button', { name: 'Etiketler', exact: true }),
-      page.getByRole('button', { name: 'Arşiv', exact: true }),
-      page.getByRole('button', { name: 'Arka plan', exact: true }),
-      page.getByRole('button', { name: 'Panoyu sil' }),
+      page.getByRole('button', { name: 'Paylaş', exact: true }),
+      page.getByRole('button', { name: 'Pano menüsü' }),
       page.getByRole('button', { name: '“Yapılacaklar” listesini taşı' }),
       page.getByRole('button', { name: 'Yapılacaklar', exact: true }),
       page.getByRole('button', { name: '“Yapılacaklar” listesini arşivle' }),
@@ -100,7 +97,19 @@ test.describe('a 320 px wide screen with touch', () => {
       expect(box?.height, `${target} height`).toBeGreaterThanOrEqual(43.5);
     }
 
-    await page.getByRole('button', { name: 'Arka plan', exact: true }).click();
+    // The board menu opens inside the 320 px screen and its items are touch-sized.
+    await page.getByRole('button', { name: 'Pano menüsü' }).tap();
+    const menu = page.getByRole('menu', { name: 'Pano menüsü' });
+    const menuBox = await menu.boundingBox();
+    expect(menuBox?.x).toBeGreaterThanOrEqual(0);
+    expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(320);
+    const items = await menu.getByRole('menuitem').all();
+    expect(items).toHaveLength(4);
+    for (const item of items) {
+      const box = await item.boundingBox();
+      expect(box?.height, 'menu item height').toBeGreaterThanOrEqual(43.5);
+    }
+    await menu.getByRole('menuitem', { name: 'Arka plan', exact: true }).tap();
     const swatches = page.getByRole('dialog', { name: 'Arka plan' }).locator('label[title]');
     await expect(swatches).toHaveCount(9);
     for (const swatch of await swatches.all()) {
@@ -130,12 +139,15 @@ test('the owner changes the background; it survives a reload and shows live to a
     await apiInvite(page, token, boardId, email);
 
     await openBoardAs(member, boardId, 'Renkli pano');
-    await expect(member.getByRole('button', { name: 'Arka plan' })).toHaveCount(0);
+    await member.getByRole('button', { name: 'Pano menüsü' }).click();
+    await expect(member.getByRole('menuitem', { name: 'Etiketler' })).toBeVisible();
+    await expect(member.getByRole('menuitem', { name: 'Arka plan' })).toHaveCount(0);
+    await member.keyboard.press('Escape');
     await expect(surface(member)).toHaveClass(/bg-board-blue/);
 
     await openBoardAs(page, boardId, 'Renkli pano');
-    const opener = page.getByRole('button', { name: 'Arka plan', exact: true });
-    await opener.click();
+    const opener = page.getByRole('button', { name: 'Pano menüsü' });
+    await openBoardMenuItem(page, 'Arka plan');
     const dialog = page.getByRole('dialog', { name: 'Arka plan' });
     await expect(dialog.getByRole('radio', { name: 'Mavi', exact: true })).toBeChecked();
 
@@ -150,7 +162,7 @@ test('the owner changes the background; it survives a reload and shows live to a
     // Live for the other person, without a reload.
     await expect(surface(member)).toHaveClass(/bg-board-purple/);
 
-    // Escape closes the dialog and the focus goes back to the button.
+    // Escape closes the dialog and the focus goes back to the board menu button.
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(opener).toBeFocused();
@@ -168,4 +180,30 @@ test('a board of another user shows the not found page', async ({ page }) => {
   await page.goto('/boards/00000000-0000-4000-8000-000000000000');
 
   await expect(page.getByRole('heading', { level: 1, name: 'Pano bulunamadı' })).toBeVisible();
+});
+
+test('the board menu works by keyboard and gives focus back to its button after a dialog closes', async ({
+  page,
+}) => {
+  const token = await signUp(page, 'Menü Testçi');
+  const boardId = await seedBoard(page, token, 'Menülü pano');
+  await page.goto(`/boards/${boardId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Menülü pano' })).toBeVisible();
+  await expect(page.getByText('Özel pano')).toBeAttached();
+  const trigger = page.getByRole('button', { name: 'Pano menüsü' });
+
+  await trigger.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: 'Etiketler' })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('menuitem', { name: 'Panoyu sil' })).toBeFocused();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Arşiv' })).toBeVisible();
+
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });

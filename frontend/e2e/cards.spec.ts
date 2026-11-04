@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
-import { keyboardDragReady, seedBoard, signUp } from './helpers.js';
+import { keyboardDragReady, openBoardMenuItem, seedBoard, signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -223,7 +223,7 @@ test('archive a card, then restore it from the archive', async ({ page }) => {
   await expect.poll(() => board(page, ['Yapılacaklar'])).toEqual({ Yapılacaklar: ['B'] });
   await expect(page.getByText('“A” kartı arşivlendi.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Arşiv', exact: true }).click();
+  await openBoardMenuItem(page, 'Arşiv');
   const archive = page.getByRole('dialog', { name: 'Arşiv' });
   await expect(archive.getByText('“Yapılacaklar” listesinde')).toBeVisible();
   await archive.getByRole('button', { name: '“A” kartını geri yükle' }).click();

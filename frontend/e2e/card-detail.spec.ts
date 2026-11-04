@@ -4,6 +4,7 @@ import {
   apiPatchCard,
   keyboardDragReady,
   localDateTime,
+  openBoardMenuItem,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -430,7 +431,7 @@ test('deleting a label while a card using it is open removes its chip in the dia
 test('manage board labels from the header: create, assign, rename, delete', async ({ page }) => {
   await openBoard(page, ['Yapılacaklar'], { Yapılacaklar: ['Kart'] });
 
-  await page.getByRole('button', { name: 'Etiketler', exact: true }).click();
+  await openBoardMenuItem(page, 'Etiketler');
   const manager = page.getByRole('dialog', { name: 'Etiketler' });
   await manager.getByRole('button', { name: 'Yeni etiket' }).click();
   await manager.getByRole('textbox', { name: 'Etiket adı' }).fill('Acil');
@@ -448,7 +449,7 @@ test('manage board labels from the header: create, assign, rename, delete', asyn
   await dialog.getByRole('button', { name: 'Kapat' }).click();
   await expect(tile(page, 'Kart').getByRole('list', { name: 'Etiketler' })).toContainText('Acil');
 
-  await page.getByRole('button', { name: 'Etiketler', exact: true }).click();
+  await openBoardMenuItem(page, 'Etiketler');
   await manager.getByRole('button', { name: '“Acil” etiketini düzenle' }).click();
   await manager.getByRole('textbox', { name: 'Etiket adı' }).fill('Çok acil');
   await manager.getByRole('button', { name: 'Kaydet' }).click();
@@ -458,7 +459,7 @@ test('manage board labels from the header: create, assign, rename, delete', asyn
     'Çok acil',
   );
 
-  await page.getByRole('button', { name: 'Etiketler', exact: true }).click();
+  await openBoardMenuItem(page, 'Etiketler');
   await manager.getByRole('button', { name: '“Çok acil” etiketini düzenle' }).click();
   await manager.getByRole('button', { name: 'Sil', exact: true }).click();
   await page

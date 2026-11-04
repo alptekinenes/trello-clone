@@ -46,7 +46,7 @@ async function openBoard(page: Page, boardId: string, title = BOARD_TITLE): Prom
 }
 
 async function openMembers(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Üyeler', exact: true }).click();
+  await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Pano üyeleri' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -421,12 +421,12 @@ test.describe('what a plain member can do', () => {
 });
 
 test.describe('dialog focus and keyboard', () => {
-  test('Escape closes the members dialog and focus returns to the "Üyeler" button', async ({
+  test('Escape closes the members dialog and focus returns to the "Paylaş" button', async ({
     page,
   }) => {
     const { boardId } = await seedOwnerBoard(page);
     await openBoard(page, boardId);
-    const opener = page.getByRole('button', { name: 'Üyeler', exact: true });
+    const opener = page.getByRole('button', { name: 'Paylaş', exact: true });
 
     await opener.focus();
     await page.keyboard.press('Enter');
@@ -490,7 +490,7 @@ test.describe('a 320 px wide screen with touch', () => {
     await apiInvite(page, token, boardId, longEmail);
     await openBoard(page, boardId);
 
-    await page.getByRole('button', { name: 'Üyeler', exact: true }).tap();
+    await page.getByRole('button', { name: 'Paylaş', exact: true }).tap();
     const dialog = page.getByRole('dialog', { name: 'Pano üyeleri' });
     await expect(dialog).toBeVisible();
     await expect(pendingList(dialog)).toContainText(longEmail);

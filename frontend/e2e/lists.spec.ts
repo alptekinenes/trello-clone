@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { keyboardDragReady, seedBoard, signUp } from './helpers.js';
+import { keyboardDragReady, openBoardMenuItem, seedBoard, signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -219,7 +219,7 @@ test('archive a list, then restore it from the archive', async ({ page }) => {
   await expect.poll(() => listTitles(page)).toEqual(['B']);
   await expect(page.getByText('“A” listesi arşivlendi.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Arşiv', exact: true }).click();
+  await openBoardMenuItem(page, 'Arşiv');
   const dialog = page.getByRole('dialog', { name: 'Arşiv' });
   await dialog.getByRole('button', { name: '“A” listesini geri yükle' }).click();
   await expect(dialog.getByText('Arşivde liste yok.')).toBeVisible();

@@ -421,3 +421,9 @@ export async function signOut(page: Page): Promise<void> {
   await openAccountMenu(page);
   await page.getByRole('menuitem', { name: 'Çıkış yap' }).click();
 }
+
+/** Opens the board header's "Pano menüsü" and picks an item, as a person would. */
+export async function openBoardMenuItem(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name: 'Pano menüsü' }).click();
+  await page.getByRole('menuitem', { name, exact: true }).click();
+}

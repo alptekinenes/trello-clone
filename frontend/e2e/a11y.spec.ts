@@ -6,6 +6,7 @@ import {
   apiSetBoardBackground,
   expectNoA11yViolations,
   openAccountMenu,
+  openBoardMenuItem,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -82,9 +83,10 @@ async function openRichBoard(page: Page, background?: string): Promise<Seeded> {
   return seeded;
 }
 
-/** Opens a board toolbar dialog ("Üyeler", "Etiketler", "Arşiv", "Arka plan") and waits for it. */
-async function openToolbarDialog(page: Page, button: string, dialog: string): Promise<void> {
-  await page.getByRole('button', { name: button, exact: true }).click();
+/** Opens a board dialog: "Paylaş" is a toolbar button, the others live in the "Pano menüsü". */
+async function openToolbarDialog(page: Page, item: string, dialog: string): Promise<void> {
+  if (item === 'Paylaş') await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
+  else await openBoardMenuItem(page, item);
   await expect(page.getByRole('dialog', { name: dialog })).toBeVisible();
 }
 
@@ -170,7 +172,7 @@ function defineScreens(mode: Mode): void {
       const { token, boardId } = await seedRichBoard(page);
       await apiInvite(page, token, boardId, 'davetli-kisi@example.com');
       await page.goto(`/boards/${boardId}`);
-      await openToolbarDialog(page, 'Üyeler', 'Pano üyeleri');
+      await openToolbarDialog(page, 'Paylaş', 'Pano üyeleri');
       await expect(page.getByText('davetli-kisi@example.com')).toBeVisible();
       await expectNoA11yViolations(page);
     });
@@ -194,6 +196,13 @@ function defineScreens(mode: Mode): void {
       await expectNoA11yViolations(page);
     });
 
+    test('board menu open', async ({ page }) => {
+      await openRichBoard(page);
+      await page.getByRole('button', { name: 'Pano menüsü' }).click();
+      await expect(page.getByRole('menu', { name: 'Pano menüsü' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
     test('card actions dialog', async ({ page }) => {
       await openRichBoard(page);
       await page.getByRole('button', { name: `“${CARD_TITLE}” kartının işlemleri` }).click();
@@ -203,7 +212,7 @@ function defineScreens(mode: Mode): void {
 
     test('delete board confirmation dialog', async ({ page }) => {
       await openRichBoard(page);
-      await page.getByRole('button', { name: 'Panoyu sil' }).click();
+      await openBoardMenuItem(page, 'Panoyu sil');
       await expect(page.getByRole('dialog', { name: 'Pano silinsin mi?' })).toBeVisible();
       await expectNoA11yViolations(page);
     });
