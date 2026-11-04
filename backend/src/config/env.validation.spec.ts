@@ -38,7 +38,12 @@ describe('validateEnv', () => {
   });
 
   it.each(['development', 'test', 'production'])('accepts NODE_ENV %j', (value) => {
-    const env = validateEnv({ ...validEnv, NODE_ENV: value, APP_URL: 'https://app.example.com' });
+    const env = validateEnv({
+      ...validEnv,
+      NODE_ENV: value,
+      APP_URL: 'https://app.example.com',
+      CORS_ORIGIN: 'https://app.example.com',
+    });
     expect(env.NODE_ENV).toBe(value);
   });
 
@@ -103,9 +108,11 @@ describe('invitation settings', () => {
   it('requires APP_URL in production but keeps the localhost default elsewhere', () => {
     const production = { ...validEnv, NODE_ENV: 'production' };
 
-    expect(() => validateEnv(production)).toThrow(/APP_URL: must be set in production/);
-    expect(() => validateEnv({ ...production, APP_URL: '  ' })).toThrow(/APP_URL/);
-    expect(validateEnv({ ...production, APP_URL: 'https://app.example.com' }).APP_URL).toBe(
+    const withOrigin = { ...production, CORS_ORIGIN: 'https://app.example.com' };
+
+    expect(() => validateEnv(withOrigin)).toThrow(/APP_URL: must be set in production/);
+    expect(() => validateEnv({ ...withOrigin, APP_URL: '  ' })).toThrow(/APP_URL/);
+    expect(validateEnv({ ...withOrigin, APP_URL: 'https://app.example.com' }).APP_URL).toBe(
       'https://app.example.com',
     );
     expect(validateEnv({ ...validEnv, NODE_ENV: 'test' }).APP_URL).toBe('http://localhost:5173');
@@ -128,6 +135,54 @@ describe('invitation settings', () => {
     expect(() => validateEnv({ ...validEnv, INVITATION_RATE_LIMIT_PER_MINUTE: '10001' })).toThrow(
       /INVITATION_RATE_LIMIT_PER_MINUTE/,
     );
+  });
+});
+
+describe('production-only rules', () => {
+  const production = {
+    ...validEnv,
+    NODE_ENV: 'production',
+    APP_URL: 'https://app.example.com',
+    CORS_ORIGIN: 'https://app.example.com',
+  };
+
+  it('accepts a complete production config', () => {
+    expect(validateEnv(production).CORS_ORIGIN).toBe('https://app.example.com');
+  });
+
+  it('requires an explicit CORS_ORIGIN instead of the localhost default', () => {
+    expect(() => validateEnv({ ...production, CORS_ORIGIN: undefined })).toThrow(
+      /CORS_ORIGIN: must be set in production/,
+    );
+    expect(() => validateEnv({ ...production, CORS_ORIGIN: '  ' })).toThrow(/CORS_ORIGIN/);
+  });
+
+  it.each([
+    '*',
+    'https://a.example.com,https://b.example.com',
+    'https://app.example.com/app',
+    'https://app.example.com/',
+    'app.example.com',
+  ])('rejects CORS_ORIGIN %j', (value) => {
+    expect(() => validateEnv({ ...production, CORS_ORIGIN: value })).toThrow(/CORS_ORIGIN/);
+  });
+
+  it('rejects the placeholder JWT secret from .env.example', () => {
+    expect(() =>
+      validateEnv({
+        ...production,
+        JWT_ACCESS_SECRET: 'change-me-to-a-long-random-string-at-least-32-chars',
+      }),
+    ).toThrow(/JWT_ACCESS_SECRET: must not be the placeholder/);
+  });
+
+  it('leaves development and test untouched', () => {
+    const placeholder = 'change-me-to-a-long-random-string-at-least-32-chars';
+    for (const nodeEnv of ['development', 'test']) {
+      expect(
+        validateEnv({ ...validEnv, NODE_ENV: nodeEnv, JWT_ACCESS_SECRET: placeholder }).NODE_ENV,
+      ).toBe(nodeEnv);
+    }
   });
 });
 

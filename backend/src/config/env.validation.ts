@@ -125,6 +125,41 @@ function isSet(value: unknown): boolean {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+const PLACEHOLDER_SECRET_PREFIX = 'change-me';
+
+/** True for a bare http(s) origin such as https://app.example.com (no path, wildcard or list). */
+function isSingleOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+  } catch {
+    return false;
+  }
+}
+
+/** Production-only rules: values whose development defaults must never reach a live deployment. */
+function productionProblems(config: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  if (!isSet(config.APP_URL)) {
+    problems.push('APP_URL: must be set in production (invitation links are built from it)');
+  }
+  const origin = typeof config.CORS_ORIGIN === 'string' ? config.CORS_ORIGIN.trim() : '';
+  if (origin === '') {
+    problems.push(
+      'CORS_ORIGIN: must be set in production (the localhost default is for development)',
+    );
+  } else if (!isSingleOrigin(origin)) {
+    problems.push(
+      'CORS_ORIGIN: must be a single http(s) origin without a path, e.g. https://app.example.com',
+    );
+  }
+  const secret = config.JWT_ACCESS_SECRET;
+  if (typeof secret === 'string' && secret.toLowerCase().startsWith(PLACEHOLDER_SECRET_PREFIX)) {
+    problems.push('JWT_ACCESS_SECRET: must not be the placeholder from .env.example');
+  }
+  return problems;
+}
+
 /** Validates process env on startup; the app refuses to boot with a bad config. */
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
   const env = plainToInstance(EnvironmentVariables, config, { enableImplicitConversion: true });
@@ -132,9 +167,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   const problems = errors.map(
     (e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
   );
-  if (env.NODE_ENV === NodeEnv.Production && !isSet(config.APP_URL)) {
-    problems.push('APP_URL: must be set in production (invitation links are built from it)');
-  }
+  if (env.NODE_ENV === NodeEnv.Production) problems.push(...productionProblems(config));
   if (problems.length > 0) {
     throw new Error(`Invalid environment variables:\n- ${problems.join('\n- ')}`);
   }
