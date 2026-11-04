@@ -196,6 +196,22 @@ describe('useBoardRealtime: applying events', () => {
     ).toMatchObject({ title: 'Yeni ad', myRole: 'OWNER' });
   });
 
+  it('shows a background changed by someone else, also in the open background dialog', async () => {
+    const { user } = await openBoard({ role: 'ADMIN' });
+    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await screen.findByRole('dialog', { name: 'Arka plan' });
+    expect(screen.getByRole('radio', { name: 'Yeşil' })).toBeChecked();
+
+    emit(
+      'board:updated',
+      { id: BOARD_ID, title: 'Yol haritası', background: 'purple', updatedAt: '2026-11-03T10:00:00.000Z' },
+      here,
+    );
+
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Mor' })).toBeChecked());
+    expect(screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement).toHaveClass('bg-board-purple');
+  });
+
   it('removes the invitation section when my role drops below admin', async () => {
     const { user, queryClient } = await openBoard({ role: 'ADMIN' });
     server.use(http.get(INVITATIONS_URL, () => HttpResponse.json([])));

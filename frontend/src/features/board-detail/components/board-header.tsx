@@ -7,6 +7,7 @@ import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { RealtimeStatus } from '../../../shared/ui/realtime-status';
 import { useBoardActions } from '../hooks/use-board-actions';
 import { ArchiveDialog } from './archive-dialog';
+import { BoardBackgroundDialog } from './board-background-dialog';
 import { LabelsManager } from './labels-manager';
 import { MembersDialog } from './members-dialog';
 
@@ -55,6 +56,11 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
         <Button variant="on-board" className="h-8 px-3" onClick={actions.openArchive}>
           Arşiv
         </Button>
+        {actions.canChangeBackground && (
+          <Button variant="on-board" className="h-8 px-3" onClick={actions.openBackground}>
+            Arka plan
+          </Button>
+        )}
         {actions.canDelete && (
           <Button variant="on-board" className="h-8 px-3" onClick={actions.askDelete}>
             Panoyu sil
@@ -68,6 +74,14 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
         <Dialog title="Etiketler" onClose={actions.closeLabels} showCloseButton>
           <LabelsManager boardId={board.id} labels={detail.labels} />
         </Dialog>
+      )}
+
+      {actions.backgroundOpen && (
+        <BoardBackgroundDialog
+          background={board.background}
+          onChange={actions.changeBackground}
+          onClose={actions.closeBackground}
+        />
       )}
 
       {actions.archiveOpen && (

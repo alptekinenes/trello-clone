@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { BoardBackground } from '@trello/contracts';
 import { useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { apiErrorMessage } from '../../../shared/lib/api-error-message';
@@ -27,6 +28,7 @@ export function useCreateBoardForm() {
     form,
     onSubmit,
     preview: { title: title.trim(), background },
+    selectBackground: (next: BoardBackground) => form.setValue('background', next),
     isPending: createBoard.isPending,
     serverError: createBoard.error ? apiErrorMessage(createBoard.error) : null,
   };

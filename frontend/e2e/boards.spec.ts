@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { seedBoard, signUp } from './helpers.js';
+import { apiInvite, openBoardAs, seedBoard, signUp, signUpAs, watchRealtime } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -84,6 +84,7 @@ test.describe('a 320 px wide screen with touch', () => {
       page.getByRole('button', { name: 'Üyeler', exact: true }),
       page.getByRole('button', { name: 'Etiketler', exact: true }),
       page.getByRole('button', { name: 'Arşiv', exact: true }),
+      page.getByRole('button', { name: 'Arka plan', exact: true }),
       page.getByRole('button', { name: 'Panoyu sil' }),
       page.getByRole('button', { name: '“Yapılacaklar” listesini taşı' }),
       page.getByRole('button', { name: 'Yapılacaklar', exact: true }),
@@ -98,7 +99,68 @@ test.describe('a 320 px wide screen with touch', () => {
       expect(box?.width, `${target} width`).toBeGreaterThanOrEqual(43.5);
       expect(box?.height, `${target} height`).toBeGreaterThanOrEqual(43.5);
     }
+
+    await page.getByRole('button', { name: 'Arka plan', exact: true }).click();
+    const swatches = page.getByRole('dialog', { name: 'Arka plan' }).locator('label[title]');
+    await expect(swatches).toHaveCount(9);
+    for (const swatch of await swatches.all()) {
+      const box = await swatch.boundingBox();
+      expect(box?.width, 'swatch width').toBeGreaterThanOrEqual(43.5);
+      expect(box?.height, 'swatch height').toBeGreaterThanOrEqual(43.5);
+    }
   });
+});
+
+test('the owner changes the background; it survives a reload and shows live to a member', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const surface = (target: typeof page) =>
+    target.getByRole('heading', { level: 1 }).locator('xpath=ancestor::header/..');
+
+  const memberContext = await browser.newContext({ baseURL, locale: 'tr-TR' });
+  try {
+    const member = await memberContext.newPage();
+    watchRealtime(member);
+    const { email } = await signUpAs(member, 'Burak Üye');
+    watchRealtime(page);
+    const { token } = await signUpAs(page, 'Ayşe Sahip');
+    const boardId = await seedBoard(page, token, 'Renkli pano');
+    await apiInvite(page, token, boardId, email);
+
+    await openBoardAs(member, boardId, 'Renkli pano');
+    await expect(member.getByRole('button', { name: 'Arka plan' })).toHaveCount(0);
+    await expect(surface(member)).toHaveClass(/bg-board-blue/);
+
+    await openBoardAs(page, boardId, 'Renkli pano');
+    const opener = page.getByRole('button', { name: 'Arka plan', exact: true });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Arka plan' });
+    await expect(dialog.getByRole('radio', { name: 'Mavi', exact: true })).toBeChecked();
+
+    // Keyboard: the arrow keys move through the swatches and each applies at once.
+    await dialog.getByRole('radio', { name: 'Mavi', exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(dialog.getByRole('radio', { name: 'Yeşil', exact: true })).toBeChecked();
+    await dialog.getByTitle('Mor').click();
+    await expect(dialog.getByRole('radio', { name: 'Mor' })).toBeChecked();
+    await expect(surface(page)).toHaveClass(/bg-board-purple/);
+
+    // Live for the other person, without a reload.
+    await expect(surface(member)).toHaveClass(/bg-board-purple/);
+
+    // Escape closes the dialog and the focus goes back to the button.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(opener).toBeFocused();
+
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1, name: 'Renkli pano' })).toBeVisible();
+    await expect(surface(page)).toHaveClass(/bg-board-purple/);
+  } finally {
+    await memberContext.close();
+  }
 });
 
 test('a board of another user shows the not found page', async ({ page }) => {

@@ -1,8 +1,6 @@
-import { BOARD_BACKGROUNDS, BOARD_LIMITS } from '@trello/contracts';
-import {
-  BOARD_BACKGROUND_CLASS,
-  BOARD_BACKGROUND_NAME,
-} from '../../../shared/lib/board-background';
+import { BOARD_LIMITS } from '@trello/contracts';
+import { BOARD_BACKGROUND_CLASS } from '../../../shared/lib/board-background';
+import { BackgroundPicker } from '../../../shared/ui/background-picker';
 import { Button } from '../../../shared/ui/button';
 import { Dialog } from '../../../shared/ui/dialog';
 import { FormAlert } from '../../../shared/ui/form-alert';
@@ -10,7 +8,8 @@ import { TextField } from '../../../shared/ui/text-field';
 import { useCreateBoardForm } from '../hooks/use-create-board-form';
 
 export function CreateBoardDialog({ onClose }: { onClose: () => void }) {
-  const { form, onSubmit, preview, isPending, serverError } = useCreateBoardForm();
+  const { form, onSubmit, preview, selectBackground, isPending, serverError } =
+    useCreateBoardForm();
   const {
     register,
     formState: { errors },
@@ -35,26 +34,7 @@ export function CreateBoardDialog({ onClose }: { onClose: () => void }) {
           {...register('title')}
         />
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">Arka plan</legend>
-          <div className="flex flex-wrap gap-2">
-            {BOARD_BACKGROUNDS.map((background) => (
-              <label key={background} title={BOARD_BACKGROUND_NAME[background]}>
-                <input
-                  type="radio"
-                  value={background}
-                  className="peer sr-only"
-                  {...register('background')}
-                />
-                <span className="sr-only">{BOARD_BACKGROUND_NAME[background]}</span>
-                <span
-                  aria-hidden="true"
-                  className={`block h-8 w-12 cursor-pointer rounded-sm ${BOARD_BACKGROUND_CLASS[background]} peer-checked:ring-2 peer-checked:ring-fg peer-checked:ring-offset-2 peer-checked:ring-offset-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-focus`}
-                />
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <BackgroundPicker value={preview.background} onChange={selectBackground} />
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
