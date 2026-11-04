@@ -427,3 +427,9 @@ export async function openBoardMenuItem(page: Page, name: string): Promise<void>
   await page.getByRole('button', { name: 'Pano menüsü' }).click();
   await page.getByRole('menuitem', { name, exact: true }).click();
 }
+
+/** Opens the "…" menu of a list column ("“A” listesinin işlemleri") and picks an item, as a person would. */
+export async function openListMenuItem(page: Page, listTitle: string, name: string): Promise<void> {
+  await page.getByRole('button', { name: `“${listTitle}” listesinin işlemleri` }).click();
+  await page.getByRole('menuitem', { name, exact: true }).click();
+}

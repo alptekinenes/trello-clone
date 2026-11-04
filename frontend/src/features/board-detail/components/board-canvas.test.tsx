@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { useAuthStore } from '../../auth/store/auth-store';
 import { BOARD_ID, apiError, boardDetail, testLists, testUser } from '../../../test/fixtures';
 import { selectBoardMenuItem } from '../../../test/board-menu';
+import { selectListMenuItem } from '../../../test/list-menu';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 
@@ -133,7 +134,7 @@ describe('BoardCanvas', () => {
         }),
       );
 
-      await user.click(await screen.findByRole('button', { name: '“A” listesini arşivle' }));
+      await selectListMenuItem(user, 'A', 'Listeyi arşivle');
 
       expect(await listNames()).toEqual(['B']);
       expect(await screen.findByText('“A” listesi arşivlendi.')).toBeInTheDocument();

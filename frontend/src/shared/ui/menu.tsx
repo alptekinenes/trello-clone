@@ -178,8 +178,8 @@ export function MenuItem({ onSelect, children }: MenuItemProps) {
       role="menuitem"
       tabIndex={-1}
       onClick={() => {
-        onSelect();
         close();
+        onSelect();
       }}
       className={ITEM_CLASS}
     >
@@ -203,8 +203,8 @@ export function MenuRadioItem({ checked, onSelect, children }: MenuRadioItemProp
       aria-checked={checked}
       tabIndex={-1}
       onClick={() => {
-        onSelect();
         close();
+        onSelect();
       }}
       className={ITEM_CLASS}
     >

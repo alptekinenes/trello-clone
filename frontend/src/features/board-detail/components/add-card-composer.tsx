@@ -3,17 +3,17 @@ import { Button } from '../../../shared/ui/button';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { CloseIcon, PlusIcon } from '../../../shared/ui/icons';
 import { TextArea } from '../../../shared/ui/text-area';
-import { useAddCardForm } from '../hooks/use-add-card-form';
+import type { useAddCardForm } from '../hooks/use-add-card-form';
 
 interface AddCardComposerProps {
-  boardId: string;
-  listId: string;
+  /** State of the composer; the list owns it so its menu can open the composer too. */
+  composer: ReturnType<typeof useAddCardForm>;
   listTitle: string;
 }
 
-export function AddCardComposer({ boardId, listId, listTitle }: AddCardComposerProps) {
+export function AddCardComposer({ composer, listTitle }: AddCardComposerProps) {
   const { isOpen, open, close, openerRef, form, onSubmit, onKeyDown, isPending, serverError } =
-    useAddCardForm(boardId, listId);
+    composer;
   const {
     register,
     formState: { errors },

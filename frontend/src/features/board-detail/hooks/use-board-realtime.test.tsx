@@ -388,7 +388,7 @@ describe('useBoardRealtime: keeping the keyboard focus on the board', () => {
 
   it('moves the focus to the "Listeler" region when the list holding the focus is deleted', async () => {
     await openBoard({ cards: [] });
-    act(() => screen.getByRole('button', { name: '“Yapılacaklar” listesini arşivle' }).focus());
+    act(() => screen.getByRole('button', { name: '“Yapılacaklar” listesinin işlemleri' }).focus());
 
     emit('list:deleted', { id: TODO.id }, here);
 

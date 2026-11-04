@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { keyboardDragReady, openBoardMenuItem, seedBoard, signUp } from './helpers.js';
+import { keyboardDragReady, openBoardMenuItem, openListMenuItem, seedBoard, signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -212,10 +212,23 @@ test.describe('single column layout on a narrow screen', () => {
   });
 });
 
+test('the list header counts the cards and its menu opens the card composer', async ({ page }) => {
+  await openSeededBoard(page, ['A']);
+  await expect(page.getByText('0 kart', { exact: true })).toBeVisible();
+
+  await openListMenuItem(page, 'A', 'Kart ekle');
+  const input = page.getByRole('textbox', { name: 'Kart başlığı' });
+  await expect(input).toBeFocused();
+  await input.fill('Birinci');
+  await input.press('Enter');
+
+  await expect(page.getByText('1 kart', { exact: true })).toBeVisible();
+});
+
 test('archive a list, then restore it from the archive', async ({ page }) => {
   await openSeededBoard(page, ['A', 'B']);
 
-  await page.getByRole('button', { name: '“A” listesini arşivle' }).click();
+  await openListMenuItem(page, 'A', 'Listeyi arşivle');
   await expect.poll(() => listTitles(page)).toEqual(['B']);
   await expect(page.getByText('“A” listesi arşivlendi.')).toBeVisible();
 

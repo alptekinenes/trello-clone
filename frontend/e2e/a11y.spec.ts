@@ -203,6 +203,13 @@ function defineScreens(mode: Mode): void {
       await expectNoA11yViolations(page);
     });
 
+    test('list menu open', async ({ page }) => {
+      await openRichBoard(page);
+      await page.getByRole('button', { name: '“Yapılacaklar” listesinin işlemleri' }).click();
+      await expect(page.getByRole('menu', { name: '“Yapılacaklar” listesinin işlemleri' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
     test('card actions dialog', async ({ page }) => {
       await openRichBoard(page);
       await page.getByRole('button', { name: `“${CARD_TITLE}” kartının işlemleri` }).click();

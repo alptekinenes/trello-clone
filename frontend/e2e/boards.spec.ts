@@ -85,7 +85,7 @@ test.describe('a 320 px wide screen with touch', () => {
       page.getByRole('button', { name: 'Pano menüsü' }),
       page.getByRole('button', { name: '“Yapılacaklar” listesini taşı' }),
       page.getByRole('button', { name: 'Yapılacaklar', exact: true }),
-      page.getByRole('button', { name: '“Yapılacaklar” listesini arşivle' }),
+      page.getByRole('button', { name: '“Yapılacaklar” listesinin işlemleri' }),
       page.getByRole('button', { name: '“Birinci kart” kartının işlemleri' }),
       page.getByRole('button', { name: '“Yapılacaklar” listesine kart ekle' }),
       page.getByRole('button', { name: 'Başka liste ekle' }),
@@ -96,6 +96,20 @@ test.describe('a 320 px wide screen with touch', () => {
       expect(box?.width, `${target} width`).toBeGreaterThanOrEqual(43.5);
       expect(box?.height, `${target} height`).toBeGreaterThanOrEqual(43.5);
     }
+
+    // The list menu opens inside the 320 px screen and its items are touch-sized.
+    await page.getByRole('button', { name: '“Yapılacaklar” listesinin işlemleri' }).tap();
+    const listMenu = page.getByRole('menu', { name: '“Yapılacaklar” listesinin işlemleri' });
+    const listMenuBox = await listMenu.boundingBox();
+    expect(listMenuBox?.x).toBeGreaterThanOrEqual(0);
+    expect((listMenuBox?.x ?? 0) + (listMenuBox?.width ?? 0)).toBeLessThanOrEqual(320);
+    const listItems = await listMenu.getByRole('menuitem').all();
+    expect(listItems).toHaveLength(2);
+    for (const item of listItems) {
+      const box = await item.boundingBox();
+      expect(box?.height, 'list menu item height').toBeGreaterThanOrEqual(43.5);
+    }
+    await page.keyboard.press('Escape');
 
     // The board menu opens inside the 320 px screen and its items are touch-sized.
     await page.getByRole('button', { name: 'Pano menüsü' }).tap();

@@ -32,7 +32,7 @@ export function AddListComposer({ boardId, hasLists }: { boardId: string; hasLis
     <form
       noValidate
       onSubmit={onSubmit}
-      className={`flex ${LIST_WIDTH} shrink-0 snap-start flex-col gap-2 rounded-lg bg-surface-sunken p-2 shadow-card`}
+      className={`flex ${LIST_WIDTH} shrink-0 snap-start flex-col gap-2 rounded-lg bg-list p-2 shadow-card`}
     >
       {serverError && <FormAlert>{serverError}</FormAlert>}
       <TextField

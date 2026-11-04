@@ -11,7 +11,7 @@ import { CardTileBody } from './card-tile-body';
 /** Id of the hidden hint every card tile points to with aria-describedby. */
 export const CARD_OPEN_HINT_ID = 'card-open-hint';
 
-const SURFACE = 'rounded-md bg-surface px-3 py-2 text-sm text-fg shadow-card';
+const SURFACE = 'rounded-md bg-card px-3 py-2 text-sm text-fg shadow-card';
 
 /**
  * Static copy of a card shown under the pointer while dragging. dnd-kit
@@ -117,7 +117,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         onKeyDown={onKeyDown}
         aria-labelledby={titleId}
         aria-describedby={describedBy}
-        className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:shadow-raised pointer-coarse:min-h-11 pointer-coarse:pr-12`}
+        className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:ring-2 hover:ring-card-hover-ring pointer-coarse:min-h-11 pointer-coarse:pr-12`}
       >
         <CardTileBody
           card={card}
@@ -132,7 +132,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         aria-label={`“${card.title}” kartının işlemleri`}
         title="Kart işlemleri"
         onClick={() => openActions(card.id, card.listId)}
-        className="absolute top-1 right-1 inline-flex size-7 items-center justify-center rounded-md pointer-coarse:top-0 pointer-coarse:right-0 pointer-coarse:size-11 bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
+        className="absolute top-1 right-1 inline-flex size-7 items-center justify-center rounded-md pointer-coarse:top-0 pointer-coarse:right-0 pointer-coarse:size-11 bg-card text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
       >
         <MoreIcon />
       </button>
