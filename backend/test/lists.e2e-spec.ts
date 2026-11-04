@@ -126,7 +126,11 @@ describe('Lists (e2e, database)', () => {
       const c = await createList('C');
 
       const res = await move(c.id, { afterListId: a.id }).expect(200);
-      expect(res.body).toEqual({ id: c.id, position: (a.position + b.position) / 2 });
+      expect(res.body).toEqual({
+        id: c.id,
+        position: (a.position + b.position) / 2,
+        rebalanced: null,
+      });
       expect(await boardOrder()).toEqual(['A', 'C', 'B']);
 
       await move(b.id, { beforeListId: a.id }).expect(200);
@@ -166,15 +170,25 @@ describe('Lists (e2e, database)', () => {
       // Simulate many earlier moves into the same gap.
       await prisma.list.update({ where: { id: b.id }, data: { position: a.position + 1e-7 } });
 
-      await move(c.id, { afterListId: a.id }).expect(200);
+      const res = await move(c.id, { afterListId: a.id }).expect(200);
 
       expect(await boardOrder()).toEqual(['A', 'C', 'B']);
-      const positions = await prisma.list.findMany({
+      const rows = await prisma.list.findMany({
         where: { boardId },
         orderBy: { position: 'asc' },
-        select: { position: true },
+        select: { id: true, position: true },
       });
-      expect(positions.map((p) => p.position)).toEqual([1, 2, 3].map((i) => i * POSITION_GAP));
+      expect(rows.map((r) => r.position)).toEqual([1, 2, 3].map((i) => i * POSITION_GAP));
+      // The response carries the new positions of the other lists, as stored.
+      const stored = new Map(rows.map((r) => [r.id, r.position]));
+      expect(res.body.position).toBe(stored.get(c.id));
+      expect(res.body.rebalanced).toEqual({
+        entity: 'list',
+        positions: [
+          { id: a.id, position: stored.get(a.id) },
+          { id: b.id, position: stored.get(b.id) },
+        ],
+      });
     });
 
     it('keeps a consistent order under 10 parallel moves', async () => {

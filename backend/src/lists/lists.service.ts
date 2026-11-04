@@ -13,7 +13,7 @@ import { invalidTarget } from '../ordering/ordering.errors.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors, Placement, Sibling } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { rebalanceEvents } from '../realtime/board-events.js';
+import { rebalanceEvents, rebalancedData } from '../realtime/board-events.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { LIST_ORDER, LIST_SELECT, toListDto } from './list.mapper.js';
@@ -112,7 +112,7 @@ export class ListsService {
     origin: EventOrigin,
   ): Promise<MoveListResponse> {
     const { result: moved, rebalanced } = await this.prisma.$transaction(
-      async (tx): Promise<Written<MoveListResponse>> => {
+      async (tx): Promise<Written<{ id: string; position: number }>> => {
         await this.lock(tx, boardId);
         const current = await this.findOnBoard(tx, boardId, listId);
         if (current.archivedAt) throw invalidTarget('Archived lists cannot be moved');
@@ -125,11 +125,12 @@ export class ListsService {
         return { result: { id: listId, position }, rebalanced: respread };
       },
     );
+    const rebalancedPositions = rebalancedData({ entity: 'list' }, rebalanced);
     this.realtime.toBoard(boardId, origin, [
       ...rebalanceEvents({ entity: 'list' }, rebalanced),
       { type: 'list:moved', data: moved },
     ]);
-    return moved;
+    return { ...moved, rebalanced: rebalancedPositions };
   }
 
   /** Cards on the list go with it (cascade). */

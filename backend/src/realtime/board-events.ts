@@ -9,6 +9,19 @@ export type RebalanceTarget =
   | { entity: 'checklist-item'; cardId: string; checklistId: string };
 
 /**
+ * The data of a `position:rebalanced` event for a placement that had to respread
+ * its siblings, or null. Move endpoints return the same data in their response.
+ */
+export function rebalancedData(
+  target: RebalanceTarget,
+  rebalanced: readonly Sibling[] | null,
+): PositionRebalancedData | null {
+  if (!rebalanced) return null;
+  const positions = rebalanced.map(({ id, position }) => ({ id, position }));
+  return { ...target, positions };
+}
+
+/**
  * The `position:rebalanced` event for a placement that had to respread its siblings,
  * or no event at all. Put it in front of the event of the change that caused it.
  */
@@ -16,8 +29,6 @@ export function rebalanceEvents(
   target: RebalanceTarget,
   rebalanced: readonly Sibling[] | null,
 ): BoardEvent[] {
-  if (!rebalanced) return [];
-  const positions = rebalanced.map(({ id, position }) => ({ id, position }));
-  const data: PositionRebalancedData = { ...target, positions };
-  return [{ type: 'position:rebalanced', data }];
+  const data = rebalancedData(target, rebalanced);
+  return data ? [{ type: 'position:rebalanced', data }] : [];
 }

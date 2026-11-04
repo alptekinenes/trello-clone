@@ -733,6 +733,7 @@ describe('Realtime events (e2e, socket.io)', () => {
         [world.card1.id, world.card2.id].sort(),
       );
       for (const entry of data.positions) expect(entry.position).toBe(stored.get(entry.id));
+      expect((res.body as { rebalanced: unknown }).rebalanced).toEqual(data);
       const moved = await expectNext(world.b1.events, 'card:moved');
       expect(moved.data).toEqual({
         id: world.card3.id,

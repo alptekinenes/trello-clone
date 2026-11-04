@@ -14,7 +14,7 @@ import { invalidTarget, positionConflict } from '../ordering/ordering.errors.js'
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors, Placement, Sibling } from '../ordering/placement.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { rebalanceEvents } from '../realtime/board-events.js';
+import { rebalanceEvents, rebalancedData } from '../realtime/board-events.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { findCardSummaries } from './card-summaries.js';
@@ -192,11 +192,12 @@ export class CardsService {
         beforeId: input.beforeCardId,
       });
       await tx.card.update({ where: { id: cardId }, data: { listId: input.listId, position } });
-      const result: MoveCardResponse = { id: cardId, listId: input.listId, position };
+      const result = { id: cardId, listId: input.listId, position };
       return { fromListId: card.listId, moved: result, rebalanced: respread };
     });
+    const target = { entity: 'card', listId: moved.listId } as const;
     this.realtime.toBoard(boardId, origin, [
-      ...rebalanceEvents({ entity: 'card', listId: moved.listId }, rebalanced),
+      ...rebalanceEvents(target, rebalanced),
       {
         type: 'card:moved',
         data: {
@@ -207,7 +208,7 @@ export class CardsService {
         },
       },
     ]);
-    return moved;
+    return { ...moved, rebalanced: rebalancedData(target, rebalanced) };
   }
 
   async remove(boardId: string, cardId: string, origin: EventOrigin): Promise<void> {

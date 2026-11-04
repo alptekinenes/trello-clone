@@ -1,3 +1,5 @@
+import type { PositionRebalancedData } from './position.js';
+
 export const LIST_LIMITS = {
   TITLE_MAX: 100,
 } as const;
@@ -35,4 +37,6 @@ export type MoveListRequest = ListAnchors;
 export interface MoveListResponse {
   id: string;
   position: number;
+  /** Set when the move respread the board's other lists; same data as the `position:rebalanced` event. */
+  rebalanced: PositionRebalancedData | null;
 }

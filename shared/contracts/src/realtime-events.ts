@@ -4,6 +4,7 @@ import type { ChecklistDto, ChecklistItemDto } from './checklists.js';
 import type { ErrorCode } from './errors.js';
 import type { LabelDto } from './labels.js';
 import type { ListDto } from './lists.js';
+import type { PositionRebalancedData } from './position.js';
 
 /** Socket.io namespace of the app. The HTTP path is socket.io's default. */
 export const REALTIME_NAMESPACE = '/realtime';
@@ -21,17 +22,7 @@ export type BoardInfoDto = Omit<BoardSummaryDto, 'myRole'>;
 /** A card's checklist counters after a checklist change, for its tile. */
 export type CardChecklistCounts = Pick<CardSummaryDto, 'checklistTotal' | 'checklistDone'>;
 
-export interface PositionUpdate {
-  id: string;
-  position: number;
-}
-
-/** New positions of the other siblings after the gap ran out. Sent right before the event that caused it. */
-export type PositionRebalancedData =
-  | { entity: 'list'; positions: PositionUpdate[] }
-  | { entity: 'card'; listId: string; positions: PositionUpdate[] }
-  | { entity: 'checklist'; cardId: string; positions: PositionUpdate[] }
-  | { entity: 'checklist-item'; cardId: string; checklistId: string; positions: PositionUpdate[] };
+export type { PositionRebalancedData, PositionUpdate } from './position.js';
 
 /** Events for everyone in `board:<id>`. */
 export interface BoardEventMap {

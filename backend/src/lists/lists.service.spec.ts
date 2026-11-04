@@ -120,6 +120,37 @@ describe('ListsService', () => {
       expect(list.update).toHaveBeenCalledWith({ where: { id: 'b' }, data: { position: 512 } });
     });
 
+    it('returns the new position and no rebalance when the gap was enough', async () => {
+      const { service } = setup();
+
+      const result = await service.move(BOARD, 'b', { beforeListId: 'a' }, ORIGIN);
+
+      expect(result).toEqual({ id: 'b', position: 512, rebalanced: null });
+    });
+
+    it('returns the rebalanced positions of the other lists', async () => {
+      const { service } = setup({
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      const result = await service.move(BOARD, 'c', { afterListId: 'a' }, ORIGIN);
+
+      expect(result).toEqual({
+        id: 'c',
+        position: 2048,
+        rebalanced: {
+          entity: 'list',
+          positions: [
+            { id: 'a', position: 1024 },
+            { id: 'b', position: 3072 },
+          ],
+        },
+      });
+    });
+
     it('refuses archived lists with 400 INVALID_TARGET', async () => {
       const { service } = setup({ current: { archivedAt: ARCHIVED_AT } });
 
@@ -247,13 +278,14 @@ describe('ListsService', () => {
         ],
       });
 
-      await service.move(BOARD, 'c', { afterListId: 'a' }, ORIGIN);
+      const result = await service.move(BOARD, 'c', { afterListId: 'a' }, ORIGIN);
 
       const events = realtime.toBoard.mock.calls[0][2];
       expect(events.map((event: { type: string }) => event.type)).toEqual([
         'position:rebalanced',
         'list:moved',
       ]);
+      expect(result.rebalanced).toEqual(events[0].data);
     });
 
     it('broadcasts list:deleted after the delete', async () => {

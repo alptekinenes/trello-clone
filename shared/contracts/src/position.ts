@@ -29,3 +29,18 @@ export function needsRebalance(prev: number | null, next: number | null, pos: nu
 export function rebalancedPositions(count: number): number[] {
   return Array.from({ length: count }, (_, i) => (i + 1) * POSITION_GAP);
 }
+
+export interface PositionUpdate {
+  id: string;
+  position: number;
+}
+
+/**
+ * New positions of the other siblings after the gap ran out. Sent right before
+ * the event that caused it (`position:rebalanced`) and returned by the move endpoints.
+ */
+export type PositionRebalancedData =
+  | { entity: 'list'; positions: PositionUpdate[] }
+  | { entity: 'card'; listId: string; positions: PositionUpdate[] }
+  | { entity: 'checklist'; cardId: string; positions: PositionUpdate[] }
+  | { entity: 'checklist-item'; cardId: string; checklistId: string; positions: PositionUpdate[] };

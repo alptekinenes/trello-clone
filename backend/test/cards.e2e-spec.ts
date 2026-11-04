@@ -211,6 +211,7 @@ describe('Cards (e2e, database)', () => {
         id: c.id,
         listId: todo.id,
         position: (a.position + b.position) / 2,
+        rebalanced: null,
       });
       expect((await columns()).Yapılacaklar).toEqual(['A', 'C', 'B']);
 
@@ -229,7 +230,12 @@ describe('Cards (e2e, database)', () => {
       expect(await columns()).toEqual({ Yapılacaklar: ['B'], Bitti: ['A'] });
 
       const res = await move(b.id, { listId: done.id, beforeCardId: a.id }).expect(200);
-      expect(res.body).toEqual({ id: b.id, listId: done.id, position: POSITION_GAP / 2 });
+      expect(res.body).toEqual({
+        id: b.id,
+        listId: done.id,
+        position: POSITION_GAP / 2,
+        rebalanced: null,
+      });
       expect(await columns()).toEqual({ Yapılacaklar: [], Bitti: ['B', 'A'] });
     });
 
@@ -287,15 +293,26 @@ describe('Cards (e2e, database)', () => {
       // Simulate many earlier moves into the same gap.
       await prisma.card.update({ where: { id: b.id }, data: { position: a.position + 1e-7 } });
 
-      await move(c.id, { listId: done.id, afterCardId: a.id }).expect(200);
+      const res = await move(c.id, { listId: done.id, afterCardId: a.id }).expect(200);
 
       expect((await columns()).Bitti).toEqual(['A', 'C', 'B']);
       const rows = await prisma.card.findMany({
         where: { listId: done.id },
         orderBy: { position: 'asc' },
-        select: { position: true },
+        select: { id: true, position: true },
       });
       expect(rows.map((r) => r.position)).toEqual([1, 2, 3].map((i) => i * POSITION_GAP));
+      // The response carries the new positions of the other cards, as stored.
+      const stored = new Map(rows.map((r) => [r.id, r.position]));
+      expect(res.body.position).toBe(stored.get(c.id));
+      expect(res.body.rebalanced).toEqual({
+        entity: 'card',
+        listId: done.id,
+        positions: [
+          { id: a.id, position: stored.get(a.id) },
+          { id: b.id, position: stored.get(b.id) },
+        ],
+      });
     });
 
     it('keeps both lists consistent under 20 parallel moves', async () => {

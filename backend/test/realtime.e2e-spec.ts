@@ -338,7 +338,12 @@ describe('Realtime (e2e, socket.io)', () => {
         toListId: world.list2.id,
         position: (res.body as { position: number }).position,
       });
-      expect(res.body).toEqual({ id: moved.data.id, listId: moved.data.toListId, position: moved.data.position });
+      expect(res.body).toEqual({
+        id: moved.data.id,
+        listId: moved.data.toListId,
+        position: moved.data.position,
+        rebalanced: null,
+      });
       await expectMoved(world, [world.b1, world.a2], moved);
       await expectNothing(world.a1);
       await expectNothing(world.c1);

@@ -1,4 +1,5 @@
 import type { ChecklistDto } from './checklists.js';
+import type { PositionRebalancedData } from './position.js';
 
 export const CARD_LIMITS = {
   TITLE_MAX: 512,
@@ -58,4 +59,6 @@ export interface MoveCardResponse {
   id: string;
   listId: string;
   position: number;
+  /** Set when the move respread the target list's other cards; same data as the `position:rebalanced` event. */
+  rebalanced: PositionRebalancedData | null;
 }

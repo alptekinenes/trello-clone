@@ -1,4 +1,19 @@
-import { rebalanceEvents } from './board-events.js';
+import { rebalanceEvents, rebalancedData } from './board-events.js';
+
+describe('rebalancedData', () => {
+  it('is null when nothing was rebalanced', () => {
+    expect(rebalancedData({ entity: 'list' }, null)).toBeNull();
+  });
+
+  it('is the data of the position:rebalanced event', () => {
+    const target = { entity: 'card' as const, listId: 'l1' };
+    const siblings = [{ id: 'a', position: 1024 }];
+
+    expect(rebalanceEvents(target, siblings)).toEqual([
+      { type: 'position:rebalanced', data: rebalancedData(target, siblings) },
+    ]);
+  });
+});
 
 describe('rebalanceEvents', () => {
   it('is empty when nothing was rebalanced', () => {

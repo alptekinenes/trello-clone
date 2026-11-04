@@ -166,7 +166,7 @@ describe('CardsService', () => {
         where: { id: 'c' },
         data: { listId: OTHER_LIST, position: 1536 },
       });
-      expect(result).toEqual({ id: 'c', listId: OTHER_LIST, position: 1536 });
+      expect(result).toEqual({ id: 'c', listId: OTHER_LIST, position: 1536, rebalanced: null });
     });
 
     it('locks one list for a move inside it', async () => {
@@ -244,6 +244,36 @@ describe('CardsService', () => {
         [{ where: { id: 'b' }, data: { position: 3072 } }],
         [{ where: { id: 'c' }, data: { listId: OTHER_LIST, position: 2048 } }],
       ]);
+    });
+
+    it('returns the rebalanced positions of the target list', async () => {
+      const { service } = setup({
+        siblings: [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 1 + 1e-7 },
+        ],
+      });
+
+      const result = await service.move(
+        BOARD,
+        'c',
+        { listId: OTHER_LIST, afterCardId: 'a' },
+        ORIGIN,
+      );
+
+      expect(result).toEqual({
+        id: 'c',
+        listId: OTHER_LIST,
+        position: 2048,
+        rebalanced: {
+          entity: 'card',
+          listId: OTHER_LIST,
+          positions: [
+            { id: 'a', position: 1024 },
+            { id: 'b', position: 3072 },
+          ],
+        },
+      });
     });
   });
 
@@ -514,13 +544,19 @@ describe('CardsService', () => {
         ],
       });
 
-      await service.move(BOARD, 'c', { listId: OTHER_LIST, afterCardId: 'a' }, ORIGIN);
+      const result = await service.move(
+        BOARD,
+        'c',
+        { listId: OTHER_LIST, afterCardId: 'a' },
+        ORIGIN,
+      );
 
       expect(types(realtime)).toEqual(['position:rebalanced', 'card:moved']);
       expect(realtime.toBoard.mock.calls[0][2][0].data).toMatchObject({
         entity: 'card',
         listId: OTHER_LIST,
       });
+      expect(result.rebalanced).toEqual(realtime.toBoard.mock.calls[0][2][0].data);
     });
 
     it('broadcasts nothing when a move is refused', async () => {
