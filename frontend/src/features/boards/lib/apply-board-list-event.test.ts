@@ -1,16 +1,15 @@
-import type { RealtimeMessage } from '@trello/contracts';
+import type { UserEvent } from '@trello/contracts';
 import { describe, expect, it } from 'vitest';
 import { boardSummary } from '../../../test/fixtures';
 import { applyBoardListEvent } from './apply-board-list-event';
 
 const A = boardSummary({ id: 'A', title: 'A' });
 const B = boardSummary({ id: 'B', title: 'B' });
-const envelope = { boardId: 'X', actorId: 'u2', emittedAt: '' };
 
-function message(type: 'membership:added', data: typeof A): RealtimeMessage;
-function message(type: 'membership:removed' | 'board:deleted', data: { boardId: string }): RealtimeMessage;
-function message(type: string, data: unknown): RealtimeMessage {
-  return { ...envelope, type, data } as unknown as RealtimeMessage;
+function message(type: 'membership:added', data: typeof A): UserEvent;
+function message(type: 'membership:removed' | 'board:deleted', data: { boardId: string }): UserEvent;
+function message(type: string, data: unknown): UserEvent {
+  return { type, data } as UserEvent;
 }
 
 describe('applyBoardListEvent', () => {
@@ -41,14 +40,4 @@ describe('applyBoardListEvent', () => {
       expect(applyBoardListEvent(boards, message(type, { boardId: 'Z' }))).toBe(boards);
     },
   );
-
-  it('leaves the list alone for board-room events', () => {
-    const boards = [A];
-    const event: RealtimeMessage = {
-      ...envelope,
-      type: 'list:deleted',
-      data: { id: 'L1' },
-    };
-    expect(applyBoardListEvent(boards, event)).toBe(boards);
-  });
 });

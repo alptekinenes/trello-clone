@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { isUserEventName, type BoardSummaryDto } from '@trello/contracts';
+import type { BoardSummaryDto } from '@trello/contracts';
 import { useRealtimeEvents } from '../../../shared/hooks/use-realtime-events';
+import { asUserEvent } from '../../../shared/lib/realtime-message';
 import { boardKeys } from '../api/board-keys';
 import { applyBoardListEvent } from '../lib/apply-board-list-event';
 
@@ -13,9 +14,10 @@ export function useBoardListRealtime(): void {
   const queryClient = useQueryClient();
 
   useRealtimeEvents((message) => {
-    if (!isUserEventName(message.type)) return;
+    const event = asUserEvent(message);
+    if (!event) return;
     queryClient.setQueryData<BoardSummaryDto[]>(boardKeys.list(), (boards) =>
-      boards ? applyBoardListEvent(boards, message) : boards,
+      boards ? applyBoardListEvent(boards, event) : boards,
     );
   });
 }

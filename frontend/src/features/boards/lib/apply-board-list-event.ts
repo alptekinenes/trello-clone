@@ -1,28 +1,26 @@
-import type { BoardSummaryDto, RealtimeMessage } from '@trello/contracts';
+import type { BoardSummaryDto, UserEvent } from '@trello/contracts';
 
 /**
  * Applies a user-room event to the list of the user's boards. Pure and
  * idempotent; returns the same array when the event changes nothing.
- * Board-room events are not about this list.
  */
-export function applyBoardListEvent(
-  boards: BoardSummaryDto[],
-  message: RealtimeMessage,
-): BoardSummaryDto[] {
-  switch (message.type) {
+export function applyBoardListEvent(boards: BoardSummaryDto[], event: UserEvent): BoardSummaryDto[] {
+  switch (event.type) {
     case 'membership:added': {
-      const summary = message.data;
+      const summary = event.data;
       if (!boards.some((board) => board.id === summary.id)) return [summary, ...boards];
       return boards.map((board) => (board.id === summary.id ? summary : board));
     }
     case 'membership:removed':
     case 'board:deleted': {
-      const { boardId } = message.data;
+      const { boardId } = event.data;
       return boards.some((board) => board.id === boardId)
         ? boards.filter((board) => board.id !== boardId)
         : boards;
     }
-    default:
-      return boards;
+    default: {
+      const unhandled: never = event;
+      return unhandled;
+    }
   }
 }
