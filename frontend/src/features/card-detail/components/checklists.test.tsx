@@ -1,9 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import type { CardDetailDto, ChecklistDto, ChecklistItemDto } from '@trello/contracts';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { CARD_PATH, CARD_URL, cardDialog, openCard } from '../../../test/card-dialog';
 import { apiError } from '../../../test/fixtures';
+import { gate } from '../../../test/gate';
 import { server } from '../../../test/msw-server';
 import { useToastStore } from '../../../shared/store/toast-store';
 import { useCardDetailStore } from '../store/card-detail-store';
@@ -80,9 +81,12 @@ describe('item ticks', () => {
   it('updates the tile counter at once and keeps it after the answer', async () => {
     const { user, serverCard } = openCard(CARD_PATH, { checklists: [TODO_LIST] });
     itemEndpoints(serverCard);
+    const answer = gate();
+    const answered = gate();
     server.use(
       http.patch('*/api/v1/checklist-items/i-1', async () => {
-        await delay(80);
+        await answer.opened;
+        answered.release();
         return HttpResponse.json({ ...TODO_LIST.items[0], isCompleted: true });
       }),
     );
@@ -97,6 +101,9 @@ describe('item ticks', () => {
       'aria-valuetext',
       "2 öğeden 1'si tamamlandı",
     );
+
+    answer.release();
+    await answered.opened;
     await waitFor(() => expect(screen.getByText('1/2')).toBeInTheDocument());
   });
 

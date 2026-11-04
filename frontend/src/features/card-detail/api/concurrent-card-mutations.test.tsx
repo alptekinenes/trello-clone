@@ -1,9 +1,9 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { CardDetailDto, ChecklistItemDto, LabelDto } from '@trello/contracts';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   BOARD_ID,
   apiError,
@@ -13,6 +13,7 @@ import {
   testLists,
 } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
+import { gate, waitForMutationSuccess } from '../../../test/gate';
 import { createTestQueryClient } from '../../../test/render';
 import { useBoard } from '../../board-detail';
 // A label rename is a board mutation; the test needs one that runs inside the dialog.
@@ -71,7 +72,8 @@ async function setup() {
   const done = () => card()?.checklists[0].items[0].isCompleted;
   await waitFor(() => expect(result.current.detail.isFetching).toBe(false));
   requests.card = 0;
-  return { result, card, done };
+  cardRefetch = gate();
+  return { result, card, done, queryClient };
 }
 
 const requests = { card: 0 };
@@ -79,17 +81,25 @@ const requests = { card: 0 };
 /** The card as the server has it: the GETs read it, the PATCH handlers of a test change it. */
 let serverCard: CardDetailDto = CARD;
 
+/**
+ * Once the dialog has loaded, the GETs of the card are held back (until the test ends), so the
+ * cache can be looked at between an answer and the refetch it triggers.
+ */
+let cardRefetch = gate();
+
+afterEach(() => cardRefetch.release());
+
 function serverBoard() {
   requests.card = 0;
   serverCard = CARD;
+  cardRefetch.release();
   server.use(
     http.get(`*/api/v1/boards/${BOARD_ID}`, () =>
       HttpResponse.json(boardDetail('OWNER', 'Pano', [TODO], [testCard(serverCard)], [LABEL])),
     ),
     http.get(`*/api/v1/cards/${CARD.id}`, async () => {
       requests.card += 1;
-      // Slow enough to look at the cache between an answer and the refetch it triggers.
-      await delay(200);
+      await cardRefetch.opened;
       return HttpResponse.json(serverCard);
     }),
   );
@@ -102,63 +112,88 @@ const setItemDone = (isCompleted: boolean) => {
   });
 };
 
+const isItemChange = (variables: unknown, isCompleted: boolean) =>
+  (variables as { isCompleted?: boolean }).isCompleted === isCompleted;
+
+const isTitleChange = (variables: unknown, title: string) => (variables as { title?: string }).title === title;
+
 describe('overlapping changes to one card', () => {
   it('ignores the answer of an older change to a field a newer change has set', async () => {
     serverBoard();
+    const arrived = { ticked: gate(), unticked: gate() };
+    const answer = { ticked: gate(), unticked: gate() };
     server.use(
       http.patch('*/api/v1/checklist-items/i-1', async ({ request }) => {
         const body = (await request.json()) as { isCompleted: boolean };
+        const key = body.isCompleted ? 'ticked' : 'unticked';
         setItemDone(body.isCompleted);
-        await delay(body.isCompleted ? 40 : 160);
+        arrived[key].release();
+        await answer[key].opened;
         return HttpResponse.json({ ...ITEM, isCompleted: body.isCompleted });
       }),
     );
-    const { result, done } = await setup();
+    const { result, done, queryClient } = await setup();
 
     act(() => {
       result.current.updateItem.mutate({ itemId: 'i-1', isCompleted: true });
       result.current.updateItem.mutate({ itemId: 'i-1', isCompleted: false });
     });
-    await waitFor(() => expect(done()).toBe(false));
+    await arrived.ticked.opened;
+    await arrived.unticked.opened;
+    expect(done()).toBe(false);
 
     // The first answer (ticked) arrives while the second request is still on its way.
-    await delay(90);
+    answer.ticked.release();
+    await waitForMutationSuccess(queryClient, (variables) => isItemChange(variables, true));
+    expect(done()).toBe(false);
+
+    // The last answer settles the changes, which refetches the card (held back).
+    answer.unticked.release();
+    await waitFor(() => expect(requests.card).toBeGreaterThan(0));
     expect(done()).toBe(false);
   });
 
   it('writes the answer of the newest change to a field', async () => {
     serverBoard();
+    const arrived = { A: gate(), B: gate() };
+    const answer = { A: gate(), B: gate() };
     server.use(
       http.patch(`*/api/v1/cards/${CARD.id}`, async ({ request }) => {
-        const body = (await request.json()) as { title: string };
+        const body = (await request.json()) as { title: 'A' | 'B' };
         serverCard = { ...serverCard, title: body.title };
-        await delay(body.title === 'A' ? 100 : 20);
+        arrived[body.title].release();
+        await answer[body.title].opened;
         return HttpResponse.json(testCard({ ...CARD, title: body.title }));
       }),
     );
-    const { result, card } = await setup();
+    const { result, card, queryClient } = await setup();
 
     act(() => {
       result.current.updateCard.mutate({ title: 'A' });
       result.current.updateCard.mutate({ title: 'B' });
     });
-    await delay(60);
+    await arrived.A.opened;
+    await arrived.B.opened;
+    answer.B.release();
+    await waitForMutationSuccess(queryClient, (variables) => isTitleChange(variables, 'B'));
     expect(card()?.title).toBe('B');
+
     // A's answer is in by now; the refetch it triggers is still on its way.
-    await delay(100);
+    answer.A.release();
+    await waitFor(() => expect(requests.card).toBeGreaterThan(0));
     expect(card()?.title).toBe('B');
   });
 
   it('rolls back only the failed change, not one that succeeded meanwhile', async () => {
     serverBoard();
+    const itemAnswer = gate();
     server.use(
       http.patch('*/api/v1/checklist-items/i-1', async () => {
-        await delay(120);
+        await itemAnswer.opened;
         return apiError(500, 'INTERNAL_ERROR');
       }),
-      http.patch(`*/api/v1/cards/${CARD.id}`, async () => {
+      http.patch(`*/api/v1/cards/${CARD.id}`, () => {
         serverCard = { ...serverCard, title: 'Yeni' };
-        await delay(20);
         return HttpResponse.json(testCard({ ...CARD, title: 'Yeni' }));
       }),
     );
@@ -166,6 +201,10 @@ describe('overlapping changes to one card', () => {
 
     act(() => result.current.updateItem.mutate({ itemId: 'i-1', isCompleted: true }));
     act(() => result.current.updateCard.mutate({ title: 'Yeni' }));
+    await waitFor(() => expect(result.current.updateCard.isSuccess).toBe(true));
+    itemAnswer.release();
+    await waitFor(() => expect(requests.card).toBeGreaterThan(0));
+    cardRefetch.release();
     await waitFor(() => expect(result.current.updateItem.isError).toBe(true));
 
     expect(done()).toBe(false);
@@ -174,10 +213,11 @@ describe('overlapping changes to one card', () => {
 
   it('refetches the card when the last change to settle is a board change', async () => {
     serverBoard();
+    const labelAnswer = gate();
     server.use(
       http.patch('*/api/v1/checklist-items/i-1', () => apiError(500, 'INTERNAL_ERROR')),
       http.patch(`*/api/v1/labels/${LABEL.id}`, async () => {
-        await delay(80);
+        await labelAnswer.opened;
         return HttpResponse.json({ ...LABEL, name: 'Çok acil' });
       }),
     );
@@ -185,8 +225,11 @@ describe('overlapping changes to one card', () => {
 
     act(() => result.current.updateLabel.mutate({ labelId: LABEL.id, name: 'Çok acil' }));
     act(() => result.current.updateItem.mutate({ itemId: 'i-1', isCompleted: true }));
-    await waitFor(() => expect(result.current.updateLabel.isSuccess).toBe(true));
-
+    await waitFor(() => expect(result.current.updateItem.isError).toBe(true));
+    labelAnswer.release();
     await waitFor(() => expect(requests.card).toBeGreaterThan(0));
+
+    cardRefetch.release();
+    await waitFor(() => expect(result.current.updateLabel.isSuccess).toBe(true));
   });
 });

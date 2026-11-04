@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -13,6 +13,7 @@ import {
   testLists,
 } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
+import { gate, waitForMutationSuccess } from '../../../test/gate';
 import { createTestQueryClient } from '../../../test/render';
 import { boardKeys } from '../../boards';
 import { useBoard } from '../../board-detail';
@@ -56,9 +57,10 @@ const tileOf = (board: BoardDetailDto | undefined, id: string) =>
 
 describe('useUpdateCard', () => {
   it('copies the change to the card and to its tile before the server answers', async () => {
+    const answer = gate();
     server.use(
       http.patch(`*/api/v1/cards/${CARD.id}`, async () => {
-        await delay(50);
+        await answer.opened;
         return HttpResponse.json(testCard({ ...CARD, title: 'Yeni' }));
       }),
       http.get(`*/api/v1/boards/${BOARD_ID}`, () => HttpResponse.json(BOARD)),
@@ -71,6 +73,10 @@ describe('useUpdateCard', () => {
     await waitFor(() => expect(card()?.title).toBe('Yeni'));
     expect(card()?.description).toBe('Açıklama');
     expect(tileOf(board(), CARD.id)).toMatchObject({ title: 'Yeni', hasDescription: true });
+    expect(result.current.isPending).toBe(true);
+
+    answer.release();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
   it('clears the completion with the due date', async () => {
@@ -89,9 +95,10 @@ describe('useUpdateCard', () => {
   });
 
   it('on failure restores only this card and shows the error, leaving the rest of the board alone', async () => {
+    const answer = gate();
     server.use(
       http.patch(`*/api/v1/cards/${CARD.id}`, async () => {
-        await delay(250);
+        await answer.opened;
         return apiError(500, 'INTERNAL_ERROR');
       }),
       // The server already has the other change, so the refetch after the failure keeps it.
@@ -112,6 +119,7 @@ describe('useUpdateCard', () => {
       detail && { ...detail, cards: detail.cards.map((c) => (c.id === OTHER.id ? { ...c, title: 'Başka biri' } : c)) },
     );
 
+    answer.release();
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(card()?.title).toBe('Rapor');
@@ -141,10 +149,11 @@ describe('useUpdateCard', () => {
 
   it('refetches the board only after the last of overlapping mutations', async () => {
     let boardFetches = 0;
+    const answer = { A: gate(), B: gate() };
     server.use(
       http.patch(`*/api/v1/cards/${CARD.id}`, async ({ request }) => {
-        const body = (await request.json()) as { title?: string };
-        await delay(body.title === 'A' ? 30 : 150);
+        const body = (await request.json()) as { title: 'A' | 'B' };
+        await answer[body.title].opened;
         return HttpResponse.json(testCard({ ...CARD, title: body.title ?? CARD.title }));
       }),
       http.get(`*/api/v1/boards/${BOARD_ID}`, () => {
@@ -153,13 +162,17 @@ describe('useUpdateCard', () => {
       }),
       http.get(`*/api/v1/cards/${CARD.id}`, () => HttpResponse.json(CARD)),
     );
-    const { result } = setup();
+    const { result, queryClient } = setup();
 
     act(() => result.current.mutate({ title: 'A' }));
     act(() => result.current.mutate({ title: 'B' }));
 
-    await delay(90);
+    // A has settled while B is still on its way.
+    answer.A.release();
+    await waitForMutationSuccess(queryClient, (variables) => (variables as { title?: string }).title === 'A');
     expect(boardFetches).toBe(0);
+
+    answer.B.release();
     await waitFor(() => expect(boardFetches).toBe(1));
   });
 });
