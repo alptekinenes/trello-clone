@@ -69,7 +69,7 @@ export function BoardSwitcher({ currentBoardId }: { currentBoardId: string }) {
           triggerNamedByContent
           side="top"
           align="end"
-          panelClassName="w-60 max-h-72 overflow-y-auto"
+          panelClassName="w-60 max-h-menu overflow-y-auto"
         >
           <BoardChoices
             boards={boards}

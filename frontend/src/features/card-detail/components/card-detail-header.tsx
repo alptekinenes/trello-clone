@@ -34,6 +34,7 @@ export function CardDetailHeader({ board, card }: CardDetailHeaderProps) {
         <Menu
           label="Kartı taşı"
           containerClassName="min-w-0"
+          panelClassName="max-h-menu overflow-y-auto"
           triggerNamedByContent
           triggerClassName={LIST_BUTTON_CLASS}
           trigger={

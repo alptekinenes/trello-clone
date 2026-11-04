@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiError, testUser } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
 import { renderWithProviders } from '../../../test/render';
+import { boardKeys } from '../../boards';
 import { useAuthStore } from '../store/auth-store';
 import { ProfileDialog } from './profile-dialog';
 
@@ -38,6 +39,20 @@ describe('ProfileDialog', () => {
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(body).toEqual({ name: 'Ayşe Demir', avatarUrl: null });
     expect(useAuthStore.getState().user?.name).toBe('Ayşe Demir');
+  });
+
+  it('refreshes the cached boards so member names and avatars are not stale', async () => {
+    server.use(http.patch('*/api/v1/users/me', () => HttpResponse.json({ ...testUser, name: 'Ayşe Demir' })));
+    const onClose = vi.fn();
+    const { queryClient } = renderWithProviders(<ProfileDialog user={testUser} onClose={onClose} />);
+    queryClient.setQueryData(boardKeys.detail('board-1'), { stale: true });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Ad soyad'), 'x');
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(queryClient.getQueryState(boardKeys.detail('board-1'))?.isInvalidated).toBe(true);
   });
 
   it('sends an https avatar address as typed', async () => {

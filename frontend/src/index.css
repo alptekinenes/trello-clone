@@ -98,6 +98,11 @@
     sans-serif;
 }
 
+/* A menu panel never taller than the viewport allows, so it is not cut off in landscape. */
+@utility max-h-menu {
+  max-height: min(18rem, 50svh);
+}
+
 @layer base {
   html,
   body,
