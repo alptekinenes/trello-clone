@@ -13,9 +13,9 @@ Trello benzeri bir proje yönetim uygulaması: board → list → card hiyerarş
 Trello'nun bilinen düzenine yakın, **modern ve minimal** bir tasarım dili:
 
 - **Düzen Trello gibi:** üstte board başlığı, altında yatay kayan liste sütunları, sütun içinde dikey kartlar, sütunun sonunda "Kart ekle".
-- **Minimal görünüm:** sade yüzeyler, az kenarlık, hafif gölgeler, bol boşluk; süs ve gradyan yok.
-- **Renk:** nötr gri tonlar + tek bir vurgu rengi; renk sadece anlam taşıyan yerlerde (etiketler, son tarih durumu, birincil butonlar).
-- **Kartlar:** düz yüzey, yuvarlatılmış köşeler, üzerine gelince hafif yükselme; sürüklenirken belirgin gölge ve hafif eğim.
+- **Görünüm Trello'ya yakın** (2026-11-04 kararı, bkz. `docs/trello-parity-roadmap.md`): koyu liste yüzeyleri, sade kartlar, az kenarlık, hafif gölgeler; süs yok. Uygulama adı "Trello Klonu" (tek `APP_NAME` sabiti); Trello logosu kullanılmaz.
+- **Renk:** nötr gri tonlar + tek bir vurgu rengi; renk anlam taşıyan yerlerde (etiketler, son tarih durumu, birincil butonlar). İstisnalar: kişiye göre sabit renkli avatarlar ve gradyan pano arka planları (her arka planda kontrast ölçülür).
+- **Kartlar:** düz yüzey, yuvarlatılmış köşeler, üzerine gelince ince bir halka (yükselme yok); sürüklenirken belirgin gölge ve hafif eğim. Etiketler kartta adı yazılı renkli rozetlerdir (adsız şerit değil).
 - **Tipografi:** sistem font yığını, sınırlı boyut ölçeği, net hiyerarşi.
 - **Tema:** açık ve koyu tema (token'lar üzerinden).
 - **Hareket:** kısa ve yumuşak geçişler; `prefers-reduced-motion` desteklenir.
