@@ -13,7 +13,7 @@ import {
 } from '@trello/contracts';
 import { io, type Socket } from 'socket.io-client';
 import { useRealtimeStore, type RealtimeStatus } from '../store/realtime-store';
-import { getAuthHandlers, setSocketIdSource } from './http';
+import { getAuthHandlers, setSocketIdSource, type AuthHandlers } from './http';
 
 export type RealtimeListener = (message: RealtimeMessage) => void;
 
@@ -44,6 +44,11 @@ export const JOIN_ACK_TIMEOUT_MS = 5_000;
 export const HOLD_TIMEOUT_MS = 120_000;
 /** Consecutive refused handshakes (or server-side closes) before the client stops trying. */
 const MAX_RENEWALS = 2;
+/**
+ * Pauses between token refresh attempts while the network is down but the session is alive.
+ * The last value repeats, so the wait never grows past it.
+ */
+export const RENEW_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 5_000, 10_000];
 
 function createSocketIoSocket({ auth }: SocketOptions): RealtimeSocket {
   const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(REALTIME_NAMESPACE, {
@@ -141,6 +146,15 @@ function connectNow(): void {
   if (started) socket?.connect();
 }
 
+/** Ends the pending wait between refresh attempts, if any. */
+let cancelRenewWait: (() => void) | null = null;
+
+/** Makes every earlier renewal (a running refresh or a pending wait) stale. Returns the new epoch. */
+function invalidateRenewals(): number {
+  cancelRenewWait?.();
+  return ++renewEpoch;
+}
+
 /** The server refused or closed the connection because of the token: get a fresh one and reconnect. */
 async function renew(): Promise<void> {
   renewals += 1;
@@ -150,7 +164,10 @@ async function renew(): Promise<void> {
     return;
   }
   setStatus('reconnecting');
-  const epoch = ++renewEpoch;
+  await refreshAndConnect(handlers, invalidateRenewals(), 0);
+}
+
+async function refreshAndConnect(handlers: AuthHandlers, epoch: number, failures: number): Promise<void> {
   const current = handlers.getAccessToken();
   if (current !== null && current !== tokenUsed) {
     // The HTTP layer already refreshed the session since the last handshake.
@@ -159,11 +176,30 @@ async function renew(): Promise<void> {
   }
   const fresh = await handlers.refreshAccessToken();
   if (epoch !== renewEpoch || !started) return;
-  if (fresh === null) {
-    setStatus('offline');
+  if (fresh !== null) {
+    connectNow();
     return;
   }
-  connectNow();
+  // A refresh that fails without ending the session (the token is still there) was a network
+  // problem: keep trying. Only a session that is really gone turns realtime off.
+  if (handlers.getAccessToken() === null) setStatus('offline');
+  else waitThenRefresh(handlers, epoch, failures);
+}
+
+function waitThenRefresh(handlers: AuthHandlers, epoch: number, failures: number): void {
+  const delay = RENEW_RETRY_DELAYS_MS[Math.min(failures, RENEW_RETRY_DELAYS_MS.length - 1)] ?? 0;
+  const wake = () => {
+    cancelRenewWait?.();
+    void refreshAndConnect(handlers, epoch, failures + 1);
+  };
+  const timer = setTimeout(wake, delay);
+  // Coming back online is a better moment than the timer.
+  window.addEventListener('online', wake);
+  cancelRenewWait = () => {
+    clearTimeout(timer);
+    window.removeEventListener('online', wake);
+    cancelRenewWait = null;
+  };
 }
 
 function onConnect(): void {
@@ -214,7 +250,7 @@ function dropHolds(): void {
 
 function resetConnection(): void {
   started = false;
-  renewEpoch += 1;
+  invalidateRenewals();
   renewals = 0;
   tokenUsed = null;
   dropHolds();
@@ -233,7 +269,7 @@ function start(): void {
 function stop(): void {
   const wasStarted = started;
   started = false;
-  renewEpoch += 1;
+  invalidateRenewals();
   renewals = 0;
   dropHolds();
   if (wasStarted) socket?.disconnect();

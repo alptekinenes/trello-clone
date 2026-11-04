@@ -19,14 +19,17 @@ const status = () => useRealtimeStore.getState().status;
 const pillText = (text: string) =>
   screen.queryAllByText(text).find((element) => element.getAttribute('aria-hidden') === 'true');
 
-/** The token refresh answers `answers` in turn, then keeps answering the last one. */
+/**
+ * The token refresh answers `answers` in turn, then keeps answering the last one. `null` means
+ * the session is gone (the token is cleared, as `features/auth/session.ts` does on a 401).
+ */
 function signIn(...answers: (string | null)[]) {
   let call = 0;
-  let token = 't1';
+  let token: string | null = 't1';
   const refreshAccessToken = vi.fn(async () => {
     const fresh = answers[Math.min(call, answers.length - 1)] ?? null;
     call += 1;
-    if (fresh) token = fresh;
+    token = fresh;
     return fresh;
   });
   setAuthHandlers({ getAccessToken: () => token, refreshAccessToken });
