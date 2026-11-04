@@ -85,15 +85,15 @@
 - **Bitti:** Tam suite yeşil, checklist işaretli, `code-reviewer` onayı alındı, panodaki Faz 8 kartı güncel.
 
 **Güvenlik checklist'i (G10)**
-- [ ] Prod env: `NODE_ENV=production`, `APP_URL`, tek origin `CORS_ORIGIN`, güçlü `JWT_ACCESS_SECRET`, doğru `TRUST_PROXY` hop sayısı.
-- [ ] `rt` cookie: httpOnly + Secure (production) + SameSite=Strict + path `/api/v1/auth`.
-- [ ] Rate limit: auth 10, davet 30, genel 300/dk; proxy arkasında gerçek IP üzerinden (G1 e2e).
-- [ ] Production loglarında token, davet bağlantısı, parola ya da `Authorization` yok (`mail.service.ts` maskeli; grep ile kontrol).
-- [ ] Bilinmeyen hata 500 + genel mesaj döner, stack gövdede yok.
-- [ ] Her controller route'unda `@BoardRole`, `@Public` ya da açık bir sahiplik kontrolü var; işaretsiz route kalmadı (grep).
-- [ ] FE: `dangerouslySetInnerHTML` yok, token localStorage'da değil, env olarak yalnız `VITE_` önekli gizli olmayan değerler.
-- [ ] `npm audit --omit=dev` her iki workspace'te high/critical bulgu vermiyor.
-- [ ] Socket: handshake'te JWT, `exp`'te kapatma, join'de üyelik kontrolü (Faz 7 e2e'leri yeşil).
+- [x] Prod env: `NODE_ENV=production`, `APP_URL`, tek origin `CORS_ORIGIN`, güçlü `JWT_ACCESS_SECRET`, doğru `TRUST_PROXY` hop sayısı.
+- [x] `rt` cookie: httpOnly + Secure (production) + SameSite=Strict + path `/api/v1/auth`.
+- [x] Rate limit: auth 10, davet 30, genel 300/dk; proxy arkasında gerçek IP üzerinden (G1 e2e).
+- [x] Production loglarında token, davet bağlantısı, parola ya da `Authorization` yok (`mail.service.ts` maskeli; grep ile kontrol).
+- [x] Bilinmeyen hata 500 + genel mesaj döner, stack gövdede yok.
+- [x] Her controller route'unda `@BoardRole`, `@Public` ya da açık bir sahiplik kontrolü var; işaretsiz route kalmadı (grep).
+- [x] FE: `dangerouslySetInnerHTML` yok, token localStorage'da değil, env olarak yalnız `VITE_` önekli gizli olmayan değerler.
+- [x] `npm audit --omit=dev` her iki workspace'te high/critical bulgu vermiyor.
+- [x] Socket: handshake'te JWT, `exp`'te kapatma, join'de üyelik kontrolü (Faz 7 e2e'leri yeşil).
 
 **Backlog eşlemesi**
 
