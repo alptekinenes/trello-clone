@@ -153,6 +153,28 @@ function defineScreens(mode: Mode): void {
       await expectNoA11yViolations(page);
     });
 
+    test('profile dialog with a field error', async ({ page }) => {
+      await signUp(page, 'Ayşe Erişilebilir');
+      await page.goto('/boards');
+      await openAccountMenu(page);
+      await page.getByRole('menuitem', { name: 'Profil' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Profil' });
+      await expect(dialog).toBeVisible();
+      await dialog.getByLabel('Ad soyad').fill('');
+      await dialog.getByRole('button', { name: 'Kaydet' }).click();
+      await expect(dialog.getByLabel('Ad soyad')).toHaveAttribute('aria-invalid', 'true');
+      await expectNoA11yViolations(page);
+    });
+
+    test('keyboard shortcuts dialog', async ({ page }) => {
+      await signUp(page, 'Ayşe Erişilebilir');
+      await page.goto('/boards');
+      await openAccountMenu(page);
+      await page.getByRole('menuitem', { name: 'Klavye kısayolları' }).click();
+      await expect(page.getByRole('dialog', { name: 'Klavye kısayolları' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
     for (const background of BACKGROUNDS) {
       test(`board page with the ${background} background`, async ({ page }) => {
         await openRichBoard(page, background);

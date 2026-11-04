@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { avatarColorClass } from '../lib/avatar-color';
 import { initialsOf } from '../lib/initials';
 
@@ -14,6 +15,13 @@ function colorOf(person: AvatarPerson): string {
   return avatarColorClass(person.id ?? person.name);
 }
 
+/** Drops an avatar URL that failed to load so the initials show instead. */
+function useAvatarSrc(avatarUrl: string | null) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const src = avatarUrl && avatarUrl !== failedUrl ? avatarUrl : null;
+  return { src, onError: () => setFailedUrl(avatarUrl) };
+}
+
 /** `decorative`: the name is written next to the avatar, so it is hidden from screen readers. */
 export function Avatar({
   person,
@@ -24,24 +32,33 @@ export function Avatar({
   className?: string;
   decorative?: boolean;
 }) {
+  const { src, onError } = useAvatarSrc(person.avatarUrl);
   if (decorative) {
     return (
       <span
         aria-hidden="true"
         className={`${SIZE} inline-flex shrink-0 items-center justify-center overflow-hidden font-semibold ${colorOf(person)} ${className}`}
       >
-        {person.avatarUrl ? (
-          <img src={person.avatarUrl} alt="" className="size-full object-cover" />
+        {src ? (
+          <img
+            src={src}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={onError}
+            className="size-full object-cover"
+          />
         ) : (
           initialsOf(person.name)
         )}
       </span>
     );
   }
-  if (person.avatarUrl) {
+  if (src) {
     return (
       <img
-        src={person.avatarUrl}
+        src={src}
+        referrerPolicy="no-referrer"
+        onError={onError}
         alt={person.name}
         title={person.name}
         className={`${SIZE} object-cover ${className}`}

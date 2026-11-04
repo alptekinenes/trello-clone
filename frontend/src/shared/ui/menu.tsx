@@ -77,10 +77,14 @@ export function Menu({
   useEffect(() => {
     if (!open) return;
     const menu = menuRef.current;
-    const first =
-      menu?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]') ??
-      menu?.querySelector<HTMLElement>(ITEM_SELECTOR);
-    first?.focus();
+    const all = Array.from(menu?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? []);
+    // Opens on the first plain item or the selected radio, whichever comes first, so a
+    // preceding action (e.g. "Profil") is never skipped and a radio list opens on its value.
+    const start = all.find(
+      (item) =>
+        item.getAttribute('role') !== 'menuitemradio' || item.getAttribute('aria-checked') === 'true',
+    );
+    (start ?? all[0])?.focus();
 
     function handlePointerDown(event: PointerEvent) {
       if (event.target instanceof Node && !containerRef.current?.contains(event.target)) {

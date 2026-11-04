@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { startsInEditable } from '../lib/dnd-sensors';
-import { Menu,MenuGroup, MenuItem, MenuRadioItem, MenuSeparator } from './menu';
+import { Menu, MenuGroup, MenuItem, MenuRadioItem, MenuSeparator } from './menu';
 
 function setup(onProfile = vi.fn(), onDark = vi.fn()) {
   render(
@@ -46,14 +46,32 @@ describe('Menu', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('opens on click and focuses the checked radio item', async () => {
+  it('opens on click and focuses the first item of a mixed menu', async () => {
     const user = setup();
 
     await user.click(trigger());
 
     expect(trigger()).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('menu', { name: 'Hesap menüsü' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitemradio', { name: /Koyu/ })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: 'Profil' })).toHaveFocus();
+  });
+
+  it('focuses the checked item of a menu made only of radio items', async () => {
+    const user = userEvent.setup();
+    render(
+      <Menu label="Pano değiştir" trigger="Panolar">
+        <MenuRadioItem checked={false} onSelect={vi.fn()}>
+          Birinci
+        </MenuRadioItem>
+        <MenuRadioItem checked onSelect={vi.fn()}>
+          İkinci
+        </MenuRadioItem>
+      </Menu>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Pano değiştir' }));
+
+    expect(screen.getByRole('menuitemradio', { name: /İkinci/ })).toHaveFocus();
   });
 
   it('opens with ArrowDown from the trigger', async () => {
@@ -141,6 +159,7 @@ describe('Menu', () => {
     );
     expect(screen.getByRole('group', { name: 'Tema' })).toBeInTheDocument();
 
+    screen.getByRole('menuitemradio', { name: /Koyu/ }).focus();
     await user.keyboard('{Enter}');
 
     expect(onDark).toHaveBeenCalledOnce();
