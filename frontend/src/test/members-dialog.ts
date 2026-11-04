@@ -75,7 +75,7 @@ export async function openMembers(
   );
   const result = renderApp(`/boards/${BOARD_ID}`);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Üyeler' }));
+  await user.click(await screen.findByRole('button', { name: 'Paylaş' }));
   const dialog = await screen.findByRole('dialog', { name: 'Pano üyeleri' });
   return { ...result, user, state, dialog };
 }

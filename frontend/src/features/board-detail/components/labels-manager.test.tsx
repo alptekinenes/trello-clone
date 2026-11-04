@@ -4,6 +4,7 @@ import type { CreateLabelRequest, LabelDto, UpdateLabelRequest } from '@trello/c
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { BOARD_ID, boardDetail, testUser } from '../../../test/fixtures';
+import { selectBoardMenuItem } from '../../../test/board-menu';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 import { useAuthStore } from '../../auth/store/auth-store';
@@ -23,7 +24,7 @@ async function openManager(labels: LabelDto[] = [RED]) {
   );
   renderApp(`/boards/${BOARD_ID}`);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Etiketler' }));
+  await selectBoardMenuItem(user, 'Etiketler');
   const dialog = await screen.findByRole('dialog', { name: 'Etiketler' });
   return { user, dialog };
 }

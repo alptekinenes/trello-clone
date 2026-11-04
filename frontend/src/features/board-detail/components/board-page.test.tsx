@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { boardKeys } from '../../boards';
 import { useAuthStore } from '../../auth/store/auth-store';
 import { BOARD_ID, apiError, boardDetail, boardSummary, testUser } from '../../../test/fixtures';
+import { boardMenuItemNames, selectBoardMenuItem } from '../../../test/board-menu';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 
@@ -118,7 +119,7 @@ describe('BoardPage', () => {
         http.get('*/api/v1/boards', () => HttpResponse.json([])),
       );
 
-      await user.click(await screen.findByRole('button', { name: 'Panoyu sil' }));
+      await selectBoardMenuItem(user, 'Panoyu sil');
       const dialog = screen.getByRole('dialog', { name: 'Pano silinsin mi?' });
       expect(deleted).toBe(false);
       await user.click(within(dialog).getByRole('button', { name: 'Panoyu sil' }));
@@ -133,7 +134,7 @@ describe('BoardPage', () => {
     it('can be cancelled', async () => {
       const { user } = openBoard('OWNER');
 
-      await user.click(await screen.findByRole('button', { name: 'Panoyu sil' }));
+      await selectBoardMenuItem(user, 'Panoyu sil');
       await user.click(screen.getByRole('button', { name: 'Vazgeç' }));
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -143,7 +144,7 @@ describe('BoardPage', () => {
       const { user, router } = openBoard('OWNER');
       server.use(http.delete(BOARD_URL, () => apiError(403, 'FORBIDDEN')));
 
-      await user.click(await screen.findByRole('button', { name: 'Panoyu sil' }));
+      await selectBoardMenuItem(user, 'Panoyu sil');
       const dialog = screen.getByRole('dialog');
       await user.click(within(dialog).getByRole('button', { name: 'Panoyu sil' }));
 
@@ -154,12 +155,12 @@ describe('BoardPage', () => {
     });
 
     it.each(['ADMIN', 'MEMBER'] as const)('is only offered to the owner, not %s', async (role) => {
-      openBoard(role);
+      const { user } = openBoard(role);
 
       expect(
         await screen.findByRole('heading', { level: 1, name: 'Yol haritası' }),
       ).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Panoyu sil' })).not.toBeInTheDocument();
+      expect(await boardMenuItemNames(user)).not.toContain('Panoyu sil');
     });
   });
 });

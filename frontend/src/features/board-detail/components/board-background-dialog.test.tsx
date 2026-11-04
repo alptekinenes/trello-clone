@@ -11,6 +11,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { useToastStore } from '../../../shared/store/toast-store';
 import { BOARD_ID, apiError, boardDetail, boardSummary, testUser } from '../../../test/fixtures';
+import { boardMenuItemNames, selectBoardMenuItem } from '../../../test/board-menu';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 import { useAuthStore } from '../../auth/store/auth-store';
@@ -86,22 +87,22 @@ function recordBackgrounds(queryClient: QueryClient): BoardBackground[] {
 const boardSurface = () => screen.getByRole('heading', { level: 1, hidden: true }).closest('header')?.parentElement;
 
 describe('changing the board background', () => {
-  it('offers no button to a MEMBER', async () => {
-    await openBoard('MEMBER');
+  it('offers no menu item to a MEMBER', async () => {
+    const { user } = await openBoard('MEMBER');
 
-    expect(screen.queryByRole('button', { name: 'Arka plan' })).not.toBeInTheDocument();
+    expect(await boardMenuItemNames(user)).not.toContain('Arka plan');
   });
 
-  it.each(['ADMIN', 'OWNER'] as const)('offers the button to an %s', async (role) => {
-    await openBoard(role);
+  it.each(['ADMIN', 'OWNER'] as const)('offers the menu item to an %s', async (role) => {
+    const { user } = await openBoard(role);
 
-    expect(screen.getByRole('button', { name: 'Arka plan' })).toBeInTheDocument();
+    expect(await boardMenuItemNames(user)).toContain('Arka plan');
   });
 
   it('opens a dialog with the current background checked', async () => {
     const { user } = await openBoard('ADMIN');
 
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
 
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
     expect(dialog).toBeInTheDocument();
@@ -118,7 +119,7 @@ describe('changing the board background', () => {
         return HttpResponse.json(boardSummary({ background: 'purple', myRole: 'ADMIN' }));
       }),
     );
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
 
     await user.click(await screen.findByRole('radio', { name: 'Mor' }));
 
@@ -132,7 +133,7 @@ describe('changing the board background', () => {
   it('rolls back and shows the error inside the open dialog, without a title error', async () => {
     const { user } = await openBoard('ADMIN');
     server.use(http.patch(BOARD_URL, () => apiError(500, 'INTERNAL_ERROR')));
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
 
     await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
@@ -146,7 +147,7 @@ describe('changing the board background', () => {
   it('falls back to a toast when the dialog was closed while the request was on its way', async () => {
     const { user } = await openBoard('ADMIN');
     const backend = serveBackground({ purple: { fail: true, hold: true } });
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
     await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
     await waitFor(() => expect(backend.requests).toEqual(['purple']));
@@ -167,14 +168,14 @@ describe('changing the board background', () => {
   it('forgets the error when the dialog is closed and opened again', async () => {
     const { user } = await openBoard('ADMIN');
     server.use(http.patch(BOARD_URL, () => apiError(500, 'INTERNAL_ERROR')));
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
     await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
     await within(dialog).findByRole('alert');
 
     await user.click(within(dialog).getByRole('button', { name: 'Kapat' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
 
     const reopened = await screen.findByRole('dialog', { name: 'Arka plan' });
     expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
@@ -183,7 +184,7 @@ describe('changing the board background', () => {
   it('clears the error when the next choice is made', async () => {
     const { user } = await openBoard('ADMIN');
     const backend = serveBackground({ purple: { fail: true }, orange: {} });
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
     await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
     await within(dialog).findByRole('alert');
@@ -200,7 +201,7 @@ describe('changing the board background', () => {
       const { user, queryClient } = await openBoard('ADMIN');
       const backend = serveBackground({ purple: { fail: true, hold: true } });
       const backgrounds = recordBackgrounds(queryClient);
-      await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+      await selectBoardMenuItem(user, 'Arka plan');
       const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
 
       await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
@@ -225,7 +226,7 @@ describe('changing the board background', () => {
     it('rolls back only the later choice when it fails after the earlier one succeeded', async () => {
       const { user, queryClient } = await openBoard('ADMIN');
       const backend = serveBackground({ purple: { hold: true }, orange: { fail: true } });
-      await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+      await selectBoardMenuItem(user, 'Arka plan');
       const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
 
       await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
@@ -246,7 +247,7 @@ describe('changing the board background', () => {
     it('shows the later choice at once while the earlier request is still on its way', async () => {
       const { user } = await openBoard('ADMIN');
       const backend = serveBackground({ purple: { hold: true } });
-      await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+      await selectBoardMenuItem(user, 'Arka plan');
       const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
 
       await user.click(within(dialog).getByRole('radio', { name: 'Mor' }));
@@ -264,7 +265,7 @@ describe('changing the board background', () => {
   // Escape and the focus handback are the browser's own <dialog> behavior; e2e covers them.
   it('closes with its close button', async () => {
     const { user } = await openBoard('ADMIN');
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     const dialog = await screen.findByRole('dialog', { name: 'Arka plan' });
 
     await user.click(within(dialog).getByRole('button', { name: 'Kapat' }));

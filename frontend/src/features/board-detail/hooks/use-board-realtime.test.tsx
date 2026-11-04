@@ -1,3 +1,4 @@
+import { boardMenuItemNames, selectBoardMenuItem } from '../../../test/board-menu';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
@@ -198,7 +199,7 @@ describe('useBoardRealtime: applying events', () => {
 
   it('shows a background changed by someone else, also in the open background dialog', async () => {
     const { user } = await openBoard({ role: 'ADMIN' });
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     await screen.findByRole('dialog', { name: 'Arka plan' });
     expect(screen.getByRole('radio', { name: 'Yeşil' })).toBeChecked();
 
@@ -215,7 +216,7 @@ describe('useBoardRealtime: applying events', () => {
   it('removes the invitation section when my role drops below admin', async () => {
     const { user, queryClient } = await openBoard({ role: 'ADMIN' });
     server.use(http.get(INVITATIONS_URL, () => HttpResponse.json([])));
-    await user.click(screen.getByRole('button', { name: 'Üyeler' }));
+    await user.click(screen.getByRole('button', { name: 'Paylaş' }));
     const dialog = await screen.findByRole('dialog', { name: 'Pano üyeleri' });
     expect(await within(dialog).findByRole('heading', { name: 'Davet et' })).toBeInTheDocument();
     const me: MemberDto = { ...testMember({ userId: testUser.id, name: testUser.name }), role: 'MEMBER' };
@@ -230,14 +231,14 @@ describe('useBoardRealtime: applying events', () => {
 
   it('closes the background dialog when my role drops below admin', async () => {
     const { user } = await openBoard({ role: 'ADMIN' });
-    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await selectBoardMenuItem(user, 'Arka plan');
     await screen.findByRole('dialog', { name: 'Arka plan' });
     const me: MemberDto = { ...testMember({ userId: testUser.id, name: testUser.name }), role: 'MEMBER' };
 
     emit('member:updated', me, here);
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Arka plan' })).not.toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Arka plan' })).not.toBeInTheDocument();
+    expect(await boardMenuItemNames(user)).not.toContain('Arka plan');
   });
 
   it('refreshes the invitation list when a member joined', async () => {
@@ -418,11 +419,11 @@ describe('useBoardRealtime: keeping the keyboard focus on the board', () => {
   it('leaves the focus alone when it is outside the board content', async () => {
     const { state } = await openBoard();
     const card = state.detail.cards[0];
-    act(() => screen.getByRole('button', { name: 'Üyeler' }).focus());
+    act(() => screen.getByRole('button', { name: 'Paylaş' }).focus());
 
     emit('card:deleted', { id: card?.id ?? '', listId: TODO.id }, here);
 
     await waitFor(() => expect(cardTitles('Yapılacaklar')).toEqual([]));
-    expect(screen.getByRole('button', { name: 'Üyeler' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Paylaş' })).toHaveFocus();
   });
 });

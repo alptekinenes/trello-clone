@@ -1,9 +1,12 @@
 import { BOARD_LIMITS, type BoardDetailDto } from '@trello/contracts';
 import { AvatarStack } from '../../../shared/ui/avatar';
 import { Button } from '../../../shared/ui/button';
+import { buttonClassName } from '../../../shared/ui/button-styles';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { Dialog } from '../../../shared/ui/dialog';
+import { LockIcon, MoreIcon } from '../../../shared/ui/icons';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
+import { Menu, MenuItem, MenuSeparator } from '../../../shared/ui/menu';
 import { RealtimeStatus } from '../../../shared/ui/realtime-status';
 import { useBoardActions } from '../hooks/use-board-actions';
 import { ArchiveDialog } from './archive-dialog';
@@ -46,26 +49,36 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
       <RealtimeStatus />
 
       <div className="ml-auto flex flex-wrap items-center gap-3">
+        {/* Passive: boards are visible to their members only, so this informs and is not a control. */}
+        <span
+          title="Özel pano"
+          className="inline-flex h-8 items-center px-1 text-on-board pointer-coarse:h-11"
+        >
+          <LockIcon />
+          <span className="sr-only">Özel pano</span>
+        </span>
         <AvatarStack people={people} label="Pano üyeleri" />
         <Button variant="on-board" className="h-8 px-3" onClick={actions.openMembers}>
-          Üyeler
+          Paylaş
         </Button>
-        <Button variant="on-board" className="h-8 px-3" onClick={actions.openLabels}>
-          Etiketler
-        </Button>
-        <Button variant="on-board" className="h-8 px-3" onClick={actions.openArchive}>
-          Arşiv
-        </Button>
-        {actions.canChangeBackground && (
-          <Button variant="on-board" className="h-8 px-3" onClick={actions.openBackground}>
-            Arka plan
-          </Button>
-        )}
-        {actions.canDelete && (
-          <Button variant="on-board" className="h-8 px-3" onClick={actions.askDelete}>
-            Panoyu sil
-          </Button>
-        )}
+        <Menu
+          label="Pano menüsü"
+          align="end"
+          triggerClassName={buttonClassName('on-board', 'h-8 px-3')}
+          trigger={<MoreIcon />}
+        >
+          <MenuItem onSelect={actions.openLabels}>Etiketler</MenuItem>
+          <MenuItem onSelect={actions.openArchive}>Arşiv</MenuItem>
+          {actions.canChangeBackground && (
+            <MenuItem onSelect={actions.openBackground}>Arka plan</MenuItem>
+          )}
+          {actions.canDelete && (
+            <>
+              <MenuSeparator />
+              <MenuItem onSelect={actions.askDelete}>Panoyu sil</MenuItem>
+            </>
+          )}
+        </Menu>
       </div>
 
       {actions.membersOpen && <MembersDialog detail={detail} onClose={actions.closeMembers} />}

@@ -68,6 +68,6 @@ describe('BoardHeader connection indicator', () => {
     const retry = screen.getByRole('button', { name: 'Yeniden bağlan' });
     expect(screen.getByRole('banner')).toContainElement(retry);
     // The header's own controls are still there.
-    expect(screen.getByRole('button', { name: 'Üyeler' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Paylaş' })).toBeInTheDocument();
   });
 });

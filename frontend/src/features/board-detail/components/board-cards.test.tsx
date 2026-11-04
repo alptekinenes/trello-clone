@@ -1,3 +1,4 @@
+import { selectBoardMenuItem } from '../../../test/board-menu';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
@@ -429,7 +430,7 @@ describe('Cards on the board', () => {
         }),
       );
 
-      await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
+      await selectBoardMenuItem(user, 'Arşiv');
       const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
       const cards = await within(dialog).findByRole('list', { name: 'Arşivlenmiş kartlar' });
       expect(within(cards).getAllByText('“Yapılacaklar” listesinde')).toHaveLength(2);
@@ -455,7 +456,7 @@ describe('Cards on the board', () => {
       ];
       server.use(http.get(`${BOARD_URL}/lists`, () => HttpResponse.json([oldList])));
 
-      await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
+      await selectBoardMenuItem(user, 'Arşiv');
       const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
       const restore = await within(dialog).findByRole('button', {
         name: '“Eski kart” kartını geri yükle',

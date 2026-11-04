@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { useAuthStore } from '../../auth/store/auth-store';
 import { BOARD_ID, apiError, boardDetail, testLists, testUser } from '../../../test/fixtures';
+import { selectBoardMenuItem } from '../../../test/board-menu';
 import { server } from '../../../test/msw-server';
 import { renderApp } from '../../../test/render';
 
@@ -158,7 +159,7 @@ describe('BoardCanvas', () => {
         }),
       );
 
-      await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
+      await selectBoardMenuItem(user, 'Arşiv');
       const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
       expect(await within(dialog).findByText('Eski')).toBeInTheDocument();
       expect(
@@ -180,7 +181,7 @@ describe('BoardCanvas', () => {
       const { user } = openBoard([], 'MEMBER');
       server.use(http.get(`${BOARD_URL}/lists`, () => HttpResponse.json([archived])));
 
-      await user.click(await screen.findByRole('button', { name: 'Arşiv' }));
+      await selectBoardMenuItem(user, 'Arşiv');
       const dialog = screen.getByRole('dialog', { name: 'Arşiv' });
 
       expect(await within(dialog).findByText('Eski')).toBeInTheDocument();
