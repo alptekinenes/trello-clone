@@ -87,7 +87,9 @@ export function CardDetailRoute() {
     );
   }
 
-  const header = !removed && card && board ? <CardDetailHeader board={board} card={card} /> : undefined;
+  // While loading (or once removed) the bar still renders, empty, so the close button never moves.
+  const header =
+    !removed && card && board ? <CardDetailHeader board={board} card={card} /> : <div className="flex-1" />;
 
   return (
     <Dialog title={title} hideTitle size="xl" showCloseButton header={header} onClose={onClose}>

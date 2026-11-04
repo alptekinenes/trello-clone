@@ -202,6 +202,18 @@ test('opening a card by URL shows its dialog; Escape returns to the board withou
   await expect(page).not.toHaveURL(/\/c\//);
 });
 
+test('a card opened by URL without a cache keeps the focus in the dialog when it finishes loading', async ({
+  page,
+}) => {
+  const { boardId, cardId } = await seedOneCard(page, 'Önbelleksiz kart');
+
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Önbelleksiz kart');
+  await expect(dialog.getByRole('button', { name: /^Liste:/ })).toBeVisible();
+
+  await expect(dialog.getByRole('button', { name: 'Kapat' })).toBeFocused();
+});
+
 test('a card opened from the board closes back to the board with Enter, Escape and Kapat, returning focus to the tile', async ({
   page,
 }) => {

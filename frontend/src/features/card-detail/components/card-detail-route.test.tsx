@@ -34,6 +34,18 @@ describe('card dialog route', () => {
     expect(within(dialog).getByRole('button', { name: 'Kart menüsü' })).toBeInTheDocument();
   });
 
+  it('keeps the same close button while the card loads, so focus stays on it', async () => {
+    open(CARD_PATH);
+    const dialog = await screen.findByRole('dialog');
+    const closeButton = within(dialog).getByRole('button', { name: 'Kapat' });
+    closeButton.focus();
+
+    await within(dialog).findByText('Liste: Yapılacaklar');
+
+    expect(within(dialog).getByRole('button', { name: 'Kapat' })).toBe(closeButton);
+    expect(closeButton).toHaveFocus();
+  });
+
   it('puts a horizontal action row with real actions only under the title', async () => {
     open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
 

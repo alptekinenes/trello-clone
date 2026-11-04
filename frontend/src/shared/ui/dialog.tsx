@@ -88,7 +88,7 @@ export function Dialog({
       >
         {title}
       </h2>
-      {showCloseButton && !header && (
+      {showCloseButton && header === undefined && (
         <button
           type="button"
           aria-label="Kapat"
@@ -99,7 +99,7 @@ export function Dialog({
         </button>
       )}
       <DialogCloseContext value={close}>
-        {header && (
+        {header !== undefined && (
           <div className="mb-4 flex items-center gap-2">
             {header}
             {showCloseButton && (
