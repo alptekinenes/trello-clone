@@ -262,6 +262,64 @@ describe('invitation page: accepting', () => {
     expect(useInvitationIntentStore.getState().token).toBeNull();
   });
 
+  describe('the back button after joining', () => {
+    /** The user came from /prior to the invitation page; later pages stack on top of it. */
+    function openFromPrior() {
+      const router = createMemoryRouter(routes, { initialEntries: ['/prior', PAGE], initialIndex: 1 });
+      renderWithProviders(<RouterProvider router={router} />);
+      return router;
+    }
+
+    it.each([
+      ['signing in', 'Giriş yap'],
+      ['signing up', 'Kayıt ol'],
+    ] as const)('does not lead back to the used invitation after %s', async (_, linkName) => {
+      signedOut();
+      serveInvitation();
+      server.use(
+        http.post('*/api/v1/auth/login', () => HttpResponse.json({ accessToken: 'token', user: BORA })),
+        http.post('*/api/v1/auth/register', () =>
+          HttpResponse.json({ accessToken: 'token', user: BORA }, { status: 201 }),
+        ),
+      );
+      const router = openFromPrior();
+      const user = userEvent.setup();
+
+      await user.click(await within(await screen.findByRole('main')).findByRole('link', { name: linkName }));
+      if (linkName === 'Kayıt ol') await user.type(await screen.findByLabelText('Ad soyad'), 'Bora Kaya');
+      await user.type(await screen.findByLabelText('Parola'), 'secret-password');
+      await user.click(screen.getByRole('button', { name: linkName }));
+      await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
+
+      await router.navigate(-1);
+
+      expect(router.state.location.pathname).toBe('/prior');
+    });
+
+    it('does not lead back to the sign-in page when the user switches to sign-up on the way', async () => {
+      signedOut();
+      serveInvitation();
+      server.use(
+        http.post('*/api/v1/auth/register', () =>
+          HttpResponse.json({ accessToken: 'token', user: BORA }, { status: 201 }),
+        ),
+      );
+      const router = openFromPrior();
+      const user = userEvent.setup();
+
+      await user.click(await within(await screen.findByRole('main')).findByRole('link', { name: 'Giriş yap' }));
+      await user.click(await screen.findByRole('link', { name: 'Kayıt ol' }));
+      await user.type(await screen.findByLabelText('Ad soyad'), 'Bora Kaya');
+      await user.type(screen.getByLabelText('Parola'), 'secret-password');
+      await user.click(screen.getByRole('button', { name: 'Kayıt ol' }));
+      await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
+
+      await router.navigate(-1);
+
+      expect(router.state.location.pathname).toBe('/prior');
+    });
+  });
+
   it('also accepts on its own after signing up from the page', async () => {
     signedOut();
     const requests = serveInvitation();
@@ -350,6 +408,40 @@ describe('invitation page: accepting', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
     expect(requests.accept).toBe(2);
+  });
+
+  it('tells a lost connection apart from a refusal and lets the user try again', async () => {
+    signedInAs(BORA);
+    let offline = true;
+    const requests = serveInvitation({
+      accept: () => (offline ? HttpResponse.error() : HttpResponse.json({ boardId: BOARD_ID })),
+    });
+    const { router } = renderApp(PAGE);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Daveti kabul et' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Bağlantı kurulamadı/);
+    offline = false;
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
+    expect(requests.accept).toBe(2);
+  });
+
+  it('announces a preview that cannot be loaded and loads it on retry', async () => {
+    signedOut();
+    let offline = true;
+    server.use(
+      http.get(PREVIEW_URL, () => (offline ? HttpResponse.error() : HttpResponse.json(PREVIEW))),
+    );
+    renderApp(PAGE);
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Bağlantı kurulamadı/);
+    offline = false;
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+
+    expect(await within(main()).findByRole('link', { name: 'Giriş yap' })).toBeInTheDocument();
   });
 
   it('keeps the invitation token out of storage', async () => {

@@ -33,7 +33,8 @@ function PreviewSummary({ preview }: { preview: InvitationPreviewDto }) {
 
 function SignInChoices({ token, preview, page }: { token: string; preview: InvitationPreviewDto; page: Page }) {
   const returnUrl = `/invitations/${token}`;
-  // The address is handed over so the form starts with the one the invitation is for.
+  // Replacing keeps the page out of the history: once the user has joined, going back must not
+  // show an invitation that is used up. The address is handed over so the form starts with it.
   const state = { email: preview.email };
 
   return (
@@ -43,6 +44,7 @@ function SignInChoices({ token, preview, page }: { token: string; preview: Invit
         <Link
           to={authPageLink('register', returnUrl)}
           state={state}
+          replace
           onClick={page.rememberIntent}
           className={buttonClassName('primary', 'flex-1')}
         >
@@ -51,6 +53,7 @@ function SignInChoices({ token, preview, page }: { token: string; preview: Invit
         <Link
           to={authPageLink('login', returnUrl)}
           state={state}
+          replace
           onClick={page.rememberIntent}
           className={buttonClassName('secondary', 'flex-1')}
         >

@@ -21,7 +21,7 @@ export function RegisterPage() {
       footer={
         <>
           Zaten hesabın var mı?{' '}
-          <Link to={{ pathname: '/login', search }} state={state} className="font-medium text-primary hover:text-primary-hover">
+          <Link to={{ pathname: '/login', search }} state={state} replace className="font-medium text-primary hover:text-primary-hover">
             Giriş yap
           </Link>
         </>

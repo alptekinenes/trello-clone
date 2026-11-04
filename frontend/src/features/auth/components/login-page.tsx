@@ -20,7 +20,7 @@ export function LoginPage() {
       footer={
         <>
           Hesabın yok mu?{' '}
-          <Link to={{ pathname: '/register', search }} state={state} className="font-medium text-primary hover:text-primary-hover">
+          <Link to={{ pathname: '/register', search }} state={state} replace className="font-medium text-primary hover:text-primary-hover">
             Kayıt ol
           </Link>
         </>
