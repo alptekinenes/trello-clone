@@ -80,9 +80,10 @@ export function Checklist({ boardId, card, checklist, items }: ChecklistProps) {
           aria-label={`“${checklist.title}” checklist'ini sil`}
           title="Checklist'i sil"
           onClick={actions.askDelete}
-          className={`${ICON_BUTTON} hover:text-danger`}
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-surface-hover px-2 text-sm text-fg hover:text-danger pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           <TrashIcon />
+          Sil
         </button>
       </div>
       <ChecklistProgress done={done} total={checklist.items.length} />

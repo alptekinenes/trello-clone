@@ -31,29 +31,27 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
         {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}
       </div>
       <CardTitleEditor boardId={boardId} cardId={card.id} title={card.title} />
-      <div className="flex flex-col gap-6 sm:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-6">
-          <CardLabelsSection board={board} card={card} />
-          <DueDateSection boardId={boardId} card={card} />
-          <CardDescription boardId={boardId} cardId={card.id} description={card.description} />
-          <ChecklistsSection boardId={boardId} card={card} />
-        </div>
-        {!archived && (
-          <fieldset
-            aria-label="Kart işlemleri"
-            className="m-0 flex min-w-0 shrink-0 flex-row flex-wrap gap-2 border-0 p-0 sm:w-44 sm:flex-col"
-          >
-            <PanelButton panel="labels" icon={<LabelIcon />}>
-              Etiketler
-            </PanelButton>
-            <PanelButton panel="checklist" icon={<ChecklistIcon />}>
-              Checklist
-            </PanelButton>
-            <PanelButton panel="due-date" icon={<ClockIcon />}>
-              Son tarih
-            </PanelButton>
-          </fieldset>
-        )}
+      {!archived && (
+        <fieldset
+          aria-label="Kart işlemleri"
+          className="m-0 flex min-w-0 flex-row flex-wrap gap-2 border-0 p-0"
+        >
+          <PanelButton panel="labels" icon={<LabelIcon />}>
+            Etiketler
+          </PanelButton>
+          <PanelButton panel="due-date" icon={<ClockIcon />}>
+            Son tarih
+          </PanelButton>
+          <PanelButton panel="checklist" icon={<ChecklistIcon />}>
+            Checklist
+          </PanelButton>
+        </fieldset>
+      )}
+      <div className="flex min-w-0 flex-col gap-6">
+        <CardLabelsSection board={board} card={card} />
+        <DueDateSection boardId={boardId} card={card} />
+        <CardDescription boardId={boardId} cardId={card.id} description={card.description} />
+        <ChecklistsSection boardId={boardId} card={card} />
       </div>
       <div role="status" className="sr-only">
         {announcement}

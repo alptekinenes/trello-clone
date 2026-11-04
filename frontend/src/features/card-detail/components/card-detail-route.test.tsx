@@ -34,6 +34,21 @@ describe('card dialog route', () => {
     expect(within(dialog).getByRole('button', { name: 'Kart menüsü' })).toBeInTheDocument();
   });
 
+  it('puts a horizontal action row with real actions only under the title', async () => {
+    open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
+
+    const dialog = await cardDialog();
+    const row = within(dialog).getByRole('group', { name: 'Kart işlemleri' });
+    expect(within(row).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Etiketler',
+      'Son tarih',
+      'Checklist',
+    ]);
+    const title = within(dialog).getByRole('button', { name: 'Rapor' });
+    expect(title.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dialog.querySelector('aside')).toBeNull();
+  });
+
   it('closes to the board and puts the focus on the card tile', async () => {
     const { user, router } = open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
     const dialog = await cardDialog();

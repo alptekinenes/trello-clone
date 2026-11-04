@@ -9,7 +9,7 @@ interface PanelButtonProps {
   children: ReactNode;
 }
 
-/** Side column button that opens or closes a section of the dialog. */
+/** Action row button that opens or closes a section of the dialog. */
 export function PanelButton({ panel, icon, children }: PanelButtonProps) {
   const { isOpen, toggle } = useCardPanel(panel);
 
@@ -17,7 +17,6 @@ export function PanelButton({ panel, icon, children }: PanelButtonProps) {
     <Button
       id={panelButtonId(panel)}
       variant="secondary"
-      className="justify-start"
       aria-expanded={isOpen}
       aria-controls={panelId(panel)}
       onClick={toggle}
