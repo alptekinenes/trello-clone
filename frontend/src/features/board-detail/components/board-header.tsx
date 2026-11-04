@@ -76,7 +76,7 @@ export function BoardHeader({ detail }: { detail: BoardDetailDto }) {
         </Dialog>
       )}
 
-      {actions.backgroundOpen && (
+      {actions.backgroundOpen && actions.canChangeBackground && (
         <BoardBackgroundDialog
           background={board.background}
           onChange={actions.changeBackground}

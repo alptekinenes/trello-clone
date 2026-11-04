@@ -228,6 +228,18 @@ describe('useBoardRealtime: applying events', () => {
     expect(queryClient.getQueryData(boardInvitationKeys.list(BOARD_ID))).toBeUndefined();
   });
 
+  it('closes the background dialog when my role drops below admin', async () => {
+    const { user } = await openBoard({ role: 'ADMIN' });
+    await user.click(screen.getByRole('button', { name: 'Arka plan' }));
+    await screen.findByRole('dialog', { name: 'Arka plan' });
+    const me: MemberDto = { ...testMember({ userId: testUser.id, name: testUser.name }), role: 'MEMBER' };
+
+    emit('member:updated', me, here);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Arka plan' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Arka plan' })).not.toBeInTheDocument();
+  });
+
   it('refreshes the invitation list when a member joined', async () => {
     const { queryClient } = await openBoard({ role: 'ADMIN' });
     queryClient.setQueryData(boardInvitationKeys.list(BOARD_ID), []);

@@ -1,24 +1,26 @@
 import type { BoardBackground } from '@trello/contracts';
-import { showToast } from '../../../shared/store/toast-store';
 import { useUpdateBoard } from '../api/use-board';
+import { useBoardBackgroundStore } from '../store/board-background-store';
+
+const FAILED_MESSAGE = 'Arka plan değiştirilemedi. Tekrar dene.';
+
+function reportFailure() {
+  useBoardBackgroundStore.getState().showError(FAILED_MESSAGE);
+}
 
 /**
  * Changes the board's background. A separate mutation from the rename, so a failed
- * background never shows up as a title error. The cache change is optimistic; when the
- * request fails it is rolled back (by `useUpdateBoard`) and a toast says so. The toast is
- * raised from the board header's hook, which outlives the dialog the choice was made in.
+ * background never shows up as a title error. The cache change is optimistic and rolled
+ * back by `useUpdateBoard` when the request fails. The failure is reported inside the
+ * background dialog while it is open (a modal hides toasts), as a toast otherwise.
+ * A new choice clears the previous error.
  */
 export function useBoardBackground(boardId: string) {
-  const updateBoard = useUpdateBoard(boardId);
+  const updateBoard = useUpdateBoard(boardId, reportFailure);
 
   function changeBackground(background: BoardBackground) {
-    updateBoard.mutate(
-      { background },
-      {
-        onError: () =>
-          showToast('Arka plan değiştirilemedi. Önceki arka plan geri yüklendi.', { tone: 'error' }),
-      },
-    );
+    useBoardBackgroundStore.getState().clearError();
+    updateBoard.mutate({ background });
   }
 
   return { changeBackground };

@@ -13,12 +13,25 @@ function patchBoard(detail: BoardDetailDto | undefined, changes: Partial<BoardSu
   return detail ? { ...detail, board: { ...detail.board, ...changes } } : detail;
 }
 
-/** Optimistic: the new title shows at once and is rolled back if the request fails. */
-export function useUpdateBoard(boardId: string) {
+/**
+ * Optimistic: the change (title, background) shows at once and is rolled back if the
+ * request fails. Updates of one board run one after the other (`scope`), so quick
+ * successive changes (arrow keys on the background picker) reach the server in order and
+ * an older answer cannot overwrite a newer one. While a newer update is queued, an older
+ * one leaves the cache alone (its answer or rollback would flash an outdated board); the
+ * last one to settle refetches. `onFailed` runs for every failed update, even when a newer
+ * one has started (callbacks given to `mutate()` are dropped then).
+ */
+export function useUpdateBoard(boardId: string, onFailed?: () => void) {
   const queryClient = useQueryClient();
   const detailKey = boardKeys.detail(boardId);
+  const mutationKey = ['board-update', boardId] as const;
+  // This mutation still counts as running in its callbacks, so more than 1 means a newer one waits.
+  const newerQueued = () => queryClient.isMutating({ mutationKey }) > 1;
 
   return useMutation({
+    mutationKey,
+    scope: { id: `board-update-${boardId}` },
     mutationFn: (changes: UpdateBoardRequest) => boardsApi.update(boardId, changes),
     onMutate: async (changes) => {
       await queryClient.cancelQueries({ queryKey: detailKey });
@@ -27,15 +40,18 @@ export function useUpdateBoard(boardId: string) {
       return { previous };
     },
     onError: (_error, _changes, context) => {
-      if (context?.previous) queryClient.setQueryData(detailKey, context.previous);
+      if (context?.previous && !newerQueued()) queryClient.setQueryData(detailKey, context.previous);
+      onFailed?.();
     },
     onSuccess: (board) => {
+      if (newerQueued()) return;
       queryClient.setQueryData<BoardDetailDto>(detailKey, (detail) => patchBoard(detail, board));
       queryClient.setQueryData<BoardSummaryDto[]>(boardKeys.list(), (boards) =>
         boards?.map((item) => (item.id === board.id ? board : item)),
       );
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: boardKeys.all }),
+    onSettled: () =>
+      newerQueued() ? undefined : queryClient.invalidateQueries({ queryKey: boardKeys.all }),
   });
 }
 
