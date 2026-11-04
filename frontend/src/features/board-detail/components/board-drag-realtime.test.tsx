@@ -126,19 +126,21 @@ describe('the card actions dialog when the card is removed by someone else', () 
 });
 
 describe('the card UI state when a card leaves the cache', () => {
-  const idleCardUi = { actionsCardId: null, actionsListId: null, focusTarget: null };
   const removeFirstCard = () =>
     fakeRealtime.serverEmit('card:deleted', { id: `${TODO.id}-card-1`, listId: TODO.id }, { boardId: BOARD_ID });
 
-  it('forgets everything when the whole list of the open dialog goes away', async () => {
+  it('closes the dialog and hands the focus to the lists region when its whole list goes away', async () => {
     const { user } = await openLiveBoard(testCards(TODO.id, 'Taslak'));
     await user.click(screen.getByRole('button', { name: '“Taslak” kartının işlemleri' }));
+    // A browser moves the focus into a modal dialog (jsdom's showModal stand-in does not), away from the board.
+    within(screen.getByRole('dialog', { name: 'Kart işlemleri' })).getAllByRole('button')[0]?.focus();
 
     fakeRealtime.serverEmit('list:deleted', { id: TODO.id }, { boardId: BOARD_ID });
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    // The "Kart ekle" button it would have focused is gone too: nothing may stay pending.
-    expect(useCardUiStore.getState()).toMatchObject(idleCardUi);
+    // The "Kart ekle" button it would have focused is gone too: the focus must not fall to <body>.
+    await waitFor(() => expect(screen.getByRole('list', { name: 'Listeler' })).toHaveFocus());
+    expect(useCardUiStore.getState()).toMatchObject({ actionsCardId: null, actionsListId: null });
   });
 
   it('drops a pending card focus when that card is removed', async () => {

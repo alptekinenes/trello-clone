@@ -30,10 +30,21 @@ describe('card UI store: forgetGone', () => {
     });
   });
 
-  it('leaves no focus behind when the list is gone as well', () => {
+  it('sends the focus to the lists region when the list of the gone card is gone as well', () => {
     store().openActions('c1', 'l1');
 
     expect(store().forgetGone(board([], []))).toBe(true);
+    expect(store()).toMatchObject({
+      actionsCardId: null,
+      actionsListId: null,
+      focusTarget: { kind: 'lists' },
+    });
+  });
+
+  it('does not invent a focus target when no dialog was open and the pending focus is gone', () => {
+    store().focusAddCard('l1');
+
+    expect(store().forgetGone(board([], []))).toBe(false);
     expect(store().focusTarget).toBeNull();
   });
 

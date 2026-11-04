@@ -30,7 +30,7 @@ interface CardUiState {
   closeActions: () => void;
   /**
    * Forgets what points at a card or list that left the board: the open dialog
-   * (the focus then goes to its list's "Kart ekle", if that list is still there)
+   * (the focus then goes to its list's "Kart ekle", or to the lists region if that list is gone too)
    * and a pending focus. Returns true when it closed a dialog.
    */
   forgetGone: (present: Presence) => boolean;
@@ -53,15 +53,11 @@ export const useCardUiStore = create<CardUiState>()((set, get) => ({
     const dialogGone = state.actionsCardId !== null && !present.hasCard(state.actionsCardId);
     const focusGone = state.focusTarget !== null && !isPresent(state.focusTarget, present);
     if (!dialogGone && !focusGone) return false;
-    const addCardList =
-      dialogGone && state.actionsListId !== null && present.hasList(state.actionsListId)
-        ? state.actionsListId
-        : null;
     const keptFocus = focusGone ? null : state.focusTarget;
     set({
       actionsCardId: dialogGone ? null : state.actionsCardId,
       actionsListId: dialogGone ? null : state.actionsListId,
-      focusTarget: addCardList ? { kind: 'add-card', listId: addCardList } : keptFocus,
+      focusTarget: dialogGone ? focusAfterDialog(state.actionsListId, present) : keptFocus,
     });
     return dialogGone;
   },
@@ -72,6 +68,13 @@ export const useCardUiStore = create<CardUiState>()((set, get) => ({
   clearFocus: () => set({ focusTarget: null }),
   reset: () => set({ actionsCardId: null, actionsListId: null, focusTarget: null }),
 }));
+
+/** Where the focus goes when the card of the open dialog is gone: its list's "Kart ekle", else the lists. */
+function focusAfterDialog(listId: string | null, present: Presence): FocusTarget {
+  return listId !== null && present.hasList(listId)
+    ? { kind: 'add-card', listId }
+    : { kind: 'lists' };
+}
 
 function isPresent(target: FocusTarget, present: Presence): boolean {
   switch (target.kind) {
