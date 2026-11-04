@@ -9,7 +9,9 @@ import { cardDragId, type DragType, listCardsDropId, listDragId } from '../hooks
 import { AddCardComposer } from './add-card-composer';
 import { CardTile } from './card-tile';
 
-const COLUMN = 'flex w-72 shrink-0 flex-col rounded-lg bg-surface-sunken shadow-card';
+/** Width of a list column; on narrow screens most of the viewport (see --container-list-narrow). */
+export const LIST_WIDTH = 'w-list max-sm:w-list-narrow';
+const COLUMN = `flex ${LIST_WIDTH} max-h-full shrink-0 flex-col rounded-lg bg-surface-sunken shadow-card`;
 const ICON_BUTTON =
   'inline-flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted hover:bg-surface-hover hover:text-fg';
 const CARD_STACK = 'flex flex-col gap-2 px-2 pb-2';
@@ -17,15 +19,15 @@ const CARD_STACK = 'flex flex-col gap-2 px-2 pb-2';
 /** Static copy of a list shown under the pointer while dragging (tilted one level deeper, see CardDragPreview). */
 export function ListDragPreview({ list, cards }: { list: ListDto; cards: CardSummaryDto[] }) {
   return (
-    <div>
+    <div className="h-full">
       <div className={`${COLUMN} rotate-2 cursor-grabbing shadow-drag`}>
-        <div className="flex items-center gap-1 p-2">
+        <div className="flex shrink-0 items-center gap-1 p-2">
           <span className={ICON_BUTTON}>
             <GripIcon />
           </span>
           <span className="truncate px-2 py-1 text-sm font-semibold">{list.title}</span>
         </div>
-        <div className={CARD_STACK}>
+        <div className={`${CARD_STACK} min-h-0 overflow-hidden`}>
           {cards.map((card) => (
             <p
               key={card.id}
@@ -76,10 +78,10 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`${COLUMN} ${isDragging ? 'opacity-40' : ''}`}
+      className={`${COLUMN} snap-start ${isDragging ? 'opacity-40' : ''}`}
     >
       {/* The whole header is a pointer handle; the grip button is the keyboard handle. */}
-      <div {...listeners} className="flex cursor-grab items-center gap-1 p-2">
+      <div {...listeners} className="flex shrink-0 cursor-grab items-center gap-1 p-2">
         <button
           ref={setActivatorNodeRef}
           type="button"
@@ -110,27 +112,32 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
           <ArchiveIcon />
         </button>
       </div>
-      {/* Card area: also the drop target for an empty list. */}
+      {/* Card area: also the drop target for an empty list. Only the cards scroll; the header and "Kart ekle" stay. */}
       <div ref={setCardAreaRef} className="flex min-h-2 flex-col">
         <SortableContext
           items={cards.map((card) => cardDragId(card.id))}
           strategy={verticalListSortingStrategy}
         >
           {cards.length > 0 && (
-            <ol aria-label={`“${list.title}” kartları`} className={CARD_STACK}>
-              {cards.map((card) => (
-                <CardTile
-                  key={card.id}
-                  boardId={boardId}
-                  card={card}
-                  labels={labels}
-                  dropDisabled={draggingType === 'list'}
-                />
-              ))}
-            </ol>
+            <div className="min-h-0 overflow-y-auto overscroll-y-contain">
+              {/* pt-1 and px-2 keep the focus ring and hover shadow of the cards from being clipped by the scroll area. */}
+              <ol aria-label={`“${list.title}” kartları`} className={`${CARD_STACK} pt-1`}>
+                {cards.map((card) => (
+                  <CardTile
+                    key={card.id}
+                    boardId={boardId}
+                    card={card}
+                    labels={labels}
+                    dropDisabled={draggingType === 'list'}
+                  />
+                ))}
+              </ol>
+            </div>
           )}
         </SortableContext>
-        <AddCardComposer boardId={boardId} listId={list.id} listTitle={list.title} />
+        <div className="shrink-0">
+          <AddCardComposer boardId={boardId} listId={list.id} listTitle={list.title} />
+        </div>
       </div>
     </li>
   );

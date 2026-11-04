@@ -4,6 +4,7 @@ import { FormAlert } from '../../../shared/ui/form-alert';
 import { CloseIcon, PlusIcon } from '../../../shared/ui/icons';
 import { TextField } from '../../../shared/ui/text-field';
 import { useAddListForm } from '../hooks/use-add-list-form';
+import { LIST_WIDTH } from './board-list';
 
 export function AddListComposer({ boardId, hasLists }: { boardId: string; hasLists: boolean }) {
   const { isOpen, open, close, openerRef, form, onSubmit, isPending, serverError } =
@@ -19,7 +20,7 @@ export function AddListComposer({ boardId, hasLists }: { boardId: string; hasLis
         ref={openerRef}
         type="button"
         onClick={open}
-        className="flex h-11 w-72 shrink-0 items-center gap-2 rounded-lg bg-board-control px-3 text-sm font-medium text-on-board transition-colors hover:bg-board-control-hover"
+        className={`flex h-11 ${LIST_WIDTH} shrink-0 snap-start items-center gap-2 rounded-lg bg-board-control px-3 text-sm font-medium text-on-board transition-colors hover:bg-board-control-hover`}
       >
         <PlusIcon />
         {hasLists ? 'Başka liste ekle' : 'Liste ekle'}
@@ -31,7 +32,7 @@ export function AddListComposer({ boardId, hasLists }: { boardId: string; hasLis
     <form
       noValidate
       onSubmit={onSubmit}
-      className="flex w-72 shrink-0 flex-col gap-2 rounded-lg bg-surface-sunken p-2 shadow-card"
+      className={`flex ${LIST_WIDTH} shrink-0 snap-start flex-col gap-2 rounded-lg bg-surface-sunken p-2 shadow-card`}
     >
       {serverError && <FormAlert>{serverError}</FormAlert>}
       <TextField

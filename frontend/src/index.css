@@ -65,6 +65,10 @@
   --shadow-raised: var(--ui-shadow-raised);
   --shadow-drag: var(--ui-shadow-drag);
 
+  /* Board list column width (w-list); on narrow screens most of the viewport, so the next list peeks in. */
+  --container-list: 18rem;
+  --container-list-narrow: 85vw;
+
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
