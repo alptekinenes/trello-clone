@@ -33,6 +33,11 @@ interface MenuProps {
   /** Visible content of the trigger button (icon, avatar, text). */
   trigger: ReactNode;
   triggerClassName?: string;
+  /**
+   * The trigger's own content (e.g. a visually hidden span) is its accessible name, so visible
+   * text such as initials never disagrees with an aria-label.
+   */
+  triggerNamedByContent?: boolean;
   /** Where the panel sits under the trigger. */
   align?: 'start' | 'end';
   children: ReactNode;
@@ -47,6 +52,7 @@ export function Menu({
   label,
   trigger,
   triggerClassName = '',
+  triggerNamedByContent = false,
   align = 'start',
   children,
 }: MenuProps) {
@@ -125,7 +131,7 @@ export function Menu({
       <button
         ref={triggerRef}
         type="button"
-        aria-label={label}
+        aria-label={triggerNamedByContent ? undefined : label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

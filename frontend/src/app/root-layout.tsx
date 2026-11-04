@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
-import { UserMenu, useAuthStatus } from '../features/auth';
-import { useBoardListRealtime } from '../features/boards';
+import { AccountMenu, useAuthStatus } from '../features/auth';
+import { CreateBoardDialog, useBoardListRealtime } from '../features/boards';
 import { useRealtimeConnection } from '../shared/hooks/use-realtime-connection';
+import { APP_NAME } from '../shared/lib/app-name';
+import { Button } from '../shared/ui/button';
 import { Toaster } from '../shared/ui/toaster';
 
 export function RootLayout() {
-  useRealtimeConnection(useAuthStatus() === 'authenticated');
+  const signedIn = useAuthStatus() === 'authenticated';
+  const [creating, setCreating] = useState(false);
+  useRealtimeConnection(signedIn);
   useBoardListRealtime();
 
   return (
@@ -16,16 +21,24 @@ export function RootLayout() {
       >
         İçeriğe geç
       </a>
-      <header className="flex h-12 items-center justify-between border-b border-line bg-surface px-4">
-        <Link to="/" className="rounded-sm text-base font-semibold text-fg">
-          Trello Clone
-        </Link>
-        <UserMenu />
+      <header className="flex h-12 items-center justify-between gap-2 border-b border-line bg-surface px-4">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="rounded-sm text-base font-semibold text-fg">
+            {APP_NAME}
+          </Link>
+          {signedIn && (
+            <Button className="h-8" onClick={() => setCreating(true)}>
+              Yeni pano
+            </Button>
+          )}
+        </div>
+        <AccountMenu />
       </header>
       {/* The header stays put; the page scrolls inside main, and the board fits main exactly. */}
       <main id="main" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <Outlet />
       </main>
+      {creating && <CreateBoardDialog onClose={() => setCreating(false)} />}
       <Toaster />
     </div>
   );

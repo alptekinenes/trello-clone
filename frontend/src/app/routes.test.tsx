@@ -16,7 +16,7 @@ describe('routes', () => {
       await screen.findByRole('heading', { level: 1, name: 'Panolarım' }),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/boards');
-    expect(screen.getByRole('link', { name: 'Trello Clone' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Trello Klonu' })).toBeInTheDocument();
   });
 
   it('renders the not found page for unknown paths', async () => {

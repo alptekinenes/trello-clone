@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openAccountMenu, signOut } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -14,13 +15,15 @@ test('a new user registers, signs out and signs back in', async ({ page }) => {
 
   await expect(page).toHaveURL('/boards');
   await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible();
-  await expect(page.getByText('Deneme Kullanıcı')).toBeVisible();
+  await openAccountMenu(page);
+  await expect(page.getByRole('menu', { name: 'Hesap menüsü' })).toContainText('Deneme Kullanıcı');
+  await page.keyboard.press('Escape');
 
   // The session survives a reload through the refresh cookie.
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Panolarım' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Çıkış yap' }).click();
+  await signOut(page);
   await expect(page).toHaveURL('/login');
 
   // After logout a reload does not restore the session.
@@ -36,7 +39,9 @@ test('a new user registers, signs out and signs back in', async ({ page }) => {
   await page.getByLabel('Parola').fill(password);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL('/boards');
-  await expect(page.getByText('Deneme Kullanıcı')).toBeVisible();
+  await openAccountMenu(page);
+  await expect(page.getByRole('menu', { name: 'Hesap menüsü' })).toContainText('Deneme Kullanıcı');
+  await page.keyboard.press('Escape');
 });
 
 test('registering with a taken email shows a field error', async ({ page, request }) => {

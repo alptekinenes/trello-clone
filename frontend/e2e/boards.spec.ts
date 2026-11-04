@@ -31,7 +31,7 @@ test('create, open, rename and delete a board', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Yeniden adlandırıldı' })).toBeVisible();
 
   // Listed on the boards page
-  await page.getByRole('link', { name: 'Trello Clone' }).click();
+  await page.getByRole('link', { name: 'Trello Klonu' }).click();
   await expect(page).toHaveURL('/boards');
   await page.getByRole('link', { name: 'Yeniden adlandırıldı' }).click();
 

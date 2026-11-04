@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('signed-out visitors are sent from home to the login page', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page).toHaveTitle('Trello Clone');
+  await expect(page).toHaveTitle('Trello Klonu');
   await expect(page).toHaveURL('/login');
   await expect(page.getByRole('heading', { level: 1, name: 'Giriş yap' })).toBeVisible();
 });

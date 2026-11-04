@@ -9,7 +9,7 @@ import { useCreateBoardForm } from '../hooks/use-create-board-form';
 
 export function CreateBoardDialog({ onClose }: { onClose: () => void }) {
   const { form, onSubmit, preview, selectBackground, isPending, serverError } =
-    useCreateBoardForm();
+    useCreateBoardForm(onClose);
   const {
     register,
     formState: { errors },

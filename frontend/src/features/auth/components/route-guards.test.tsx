@@ -66,14 +66,15 @@ describe('route guards', () => {
     );
     const { router } = renderApp('/');
 
-    expect(await screen.findByText(testUser.name)).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Çıkış yap' }));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Çıkış yap' }));
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Giriş yap' })).toBeInTheDocument();
     expect(loggedOut).toBe(true);
     expect(router.state.location.pathname).toBe('/login');
     expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', accessToken: null });
-    expect(screen.queryByText(testUser.name)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hesap menüsü' })).not.toBeInTheDocument();
   });
 
   it('logs out locally even if the server call fails', async () => {
@@ -81,7 +82,9 @@ describe('route guards', () => {
     server.use(http.post('*/api/v1/auth/logout', () => HttpResponse.error()));
     renderApp('/');
 
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Çıkış yap' }));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Çıkış yap' }));
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Giriş yap' })).toBeInTheDocument();
     expect(useAuthStore.getState().status).toBe('anonymous');

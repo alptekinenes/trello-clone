@@ -409,3 +409,15 @@ export async function openBoardsPageAs(page: Page): Promise<void> {
   });
   await expectFrame(page, CONNECTED_FRAME);
 }
+
+/** Opens the account menu in the header. */
+export async function openAccountMenu(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Hesap menüsü' }).click();
+  await expect(page.getByRole('menu', { name: 'Hesap menüsü' })).toBeVisible();
+}
+
+/** Signs out through the account menu. */
+export async function signOut(page: Page): Promise<void> {
+  await openAccountMenu(page);
+  await page.getByRole('menuitem', { name: 'Çıkış yap' }).click();
+}

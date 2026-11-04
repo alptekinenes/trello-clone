@@ -71,7 +71,7 @@ describe('LoginPage', () => {
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/boards');
     expect(body).toEqual({ email: 'ayse@example.com', password: 'secret-password' });
-    expect(screen.getByText(testUser.name)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hesap menüsü' })).toBeInTheDocument();
     expect(useAuthStore.getState()).toMatchObject({ status: 'authenticated', accessToken: 'token' });
   });
 

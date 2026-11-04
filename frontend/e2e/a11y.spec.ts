@@ -5,6 +5,7 @@ import {
   apiPatchCard,
   apiSetBoardBackground,
   expectNoA11yViolations,
+  openAccountMenu,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -140,6 +141,13 @@ function defineScreens(mode: Mode): void {
       await page.goto('/boards');
       await page.getByRole('button', { name: 'Yeni pano oluştur' }).click();
       await expect(page.getByRole('dialog', { name: 'Pano oluştur' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('account menu open', async ({ page }) => {
+      await signUp(page, 'Ayşe Erişilebilir');
+      await page.goto('/boards');
+      await openAccountMenu(page);
       await expectNoA11yViolations(page);
     });
 

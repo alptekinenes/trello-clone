@@ -8,8 +8,8 @@ import { createBoardSchema, type CreateBoardFormValues } from '../schemas/board-
 
 const DEFAULT_VALUES: CreateBoardFormValues = { title: '', background: 'blue' };
 
-/** Create-board form: on success it opens the new board. */
-export function useCreateBoardForm() {
+/** Create-board form: on success it opens the new board, then calls `onCreated` (for a host that outlives the navigation). */
+export function useCreateBoardForm(onCreated?: () => void) {
   const navigate = useNavigate();
   const createBoard = useCreateBoard();
   const form = useForm({
@@ -20,7 +20,10 @@ export function useCreateBoardForm() {
 
   const onSubmit = form.handleSubmit((values) =>
     createBoard.mutate(values, {
-      onSuccess: (board) => navigate(`/boards/${board.id}`),
+      onSuccess: (board) => {
+        navigate(`/boards/${board.id}`);
+        onCreated?.();
+      },
     }),
   );
 
