@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import pg from 'pg';
 
@@ -136,6 +137,20 @@ export async function apiAssignLabel(
 ): Promise<void> {
   const res = await page.request.put(`/api/v1/cards/${cardId}/labels/${labelId}`, {
     headers: authHeaders(token),
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/** Changes the background of a board through the API (`blue`, `lime`, `sky`...). */
+export async function apiSetBoardBackground(
+  page: Page,
+  token: string,
+  boardId: string,
+  background: string,
+): Promise<void> {
+  const res = await page.request.patch(`/api/v1/boards/${boardId}`, {
+    headers: authHeaders(token),
+    data: { background },
   });
   expect(res.ok()).toBe(true);
 }
@@ -292,6 +307,44 @@ export async function expireInvitation(boardId: string, email: string): Promise<
   } finally {
     await client.end();
   }
+}
+
+/** WCAG 2.0, 2.1 and 2.2 levels A and AA. */
+const WCAG_AA_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+const CARD_TILE = 'aria-roledescription="sıralanabilir kart"';
+
+/**
+ * Scans the page with axe against WCAG 2.2 AA. Violations of impact `critical` or `serious`
+ * fail the test; the message names the rule and the elements so the report is actionable.
+ *
+ * One deliberate exception: `label-content-name-mismatch` (an experimental rule) on card tiles.
+ * A tile is named by its title only and the due date, checklist progress and labels are its
+ * description (`aria-describedby`), so the visible badge text is not part of the name. The
+ * title is what a person says to pick the card, so this is accepted as a false positive; the
+ * rule still applies to every other element.
+ */
+export async function expectNoA11yViolations(page: Page): Promise<void> {
+  const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA_TAGS).analyze();
+  const blocking = violations
+    .map((violation) =>
+      violation.id === 'label-content-name-mismatch'
+        ? { ...violation, nodes: violation.nodes.filter((node) => !node.html.includes(CARD_TILE)) }
+        : violation,
+    )
+    .filter(
+      (violation) =>
+        (violation.impact === 'critical' || violation.impact === 'serious') &&
+        violation.nodes.length > 0,
+    );
+  const report = blocking.map(
+    (violation) =>
+      `${violation.id} (${violation.impact}): ${violation.help}\n` +
+      violation.nodes
+        .map((node) => `  - ${node.target.join(' ')}\n    ${node.failureSummary?.replace(/\n/g, '\n    ')}`)
+        .join('\n'),
+  );
+  expect(report, report.join('\n')).toEqual([]);
 }
 
 /*
