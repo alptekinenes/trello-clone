@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { Menu, MenuGroup, MenuItem, MenuRadioItem, MenuSeparator } from './menu';
+import { startsInEditable } from '../lib/dnd-sensors';
+import { Menu,MenuGroup, MenuItem, MenuRadioItem, MenuSeparator } from './menu';
 
 function setup(onProfile = vi.fn(), onDark = vi.fn()) {
   render(
@@ -25,6 +26,14 @@ function setup(onProfile = vi.fn(), onDark = vi.fn()) {
   );
   return userEvent.setup();
 }
+
+it('marks its panel so a press on an item never starts a drag of the surrounding sortable', async () => {
+  const user = setup();
+  await user.click(screen.getByRole('button', { name: 'Hesap menüsü' }));
+
+  expect(screen.getByRole('menu')).toHaveAttribute('data-no-dnd');
+  expect(startsInEditable(screen.getByRole('menuitem', { name: 'Profil' }))).toBe(true);
+});
 
 const trigger = () => screen.getByRole('button', { name: 'Hesap menüsü' });
 

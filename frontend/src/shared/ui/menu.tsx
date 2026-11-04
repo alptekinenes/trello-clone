@@ -165,6 +165,7 @@ export function Menu({
             ref={menuRef}
             id={menuId}
             role="menu"
+            data-no-dnd
             tabIndex={-1}
             aria-label={label}
             onKeyDown={handleMenuKeyDown}
