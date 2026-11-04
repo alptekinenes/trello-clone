@@ -6,7 +6,9 @@ import { AppProviders } from './app/providers';
 import { routes } from './app/routes';
 import { bootstrapSession, installAuth } from './features/auth';
 import './index.css';
+import { initTheme } from './shared/lib/theme';
 
+initTheme();
 installAuth();
 void bootstrapSession();
 
