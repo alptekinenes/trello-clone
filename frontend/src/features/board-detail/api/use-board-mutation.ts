@@ -26,7 +26,11 @@ interface BoardMutationOptions<TVariables, TData> {
   onError?: (error: Error, variables: TVariables) => void;
   /** Toast text for a conflict (someone else changed the board first); default: the generic one. */
   conflictMessage?: string;
+  /** Where the conflict text goes; default: an error toast (a modal dialog needs its own place). */
+  notifyConflict?: (message: string) => void;
 }
+
+const toastError = (message: string) => showToast(message, { tone: 'error' });
 
 /**
  * Mutation on the board detail cache with the project's optimistic pattern:
@@ -47,6 +51,7 @@ export function useBoardMutation<TVariables, TData>({
   onSuccess,
   onError,
   conflictMessage = CONFLICT_MESSAGE,
+  notifyConflict = toastError,
 }: BoardMutationOptions<TVariables, TData>) {
   const queryClient = useQueryClient();
   const key = boardKeys.detail(boardId);
@@ -67,7 +72,7 @@ export function useBoardMutation<TVariables, TData>({
     onError: (error, variables, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
       onRollback?.(variables, context?.previous);
-      if (isStaleConflict(error)) showToast(conflictMessage, { tone: 'error' });
+      if (isStaleConflict(error)) notifyConflict(conflictMessage);
       else onError?.(error, variables);
     },
     onSuccess: (data, variables) => {

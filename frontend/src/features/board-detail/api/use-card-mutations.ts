@@ -49,15 +49,21 @@ interface MoveCardOptions {
   onMoved?: (card: CardSummaryDto) => void;
   /** The move failed; gets the card as it is back in its old place. */
   onRollback?: (card: CardSummaryDto | undefined) => void;
+  /** Where failure texts go; default: an error toast (a modal dialog shows them itself). */
+  notifyError?: (message: string) => void;
 }
 
 /**
  * Optimistic: the card jumps to its new place at once. A stale board (409, or
  * a target list that is gone) reloads the board.
  */
-export function useMoveCard(boardId: string, { onMoved, onRollback }: MoveCardOptions = {}) {
+export function useMoveCard(
+  boardId: string,
+  { onMoved, onRollback, notifyError }: MoveCardOptions = {},
+) {
   return useBoardMutation({
     boardId,
+    notifyConflict: notifyError,
     mutationFn: ({ cardId, ...body }: MoveCardVariables) => cardsApi.move(cardId, body),
     optimistic: (detail, { cardId, listId, afterCardId, beforeCardId }) => {
       const positionOf = (id: string | null) =>
@@ -74,13 +80,11 @@ export function useMoveCard(boardId: string, { onMoved, onRollback }: MoveCardOp
     onSuccessCache: (detail, { id, listId, position, rebalanced }) =>
       patchCard(withRebalance(detail, rebalanced), id, { listId, position }),
     conflictMessage: CARD_CONFLICT_MESSAGE,
-    onError: (error) =>
-      showToast(
-        isGoneTarget(error)
-          ? CARD_CONFLICT_MESSAGE
-          : 'Kart taşınamadı. Tekrar dene.',
-        { tone: 'error' },
-      ),
+    onError: (error) => {
+      const message = isGoneTarget(error) ? CARD_CONFLICT_MESSAGE : 'Kart taşınamadı. Tekrar dene.';
+      if (notifyError) notifyError(message);
+      else showToast(message, { tone: 'error' });
+    },
   });
 }
 

@@ -3,8 +3,8 @@ import type { ChecklistDto, ChecklistItemDto } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { fakeRealtime } from '../../../test/fake-realtime';
-import { BOARD_ID, apiError, testCard } from '../../../test/fixtures';
-import { CARD_ID, CARD_PATH, CARD_URL, LIST, cardDialog, openCard } from '../../../test/card-dialog';
+import { BOARD_ID, apiError, boardDetail, testCard, testLists } from '../../../test/fixtures';
+import { BOARD_URL, CARD_ID, CARD_PATH, CARD_URL, LIST, cardDialog, openCard } from '../../../test/card-dialog';
 import { server } from '../../../test/msw-server';
 import { cardKeys } from '../api/card-keys';
 
@@ -144,6 +144,32 @@ describe('useCardRealtime: card fields', () => {
     );
 
     expect(await within(dialog).findByText('Bu kart arşivde.')).toBeInTheDocument();
+  });
+
+  it('updates the list selector when someone else moves the card to another list', async () => {
+    const [todo, done] = testLists('Yapılacaklar', 'Bitti');
+    const placed = { listId: todo.id };
+    const opened = openCard(CARD_PATH);
+    server.use(
+      http.get(BOARD_URL, () =>
+        HttpResponse.json(
+          boardDetail('OWNER', 'Pano', [todo, done], [summary({ listId: placed.listId })]),
+        ),
+      ),
+    );
+    const dialog = await cardDialog();
+    fakeRealtime.connect();
+    await waitFor(() => expect(fakeRealtime.joins).toEqual([BOARD_ID]));
+    await waitFor(() => expect(opened.queryClient.isFetching()).toBe(0));
+
+    placed.listId = done.id;
+    fakeRealtime.serverEmit(
+      'card:moved',
+      { id: CARD_ID, fromListId: todo.id, toListId: done.id, position: 2048 },
+      here,
+    );
+
+    expect(await within(dialog).findByRole('button', { name: 'Liste: Bitti' })).toBeInTheDocument();
   });
 
   it('ignores events of another board and of other cards', async () => {

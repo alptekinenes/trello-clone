@@ -112,6 +112,32 @@ export async function apiPatchCard(
   expect(res.ok()).toBe(true);
 }
 
+/** Moves a card to the end of the board's list with this title, through the API. */
+export async function apiMoveCardToList(
+  page: Page,
+  token: string,
+  boardId: string,
+  cardId: string,
+  listTitle: string,
+): Promise<void> {
+  const boardRes = await page.request.get(`/api/v1/boards/${boardId}`, { headers: authHeaders(token) });
+  expect(boardRes.ok()).toBe(true);
+  const board = (await boardRes.json()) as {
+    lists: { id: string; title: string }[];
+    cards: { id: string; listId: string; position: number }[];
+  };
+  const list = board.lists.find((item) => item.title === listTitle);
+  if (!list) throw new Error(`no list titled ${listTitle}`);
+  const last = board.cards
+    .filter((card) => card.listId === list.id)
+    .sort((a, b) => b.position - a.position)[0];
+  const res = await page.request.post(`/api/v1/cards/${cardId}/move`, {
+    headers: authHeaders(token),
+    data: { listId: list.id, afterCardId: last?.id ?? null, beforeCardId: null },
+  });
+  expect(res.ok()).toBe(true);
+}
+
 /** Creates a board label through the API and returns its id. */
 export async function seedLabel(
   page: Page,

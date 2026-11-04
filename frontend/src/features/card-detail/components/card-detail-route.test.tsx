@@ -30,7 +30,8 @@ describe('card dialog route', () => {
     expect(within(dialog).getByRole('button', { name: 'Rapor' })).toHaveAccessibleDescription(
       'Kart başlığını düzenle',
     );
-    expect(within(dialog).getByText('“Yapılacaklar” listesinde')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Liste: Yapılacaklar' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Kart menüsü' })).toBeInTheDocument();
   });
 
   it('closes to the board and puts the focus on the card tile', async () => {
@@ -195,7 +196,8 @@ describe('archive from the dialog', () => {
     );
     const dialog = await cardDialog();
 
-    await user.click(within(dialog).getByRole('button', { name: 'Arşivle' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Kart menüsü' }));
+    await user.click(within(dialog).getByRole('menuitem', { name: 'Arşivle' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/boards/${BOARD_ID}`));
     expect(await screen.findByText('“Rapor” kartı arşivlendi.')).toBeInTheDocument();
@@ -216,7 +218,7 @@ describe('archive from the dialog', () => {
     const dialog = await cardDialog();
 
     expect(within(dialog).getByText('Bu kart arşivde.')).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Arşivle' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Kart menüsü' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Geri yükle' }));
 
     await waitFor(() => expect(restored).toEqual({ archived: false }));
@@ -238,7 +240,7 @@ describe('a card the board has moved or archived', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Rapor' });
 
-    expect(await within(dialog).findByText('“Bitti” listesinde')).toBeInTheDocument();
+    expect(await within(dialog).findByRole('button', { name: 'Liste: Bitti' })).toBeInTheDocument();
   });
 
   it('shows the archive banner for a card that is no longer on the board', async () => {
@@ -250,20 +252,22 @@ describe('a card the board has moved or archived', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Rapor' });
 
     expect(await within(dialog).findByText('Bu kart arşivde.')).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Arşivle' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Kart menüsü' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /^Liste:/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Liste: Yapılacaklar')).toBeInTheDocument();
   });
 });
 
 describe('focus when the focused element goes away', () => {
-  it('moves to "Arşivle" and announces it when the card is restored', async () => {
+  it('moves to "Kart menüsü" and announces it when the card is restored', async () => {
     const { user, serverCard } = openCard(CARD_PATH, { archivedAt: '2026-11-02T10:00:00.000Z' });
     recordPatches(serverCard);
     const dialog = await cardDialog();
 
     await user.click(within(dialog).getByRole('button', { name: 'Geri yükle' }));
 
-    const archive = await within(dialog).findByRole('button', { name: 'Arşivle' });
-    expect(archive).toHaveFocus();
+    const menu = await within(dialog).findByRole('button', { name: 'Kart menüsü' });
+    expect(menu).toHaveFocus();
     expect(within(dialog).getByText('Kart geri yüklendi.')).toBeInTheDocument();
     expect(within(dialog).queryByText('Bu kart arşivde.')).not.toBeInTheDocument();
   });

@@ -76,6 +76,6 @@ export function recordPatches(state: { card: CardDetailDto }) {
 /** The card dialog once the card has loaded. */
 export async function cardDialog(name = 'Rapor') {
   const dialog = await screen.findByRole('dialog', { name });
-  await within(dialog).findByText('“Yapılacaklar” listesinde');
+  await within(dialog).findByText('Liste: Yapılacaklar');
   return dialog;
 }

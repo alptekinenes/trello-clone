@@ -64,7 +64,13 @@ const tile = (page: Page, title: string) =>
 const cardDialog = (page: Page, title: string) => page.getByRole('dialog', { name: title });
 
 const sideButton = (dialog: Locator, name: string) =>
-  dialog.getByRole('complementary', { name: 'Kart işlemleri' }).getByRole('button', { name, exact: true });
+  dialog.getByRole('group', { name: 'Kart işlemleri' }).getByRole('button', { name, exact: true });
+
+/** "Arşivle" lives in the dialog's top bar menu. */
+async function archiveFromMenu(dialog: Locator) {
+  await dialog.getByRole('button', { name: 'Kart menüsü' }).click();
+  await dialog.getByRole('menuitem', { name: 'Arşivle' }).click();
+}
 
 const dueInput = (dialog: Locator) => dialog.locator('input[type="datetime-local"]');
 
@@ -232,7 +238,7 @@ test('archiving from the dialog moves focus to the next card, or to "Kart ekle" 
   await openBoard(page, ['Yapılacaklar', 'Tek'], { Yapılacaklar: ['A', 'B', 'C'], Tek: ['X'] });
 
   await tile(page, 'B').click();
-  await sideButton(cardDialog(page, 'B'), 'Arşivle').click();
+  await archiveFromMenu(cardDialog(page, 'B'));
   await expect(cardDialog(page, 'B')).toBeHidden();
   await expect(page.getByText('“B” kartı arşivlendi.')).toBeVisible();
   await expect(tile(page, 'B')).toHaveCount(0);
@@ -240,9 +246,67 @@ test('archiving from the dialog moves focus to the next card, or to "Kart ekle" 
   await expect(page).not.toHaveURL(/\/c\//);
 
   await tile(page, 'X').click();
-  await sideButton(cardDialog(page, 'X'), 'Arşivle').click();
+  await archiveFromMenu(cardDialog(page, 'X'));
   await expect(tile(page, 'X')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '“Tek” listesine kart ekle' })).toBeFocused();
+});
+
+test('the list selector moves the card to the end of another list with the keyboard and persists', async ({
+  page,
+}) => {
+  const { token, boardId } = await openBoard(page, ['Yapılacaklar', 'Bitti'], {
+    Yapılacaklar: ['A'],
+    Bitti: ['B'],
+  });
+  await tile(page, 'A').click();
+  const dialog = cardDialog(page, 'A');
+  const selector = dialog.getByRole('button', { name: 'Liste: Yapılacaklar' });
+
+  await selector.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(dialog.getByRole('menuitemradio', { name: 'Yapılacaklar' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+
+  await expect(dialog.getByRole('button', { name: 'Liste: Bitti' })).toBeFocused();
+  await expect(dialog.getByText('Kart “Bitti” listesine taşındı.')).toBeAttached();
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(
+    page
+      .getByRole('list', { name: '“Bitti” kartları' })
+      .locator('[aria-roledescription="sıralanabilir kart"]'),
+  ).toHaveText([/B/, /A/]);
+  await expect(tile(page, 'A')).toBeFocused();
+
+  await page.reload();
+  await expect(tile(page, 'A')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const res = await page.request.get(`/api/v1/boards/${boardId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const board = (await res.json()) as { lists: { id: string; title: string }[]; cards: { title: string; listId: string }[] };
+      const done = board.lists.find((list) => list.title === 'Bitti');
+      return board.cards.filter((card) => card.listId === done?.id).map((card) => card.title);
+    })
+    .toEqual(['B', 'A']);
+});
+
+test('Escape closes the card menu first and the dialog only on the next press', async ({ page }) => {
+  const { boardId, cardId } = await seedOneCard(page, 'Menü');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Menü');
+  const trigger = dialog.getByRole('button', { name: 'Kart menüsü' });
+
+  await trigger.click();
+  await expect(dialog.getByRole('menuitem', { name: 'Arşivle' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByRole('menu')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(dialog).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page).not.toHaveURL(/\/c\//);
 });
 
 test('dragging a card to another list and releasing does not open the card dialog', async ({

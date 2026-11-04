@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Dialog, useDialogClose } from './dialog';
@@ -80,6 +80,22 @@ describe('Dialog options', () => {
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Kapat' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('shows a header next to the close button, which still closes the dialog', async () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog title="Kart" size="xl" showCloseButton header={<p>Üst çubuk</p>} onClose={onClose}>
+        <p>İçerik</p>
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Kart' });
+    expect(within(dialog).getByText('Üst çubuk')).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: 'Kapat' })).toHaveLength(1);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }));
 
     expect(onClose).toHaveBeenCalledOnce();
   });

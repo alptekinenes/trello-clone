@@ -116,7 +116,7 @@ describe('card labels', () => {
 
     await user.keyboard('{Escape}');
 
-    expect(within(dialog).queryByRole('group')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('group', { name: 'Etiketler' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Etiketler' })).toHaveFocus();
   });

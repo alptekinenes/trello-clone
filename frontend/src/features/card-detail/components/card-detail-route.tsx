@@ -10,6 +10,7 @@ import { useCardDetailClose } from '../hooks/use-card-detail-close';
 import { useCardRealtime } from '../hooks/use-card-realtime';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { CardDetailContent } from './card-detail-content';
+import { CardDetailHeader } from './card-detail-header';
 
 function MissingCard() {
   const close = useDialogClose();
@@ -86,8 +87,10 @@ export function CardDetailRoute() {
     );
   }
 
+  const header = !removed && card && board ? <CardDetailHeader board={board} card={card} /> : undefined;
+
   return (
-    <Dialog title={title} hideTitle size="lg" showCloseButton onClose={onClose}>
+    <Dialog title={title} hideTitle size="xl" showCloseButton header={header} onClose={onClose}>
       {content()}
     </Dialog>
   );

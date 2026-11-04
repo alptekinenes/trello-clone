@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react';
 import { CloseIcon } from './icons';
 
-type DialogSize = 'md' | 'lg';
+type DialogSize = 'md' | 'lg' | 'xl';
 
 interface DialogProps {
   title: string;
@@ -14,12 +14,21 @@ interface DialogProps {
   hideTitle?: boolean;
   /** Adds a "Kapat" button in the top right corner. */
   showCloseButton?: boolean;
+  /**
+   * A top bar left of the "Kapat" button (which then sits in the bar, not in the corner).
+   * It renders inside the dialog, so `useDialogClose` works in it.
+   */
+  header?: ReactNode;
 }
 
 const SIZE_CLASS: Record<DialogSize, string> = {
   md: 'max-w-md p-4 sm:p-6',
   lg: 'max-w-3xl overflow-y-auto p-4 sm:p-6',
+  xl: 'max-w-4xl overflow-y-auto p-4 sm:p-6',
 };
+
+const CLOSE_BUTTON_CLASS =
+  'inline-flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg';
 
 const DialogCloseContext = createContext<(() => void) | null>(null);
 
@@ -45,6 +54,7 @@ export function Dialog({
   size = 'md',
   hideTitle = false,
   showCloseButton = false,
+  header,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -78,17 +88,29 @@ export function Dialog({
       >
         {title}
       </h2>
-      {showCloseButton && (
+      {showCloseButton && !header && (
         <button
           type="button"
           aria-label="Kapat"
           onClick={close}
-          className="absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
+          className={`absolute top-3 right-3 ${CLOSE_BUTTON_CLASS}`}
         >
           <CloseIcon />
         </button>
       )}
-      <DialogCloseContext value={close}>{children}</DialogCloseContext>
+      <DialogCloseContext value={close}>
+        {header && (
+          <div className="mb-4 flex items-center gap-2">
+            {header}
+            {showCloseButton && (
+              <button type="button" aria-label="Kapat" onClick={close} className={CLOSE_BUTTON_CLASS}>
+                <CloseIcon />
+              </button>
+            )}
+          </div>
+        )}
+        {children}
+      </DialogCloseContext>
     </dialog>
   );
 }

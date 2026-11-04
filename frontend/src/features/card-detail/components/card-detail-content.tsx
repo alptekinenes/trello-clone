@@ -1,9 +1,6 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
-import { Button } from '../../../shared/ui/button';
-import { ArchiveIcon, ChecklistIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
-import { useArchiveOpenCard } from '../hooks/use-archive-open-card';
+import { ChecklistIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
 import { useFocusArchiveAfterRestore } from '../hooks/use-focus-archive-after-restore';
-import { ARCHIVE_BUTTON_ID } from '../lib/focus-ids';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
 import { CardDescription } from './card-description';
@@ -19,26 +16,21 @@ interface CardDetailContentProps {
   card: CardDetailDto;
 }
 
-/** Everything inside the card dialog once the card has loaded. */
+/** Everything inside the card dialog below its top bar once the card has loaded. */
 export function CardDetailContent({ board, card }: CardDetailContentProps) {
   const boardId = board.board.id;
-  // The board knows better than the cached card where it is (moved, archived) right now.
-  const tile = board.cards.find((item) => item.id === card.id);
-  const archiveCard = useArchiveOpenCard(boardId, tile);
   const announcement = useCardDetailStore((state) => state.announcement);
-  const listId = tile?.listId ?? card.listId;
-  const listTitle = board.lists.find((list) => list.id === listId)?.title ?? null;
-  const archived = tile === undefined;
+  // The board knows better than the cached card where it is (moved, archived) right now.
+  const archived = !board.cards.some((item) => item.id === card.id);
   useFocusArchiveAfterRestore(archived);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* pr-10 keeps the alert and banner buttons clear of the dialog's close button. */}
-      <div className="flex flex-col gap-4 pr-10 empty:hidden">
+      <div className="flex flex-col gap-4 empty:hidden">
         <CardDetailAlert cardId={card.id} />
         {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}
       </div>
-      <CardTitleEditor boardId={boardId} cardId={card.id} title={card.title} listTitle={listTitle} />
+      <CardTitleEditor boardId={boardId} cardId={card.id} title={card.title} />
       <div className="flex flex-col gap-6 sm:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           <CardLabelsSection board={board} card={card} />
@@ -47,9 +39,9 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           <ChecklistsSection boardId={boardId} card={card} />
         </div>
         {!archived && (
-          <aside
+          <fieldset
             aria-label="Kart işlemleri"
-            className="flex shrink-0 flex-row flex-wrap gap-2 sm:w-44 sm:flex-col"
+            className="m-0 flex min-w-0 shrink-0 flex-row flex-wrap gap-2 border-0 p-0 sm:w-44 sm:flex-col"
           >
             <PanelButton panel="labels" icon={<LabelIcon />}>
               Etiketler
@@ -60,16 +52,7 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
             <PanelButton panel="due-date" icon={<ClockIcon />}>
               Son tarih
             </PanelButton>
-            <Button
-              id={ARCHIVE_BUTTON_ID}
-              variant="secondary"
-              className="justify-start"
-              onClick={archiveCard}
-            >
-              <ArchiveIcon />
-              Arşivle
-            </Button>
-          </aside>
+          </fieldset>
         )}
       </div>
       <div role="status" className="sr-only">

@@ -168,6 +168,24 @@ function defineScreens(mode: Mode): void {
       await expectNoA11yViolations(page);
     });
 
+    test('card menu open', async ({ page }) => {
+      const { boardId, cardId } = await seedRichBoard(page);
+      await page.goto(`/boards/${boardId}/c/${cardId}`);
+      const dialog = page.getByRole('dialog', { name: CARD_TITLE });
+      await dialog.getByRole('button', { name: 'Kart menüsü' }).click();
+      await expect(dialog.getByRole('menu', { name: 'Kart menüsü' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('list selector open', async ({ page }) => {
+      const { boardId, cardId } = await seedRichBoard(page);
+      await page.goto(`/boards/${boardId}/c/${cardId}`);
+      const dialog = page.getByRole('dialog', { name: CARD_TITLE });
+      await dialog.getByRole('button', { name: 'Liste: Yapılacaklar' }).click();
+      await expect(dialog.getByRole('menu', { name: 'Kartı taşı' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
     test('members dialog with a pending invitation', async ({ page }) => {
       const { token, boardId } = await seedRichBoard(page);
       await apiInvite(page, token, boardId, 'davetli-kisi@example.com');

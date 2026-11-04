@@ -38,6 +38,10 @@ interface MenuProps {
    * text such as initials never disagrees with an aria-label.
    */
   triggerNamedByContent?: boolean;
+  /** Lets other code hand the focus to the trigger (e.g. when the focused control goes away). */
+  triggerId?: string;
+  /** Extra classes of the wrapper, e.g. `min-w-0` where the trigger text has to truncate. */
+  containerClassName?: string;
   /** Where the panel sits under the trigger. */
   align?: 'start' | 'end';
   children: ReactNode;
@@ -53,6 +57,8 @@ export function Menu({
   trigger,
   triggerClassName = '',
   triggerNamedByContent = false,
+  triggerId,
+  containerClassName = '',
   align = 'start',
   children,
 }: MenuProps) {
@@ -127,9 +133,10 @@ export function Menu({
   }
 
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div ref={containerRef} className={`relative inline-block ${containerClassName}`.trim()}>
       <button
         ref={triggerRef}
+        id={triggerId}
         type="button"
         aria-label={triggerNamedByContent ? undefined : label}
         aria-haspopup="menu"

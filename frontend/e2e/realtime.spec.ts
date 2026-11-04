@@ -1,6 +1,7 @@
 import { type BrowserContext, expect, type Locator, type Page, test as base } from '@playwright/test';
 import {
   apiAddChecklistItem,
+  apiMoveCardToList,
   apiInvite,
   apiDeleteCard,
   apiPatchCard,
@@ -149,7 +150,7 @@ async function openCard(page: Page, title: string): Promise<Locator> {
   await tile(page, title).click();
   const dialog = page.getByRole('dialog', { name: title });
   await expect(
-    dialog.getByRole('complementary', { name: 'Kart işlemleri' }).getByRole('button', { name: 'Checklist', exact: true }),
+    dialog.getByRole('group', { name: 'Kart işlemleri' }).getByRole('button', { name: 'Checklist', exact: true }),
   ).toBeVisible();
   return dialog;
 }
@@ -199,6 +200,24 @@ test('lists and cards that A adds, moves and renames show up for B without a rel
   await b.reload();
   await expect.poll(() => cardsByList(b, ['Yapılacaklar', 'Tamamlandı'])).toEqual(expected);
   await expect.poll(() => listTitles(b)).toEqual(['Yapılacaklar', 'Tamamlandı']);
+});
+
+test('the list selector of an open card follows A moving the card to another list', async ({
+  page,
+  newPage,
+}) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar', 'Bitti'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(b, boardId, title);
+  const dialog = await openCard(b, 'Rapor');
+  await expect(dialog.getByRole('button', { name: 'Liste: Yapılacaklar' })).toBeVisible();
+  const cardId = b.url().split('/').pop() ?? '';
+
+  await apiMoveCardToList(a, tokenA, boardId, cardId, 'Bitti');
+
+  await expect(dialog.getByRole('button', { name: 'Liste: Bitti' })).toBeVisible();
 });
 
 test('an open card shows A\'s checklist, tick and new title; its deletion is announced', async ({
