@@ -49,3 +49,14 @@ describe('card UI store: forgetGone', () => {
     expect(store().focusTarget).toBeNull();
   });
 });
+
+describe('card UI store: lists focus', () => {
+  beforeEach(resetCardUi);
+
+  it('keeps a pending focus on the lists region whatever is gone', () => {
+    store().focusLists();
+
+    expect(store().forgetGone(board([], []))).toBe(false);
+    expect(store().focusTarget).toEqual({ kind: 'lists' });
+  });
+});

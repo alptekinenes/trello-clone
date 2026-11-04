@@ -19,6 +19,8 @@ import { refreshUnlessMutating } from '../api/refresh-board';
 import { archivedCardsKey } from '../api/use-card-mutations';
 import { archivedListsKey } from '../api/use-list-mutations';
 import { applyBoardEvent } from '../lib/apply-board-event';
+import { type FocusSpot, focusSpot, rescueTarget } from '../lib/focus-rescue';
+import { useCardUiStore } from '../store/card-ui-store';
 
 /** The board is gone for the viewer: removed from it, or it was deleted. */
 function isEviction(message: RealtimeMessage, myUserId: string): boolean {
@@ -88,6 +90,15 @@ function updateSideCaches(queryClient: QueryClient, boardId: string, event: Boar
   }
 }
 
+/** The focused card tile or list went away with the event: the focus must not fall back to the page. */
+function keepFocusOnBoard(spot: FocusSpot, detail: BoardDetailDto | undefined): void {
+  const target = detail && rescueTarget(spot, detail);
+  if (!target) return;
+  const ui = useCardUiStore.getState();
+  if (target.kind === 'add-card') ui.focusAddCard(target.listId);
+  else ui.focusLists();
+}
+
 function applyToBoard(
   queryClient: QueryClient,
   boardId: string,
@@ -97,6 +108,7 @@ function applyToBoard(
   const detailKey = boardKeys.detail(boardId);
   // A request already on its way may have read the board before this change.
   const fetching = queryClient.isFetching({ queryKey: detailKey, exact: true }) > 0;
+  const spot = focusSpot(document.activeElement);
   let refetch = false;
   queryClient.setQueryData<BoardDetailDto>(detailKey, (detail) => {
     if (!detail) return detail;
@@ -104,6 +116,7 @@ function applyToBoard(
     refetch = result.refetch;
     return result.detail;
   });
+  if (spot) keepFocusOnBoard(spot, queryClient.getQueryData<BoardDetailDto>(detailKey));
   updateSideCaches(queryClient, boardId, event, myUserId);
   if (refetch || fetching) refreshUnlessMutating(queryClient, boardId, detailKey, { exact: true });
 }

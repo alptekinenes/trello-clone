@@ -6,9 +6,13 @@ type CardPlace = Pick<CardSummaryDto, 'id' | 'listId' | 'position'>;
 /**
  * What takes the focus next: a card once it renders in the given place (after
  * a move, or back after a failed one), or the "Kart ekle" button of a list
- * (after its last card was archived).
+ * (after its last card was archived), or the "Listeler" region (when the list
+ * that held the focus is gone).
  */
-export type FocusTarget = ({ kind: 'card' } & CardPlace) | { kind: 'add-card'; listId: string };
+export type FocusTarget =
+  | ({ kind: 'card' } & CardPlace)
+  | { kind: 'add-card'; listId: string }
+  | { kind: 'lists' };
 
 /** What is still on the board. */
 export interface Presence {
@@ -32,6 +36,7 @@ interface CardUiState {
   forgetGone: (present: Presence) => boolean;
   focusCard: (card: CardPlace) => void;
   focusAddCard: (listId: string) => void;
+  focusLists: () => void;
   clearFocus: () => void;
   /** Forgets everything; the board page calls it when it goes away. */
   reset: () => void;
@@ -63,12 +68,20 @@ export const useCardUiStore = create<CardUiState>()((set, get) => ({
   focusCard: ({ id, listId, position }) =>
     set({ focusTarget: { kind: 'card', id, listId, position } }),
   focusAddCard: (listId) => set({ focusTarget: { kind: 'add-card', listId } }),
+  focusLists: () => set({ focusTarget: { kind: 'lists' } }),
   clearFocus: () => set({ focusTarget: null }),
   reset: () => set({ actionsCardId: null, actionsListId: null, focusTarget: null }),
 }));
 
 function isPresent(target: FocusTarget, present: Presence): boolean {
-  return target.kind === 'card' ? present.hasCard(target.id) : present.hasList(target.listId);
+  switch (target.kind) {
+    case 'card':
+      return present.hasCard(target.id);
+    case 'add-card':
+      return present.hasList(target.listId);
+    case 'lists':
+      return true;
+  }
 }
 
 /** True when `card` is the focus target and already rendered in the target place. */
@@ -88,6 +101,10 @@ export function isAddCardFocusTarget(target: FocusTarget | null, listId: string)
 /** Test helper. */
 export function resetCardUi(): void {
   useCardUiStore.getState().reset();
+}
+
+export function isListsFocusTarget(target: FocusTarget | null): boolean {
+  return target?.kind === 'lists';
 }
 
 /** Gives a card tile the focus once it is rendered in the given place (e.g. after its dialog closed). */

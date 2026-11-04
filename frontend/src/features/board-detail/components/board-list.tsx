@@ -77,6 +77,7 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
   return (
     <li
       ref={setNodeRef}
+      data-list-id={list.id}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`${COLUMN} snap-start ${isDragging ? 'opacity-40' : ''}`}
     >

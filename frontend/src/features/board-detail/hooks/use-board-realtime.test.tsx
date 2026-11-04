@@ -325,3 +325,92 @@ describe('useBoardRealtime: leaving the board', () => {
     expect(toasts()).toHaveLength(1);
   });
 });
+
+describe('useBoardRealtime: keeping the keyboard focus on the board', () => {
+  const addCardButton = (listTitle: string) =>
+    screen.getByRole('button', { name: `“${listTitle}” listesine kart ekle` });
+
+  function focusTile(title: string) {
+    act(() => screen.getByRole('button', { name: title }).focus());
+    expect(screen.getByRole('button', { name: title })).toHaveFocus();
+  }
+
+  it('moves the focus to "Kart ekle" of the list when the focused card is deleted by someone else', async () => {
+    const { state } = await openBoard({ cards: testCards(TODO.id, 'Taslak', 'Gözden geçir') });
+    const card = state.detail.cards[0];
+    focusTile('Taslak');
+
+    emit('card:deleted', { id: card?.id ?? '', listId: TODO.id }, here);
+
+    await waitFor(() => expect(cardTitles('Yapılacaklar')).toEqual(['Gözden geçir']));
+    await waitFor(() => expect(addCardButton('Yapılacaklar')).toHaveFocus());
+  });
+
+  it('moves the focus to "Kart ekle" of the list the card left when someone moves it to another list', async () => {
+    const { state } = await openBoard({
+      cards: [...testCards(TODO.id, 'Taslak'), ...testCards(DOING.id, 'Tasarım')],
+    });
+    const card = state.detail.cards.find((item) => item.title === 'Taslak');
+    focusTile('Taslak');
+
+    emit('card:moved', { id: card?.id ?? '', fromListId: TODO.id, toListId: DOING.id, position: 3072 }, here);
+
+    await waitFor(() => expect(cardTitles('Yapılıyor')).toEqual(['Tasarım', 'Taslak']));
+    await waitFor(() => expect(addCardButton('Yapılacaklar')).toHaveFocus());
+  });
+
+  it('moves the focus to "Kart ekle" when the focused card is archived by someone else', async () => {
+    const { state } = await openBoard();
+    const card = state.detail.cards[0];
+    focusTile('Taslak');
+
+    emit(
+      'card:updated',
+      { card: { ...(card as CardSummaryDto), archivedAt: '2026-11-03T10:00:00.000Z' }, descriptionChanged: false },
+      here,
+    );
+
+    await waitFor(() => expect(addCardButton('Yapılacaklar')).toHaveFocus());
+  });
+
+  it('moves the focus to the "Listeler" region when the list holding the focus is deleted', async () => {
+    await openBoard({ cards: [] });
+    act(() => screen.getByRole('button', { name: '“Yapılacaklar” listesini arşivle' }).focus());
+
+    emit('list:deleted', { id: TODO.id }, here);
+
+    await waitFor(() => expect(screen.queryByRole('list', { name: '“Yapılacaklar” kartları' })).toBeNull());
+    await waitFor(() => expect(screen.getByRole('list', { name: 'Listeler' })).toHaveFocus());
+  });
+
+  it('moves the focus to the "Listeler" region when the list of the focused card is deleted', async () => {
+    await openBoard();
+    focusTile('Taslak');
+
+    emit('list:deleted', { id: TODO.id }, here);
+
+    await waitFor(() => expect(screen.getByRole('list', { name: 'Listeler' })).toHaveFocus());
+  });
+
+  it('leaves the focus alone when another card is deleted', async () => {
+    const { state } = await openBoard({ cards: testCards(TODO.id, 'Taslak', 'Gözden geçir') });
+    const other = state.detail.cards[1];
+    focusTile('Taslak');
+
+    emit('card:deleted', { id: other?.id ?? '', listId: TODO.id }, here);
+
+    await waitFor(() => expect(cardTitles('Yapılacaklar')).toEqual(['Taslak']));
+    expect(screen.getByRole('button', { name: 'Taslak' })).toHaveFocus();
+  });
+
+  it('leaves the focus alone when it is outside the board content', async () => {
+    const { state } = await openBoard();
+    const card = state.detail.cards[0];
+    act(() => screen.getByRole('button', { name: 'Üyeler' }).focus());
+
+    emit('card:deleted', { id: card?.id ?? '', listId: TODO.id }, here);
+
+    await waitFor(() => expect(cardTitles('Yapılacaklar')).toEqual([]));
+    expect(screen.getByRole('button', { name: 'Üyeler' })).toHaveFocus();
+  });
+});

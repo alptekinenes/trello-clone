@@ -1,11 +1,11 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { horizontalListSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 import type { BoardDetailDto } from '@trello/contracts';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePrefersReducedMotion } from '../../../shared/hooks/use-prefers-reduced-motion';
 import { useBoardDnd } from '../hooks/use-board-dnd';
 import { useVanishedCardCleanup } from '../hooks/use-vanished-card-cleanup';
-import { useCardUiStore } from '../store/card-ui-store';
+import { isListsFocusTarget, useCardUiStore } from '../store/card-ui-store';
 import { AddListComposer } from './add-list-composer';
 import { BoardList, ListDragPreview } from './board-list';
 import { CardActionsDialog } from './card-actions-dialog';
@@ -30,8 +30,19 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
   const actionsCard = detail.cards.find((card) => card.id === actionsCardId) ?? null;
   const vanishedStatus = useVanishedCardCleanup(detail);
 
+  const listsRef = useRef<HTMLOListElement>(null);
+  const listsFocusRequested = useCardUiStore((state) => isListsFocusTarget(state.focusTarget));
+  const clearFocus = useCardUiStore((state) => state.clearFocus);
+
   // An open dialog or a pending focus belongs to this visit of the board.
   useEffect(() => () => resetCardUi(), [resetCardUi]);
+
+  // The list that held the focus is gone: the focus stays on the board, on its lists.
+  useEffect(() => {
+    if (!listsFocusRequested) return;
+    listsRef.current?.focus();
+    clearFocus();
+  }, [listsFocusRequested, clearFocus]);
 
   return (
     <div className={`${CANVAS} ${draggingType ? '' : SNAP}`} data-dragging={draggingType ?? undefined}>
@@ -40,7 +51,12 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
       </p>
       <DndContext {...contextProps}>
         <SortableContext items={listIds} strategy={horizontalListSortingStrategy}>
-          <ol aria-label="Listeler" className="flex items-start gap-3 self-stretch">
+          <ol
+            ref={listsRef}
+            tabIndex={-1}
+            aria-label="Listeler"
+            className="flex items-start gap-3 self-stretch"
+          >
             {detail.lists.map((list) => (
               <BoardList
                 key={list.id}

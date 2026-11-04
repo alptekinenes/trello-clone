@@ -105,6 +105,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
   return (
     <li
       ref={setNodeRef}
+      data-card-id={card.id}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`group relative ${isDragging ? 'opacity-40' : ''}`}
     >
