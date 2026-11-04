@@ -1,6 +1,14 @@
-import { authRateLimit, invitationRateLimit, NodeEnv, validateEnv } from './env.validation.js';
+import {
+  apiRateLimit,
+  authRateLimit,
+  invitationRateLimit,
+  NodeEnv,
+  trustProxyHops,
+  validateEnv,
+} from './env.validation.js';
 
 const validEnv = {
+  NODE_ENV: 'development',
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
   JWT_ACCESS_SECRET: 'x'.repeat(32),
 };
@@ -16,6 +24,22 @@ describe('validateEnv', () => {
     expect(env.AUTH_RATE_LIMIT_PER_MINUTE).toBe(10);
     expect(env.APP_URL).toBe('http://localhost:5173');
     expect(env.INVITATION_RATE_LIMIT_PER_MINUTE).toBe(30);
+    expect(env.API_RATE_LIMIT_PER_MINUTE).toBe(300);
+    expect(env.TRUST_PROXY).toBe(0);
+  });
+
+  it('requires NODE_ENV and has no default for it', () => {
+    expect(() => validateEnv({ ...validEnv, NODE_ENV: undefined })).toThrow(/NODE_ENV/);
+    expect(() => validateEnv({ ...validEnv, NODE_ENV: '' })).toThrow(/NODE_ENV/);
+  });
+
+  it.each(['prod', 'staging', 'Production'])('rejects NODE_ENV %j', (value) => {
+    expect(() => validateEnv({ ...validEnv, NODE_ENV: value })).toThrow(/NODE_ENV/);
+  });
+
+  it.each(['development', 'test', 'production'])('accepts NODE_ENV %j', (value) => {
+    const env = validateEnv({ ...validEnv, NODE_ENV: value, APP_URL: 'https://app.example.com' });
+    expect(env.NODE_ENV).toBe(value);
   });
 
   it('rejects a zero auth rate limit', () => {
@@ -122,5 +146,56 @@ describe('invitationRateLimit', () => {
     expect(invitationRateLimit()).toBe(30);
     vi.stubEnv('INVITATION_RATE_LIMIT_PER_MINUTE', 'abc');
     expect(invitationRateLimit()).toBe(30);
+  });
+});
+
+describe('API rate limit', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('parses the limit and rejects out-of-range values', () => {
+    expect(validateEnv({ ...validEnv, API_RATE_LIMIT_PER_MINUTE: '500' }).API_RATE_LIMIT_PER_MINUTE).toBe(
+      500,
+    );
+    for (const value of ['0', '-1', '100001', 'abc', '1.5']) {
+      expect(() => validateEnv({ ...validEnv, API_RATE_LIMIT_PER_MINUTE: value })).toThrow(
+        /API_RATE_LIMIT_PER_MINUTE/,
+      );
+    }
+  });
+
+  it('reads the limit lazily and falls back to 300 when unset or invalid', () => {
+    vi.stubEnv('API_RATE_LIMIT_PER_MINUTE', '42');
+    expect(apiRateLimit()).toBe(42);
+    vi.stubEnv('API_RATE_LIMIT_PER_MINUTE', '');
+    expect(apiRateLimit()).toBe(300);
+    vi.stubEnv('API_RATE_LIMIT_PER_MINUTE', 'abc');
+    expect(apiRateLimit()).toBe(300);
+  });
+});
+
+describe('TRUST_PROXY', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('parses hop counts from 0 to 10', () => {
+    expect(validateEnv({ ...validEnv, TRUST_PROXY: '0' }).TRUST_PROXY).toBe(0);
+    expect(validateEnv({ ...validEnv, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
+    expect(validateEnv({ ...validEnv, TRUST_PROXY: '10' }).TRUST_PROXY).toBe(10);
+  });
+
+  it.each(['-1', '11', '1.5', 'abc', 'true'])('rejects %j', (value) => {
+    expect(() => validateEnv({ ...validEnv, TRUST_PROXY: value })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('reads the hop count lazily and treats unset or invalid as 0', () => {
+    vi.stubEnv('TRUST_PROXY', '2');
+    expect(trustProxyHops()).toBe(2);
+    vi.stubEnv('TRUST_PROXY', '');
+    expect(trustProxyHops()).toBe(0);
+    vi.stubEnv('TRUST_PROXY', 'abc');
+    expect(trustProxyHops()).toBe(0);
   });
 });

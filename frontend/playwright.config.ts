@@ -20,9 +20,13 @@ export default defineConfig({
       command: 'npm run start -w backend',
       cwd: '..',
       url: 'http://localhost:3000/api/v1/health',
-      // Many sign-ups and invitations per run; the production limits (10/min and 30/min)
-      // would block repeated runs.
-      env: { AUTH_RATE_LIMIT_PER_MINUTE: '1000', INVITATION_RATE_LIMIT_PER_MINUTE: '1000' },
+      // Many sign-ups, invitations and requests per run; the production limits (10/min,
+      // 30/min and 300/min) would block repeated runs.
+      env: {
+        AUTH_RATE_LIMIT_PER_MINUTE: '1000',
+        INVITATION_RATE_LIMIT_PER_MINUTE: '1000',
+        API_RATE_LIMIT_PER_MINUTE: '1000',
+      },
       reuseExistingServer: !process.env.CI,
     },
     {

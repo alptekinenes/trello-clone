@@ -133,3 +133,54 @@ describe('Auth rate limiting (e2e, no database)', () => {
     expect(res.body.code).toBe(ErrorCode.TOO_MANY_REQUESTS);
   });
 });
+
+describe('Client IP and default rate limit (e2e, no database)', () => {
+  let app: INestApplication | undefined;
+
+  afterEach(async () => {
+    await app?.close();
+    app = undefined;
+    vi.unstubAllEnvs();
+  });
+
+  const loginAs = (ip: string) =>
+    request(app!.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', ip)
+      .send({ email: 'bad', password: '' });
+
+  async function exhaustLoginLimit(ip: string): Promise<void> {
+    for (let i = 0; i < 10; i += 1) {
+      await loginAs(ip).expect(400);
+    }
+  }
+
+  it('counts clients separately by X-Forwarded-For when TRUST_PROXY=1', async () => {
+    vi.stubEnv('TRUST_PROXY', '1');
+    app = await createTestApp();
+
+    await exhaustLoginLimit('203.0.113.1');
+    await loginAs('203.0.113.1').expect(429);
+    await loginAs('203.0.113.2').expect(400);
+  });
+
+  it('ignores X-Forwarded-For when TRUST_PROXY=0', async () => {
+    vi.stubEnv('TRUST_PROXY', '0');
+    app = await createTestApp();
+
+    await exhaustLoginLimit('203.0.113.1');
+    await loginAs('203.0.113.2').expect(429);
+  });
+
+  it('applies API_RATE_LIMIT_PER_MINUTE to routes without a stricter limit', async () => {
+    vi.stubEnv('API_RATE_LIMIT_PER_MINUTE', '3');
+    app = await createTestApp();
+    const me = () => request(app!.getHttpServer()).get('/api/v1/users/me');
+
+    for (let i = 0; i < 3; i += 1) {
+      await me().expect(401);
+    }
+    const res = await me().expect(429);
+    expect(res.body.code).toBe(ErrorCode.TOO_MANY_REQUESTS);
+  });
+});

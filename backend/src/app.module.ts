@@ -10,7 +10,7 @@ import { CardsModule } from './cards/cards.module.js';
 import { InvitationsModule } from './invitations/invitations.module.js';
 import { MembersModule } from './members/members.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
-import { validateEnv } from './config/env.validation.js';
+import { apiRateLimit, validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { ListsModule } from './lists/lists.module.js';
@@ -22,7 +22,7 @@ import { UsersModule } from './users/users.module.js';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     // Default limit for every route; credential routes set a stricter one.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: apiRateLimit }]),
     PrismaModule,
     HealthModule,
     UsersModule,

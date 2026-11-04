@@ -13,6 +13,7 @@ import {
 
 export const DEFAULT_AUTH_RATE_LIMIT = 10;
 export const DEFAULT_INVITATION_RATE_LIMIT = 30;
+export const DEFAULT_API_RATE_LIMIT = 300;
 
 export enum NodeEnv {
   Development = 'development',
@@ -21,8 +22,9 @@ export enum NodeEnv {
 }
 
 export class EnvironmentVariables {
+  /** Required and without a default: it decides cookie `secure` and invitation-link logging. */
   @IsEnum(NodeEnv)
-  NODE_ENV: NodeEnv = NodeEnv.Development;
+  NODE_ENV: NodeEnv;
 
   @IsInt()
   @Min(1)
@@ -73,6 +75,22 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(10_000)
   INVITATION_RATE_LIMIT_PER_MINUTE: number = DEFAULT_INVITATION_RATE_LIMIT;
+
+  /** Default requests per client IP per minute for every route without a stricter limit. */
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  API_RATE_LIMIT_PER_MINUTE: number = DEFAULT_API_RATE_LIMIT;
+
+  /**
+   * Number of reverse proxies in front of the app whose `X-Forwarded-For` hops are trusted.
+   * 0 ignores the header; behind one proxy (nginx, a load balancer) set 1 so the rate limiter
+   * sees the real client IP instead of the proxy's.
+   */
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  TRUST_PROXY: number = 0;
 }
 
 /**
@@ -88,6 +106,18 @@ export function authRateLimit(): number {
 export function invitationRateLimit(): number {
   const value = Number(process.env.INVITATION_RATE_LIMIT_PER_MINUTE);
   return Number.isInteger(value) && value > 0 ? value : DEFAULT_INVITATION_RATE_LIMIT;
+}
+
+/** Same lazy read as `authRateLimit`, for the default limit applied to every route. */
+export function apiRateLimit(): number {
+  const value = Number(process.env.API_RATE_LIMIT_PER_MINUTE);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_API_RATE_LIMIT;
+}
+
+/** Lazy read of `TRUST_PROXY` (validated at startup); 0 when unset or invalid. */
+export function trustProxyHops(): number {
+  const value = Number(process.env.TRUST_PROXY);
+  return Number.isInteger(value) && value > 0 ? value : 0;
 }
 
 /** The class defaults hide a missing value, so required-in-production checks look at the raw input. */
