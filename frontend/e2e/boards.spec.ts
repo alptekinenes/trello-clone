@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signUp } from './helpers.js';
+import { seedBoard, signUp } from './helpers.js';
 
 /* Needs the backend and its database (the Playwright config starts both dev servers). */
 
@@ -58,6 +58,47 @@ test('Escape closes the create dialog and focus returns to the opener', async ({
 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(opener).toBeFocused();
+});
+
+test.describe('a 320 px wide screen with touch', () => {
+  test.use({ viewport: { width: 320, height: 640 }, hasTouch: true });
+
+  test('the board page has no sideways overflow and touch targets of at least 44 px', async ({
+    page,
+  }) => {
+    const token = await signUp(page, 'Pano Testçi');
+    const boardId = await seedBoard(page, token, 'Dokunmatik pano', ['Yapılacaklar'], {
+      Yapılacaklar: ['Birinci kart'],
+    });
+    await page.goto(`/boards/${boardId}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Dokunmatik pano' })).toBeVisible();
+    await expect(page.getByText('Birinci kart')).toBeVisible();
+
+    const page320 = await page.evaluate<{ scrollWidth: number; clientWidth: number }>(
+      '({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth })',
+    );
+    expect(page320.scrollWidth).toBeLessThanOrEqual(page320.clientWidth);
+
+    const targets = [
+      page.getByRole('button', { name: 'Dokunmatik pano' }),
+      page.getByRole('button', { name: 'Üyeler', exact: true }),
+      page.getByRole('button', { name: 'Etiketler', exact: true }),
+      page.getByRole('button', { name: 'Arşiv', exact: true }),
+      page.getByRole('button', { name: 'Panoyu sil' }),
+      page.getByRole('button', { name: '“Yapılacaklar” listesini taşı' }),
+      page.getByRole('button', { name: 'Yapılacaklar', exact: true }),
+      page.getByRole('button', { name: '“Yapılacaklar” listesini arşivle' }),
+      page.getByRole('button', { name: '“Birinci kart” kartının işlemleri' }),
+      page.getByRole('button', { name: '“Yapılacaklar” listesine kart ekle' }),
+      page.getByRole('button', { name: 'Başka liste ekle' }),
+    ];
+    for (const target of targets) {
+      const box = await target.boundingBox();
+      expect(box, `${target}`).not.toBeNull();
+      expect(box?.width, `${target} width`).toBeGreaterThanOrEqual(43.5);
+      expect(box?.height, `${target} height`).toBeGreaterThanOrEqual(43.5);
+    }
+  });
 });
 
 test('a board of another user shows the not found page', async ({ page }) => {

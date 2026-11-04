@@ -110,7 +110,7 @@ describe('members dialog: changing a role', () => {
 
     await waitFor(() => expect(select).toHaveValue('ADMIN'));
     release();
-    expect(await within(dialog).findByText('Ayşe Demir artık Yönetici.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Ayşe Demir artık yönetici.')).toBeInTheDocument();
     expect(body).toEqual({ role: 'ADMIN' });
     expect(select).toHaveFocus();
   });

@@ -15,7 +15,7 @@ export function Toaster() {
         <div
           key={toast.id}
           role={toast.tone === 'error' ? 'alert' : 'status'}
-          className={`pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-md px-4 py-3 text-sm shadow-raised ${
+          className={`pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-md px-4 py-3 pointer-coarse:py-1 text-sm shadow-raised ${
             toast.tone === 'error' ? 'bg-danger-subtle text-danger' : 'bg-surface text-fg'
           }`}
         >
@@ -27,7 +27,7 @@ export function Toaster() {
                 toast.action?.onClick();
                 dismiss(toast.id);
               }}
-              className="rounded-sm font-semibold text-primary hover:text-primary-hover"
+              className="inline-flex items-center justify-center rounded-sm font-semibold text-primary pointer-coarse:min-h-11 pointer-coarse:min-w-11 hover:text-primary-hover"
             >
               {toast.action.label}
             </button>
@@ -36,7 +36,7 @@ export function Toaster() {
             type="button"
             aria-label="Bildirimi kapat"
             onClick={() => dismiss(toast.id)}
-            className="rounded-sm text-fg-muted hover:text-fg"
+            className="inline-flex items-center justify-center rounded-sm text-fg-muted pointer-coarse:size-11 hover:text-fg"
           >
             <CloseIcon />
           </button>

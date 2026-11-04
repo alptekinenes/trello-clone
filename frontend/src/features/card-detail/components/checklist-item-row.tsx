@@ -18,8 +18,8 @@ interface ChecklistItemRowProps {
 function ItemContent({ item, onToggle, onEdit }: Omit<ChecklistItemRowProps, 'onRemove'>) {
   return (
     <>
-      {/* The label gives the small native checkbox a 28px target. */}
-      <label className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center">
+      {/* The label gives the small native checkbox a 28px target (44px on touch). */}
+      <label className="inline-flex size-7 shrink-0 pointer-coarse:size-11 cursor-pointer items-center justify-center">
         <input
           id={itemCheckboxId(item.id)}
           type="checkbox"
@@ -92,7 +92,7 @@ export function ChecklistItemRow({ item, onToggle, onEdit, onRemove }: Checklist
         type="button"
         {...attributes}
         aria-label={`“${item.content}” öğesini taşı`}
-        className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg"
+        className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md pointer-coarse:mt-0 pointer-coarse:size-11 text-fg-muted hover:text-fg"
       >
         <GripIcon />
       </button>
@@ -101,7 +101,7 @@ export function ChecklistItemRow({ item, onToggle, onEdit, onRemove }: Checklist
         type="button"
         aria-label={`“${item.content}” öğesini sil`}
         onClick={() => onRemove(item)}
-        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-hover hover:text-danger"
+        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted hover:bg-surface-hover hover:text-danger"
       >
         <TrashIcon />
       </button>

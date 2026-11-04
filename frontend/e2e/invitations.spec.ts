@@ -343,7 +343,7 @@ test.describe('managing members', () => {
     const roleSelect = dialog.getByLabel(`${INVITEE_NAME} rolü`);
     await expect(roleSelect).toHaveValue('MEMBER');
     await roleSelect.selectOption({ label: 'Yönetici' });
-    await expect(dialog.getByRole('status')).toHaveText(`${INVITEE_NAME} artık Yönetici.`);
+    await expect(dialog.getByRole('status')).toHaveText(`${INVITEE_NAME} artık yönetici.`);
 
     await page.reload();
     dialog = await openMembers(page);

@@ -1,7 +1,7 @@
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'on-board';
 
 const BASE =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors pointer-coarse:min-h-11 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11 disabled:cursor-not-allowed disabled:opacity-60';
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-on-primary hover:bg-primary-hover',

@@ -11,7 +11,7 @@ import { CardTile } from './card-tile';
 
 const COLUMN = 'flex w-72 shrink-0 flex-col rounded-lg bg-surface-sunken shadow-card';
 const ICON_BUTTON =
-  'inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-hover hover:text-fg';
+  'inline-flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:size-11 text-fg-muted hover:bg-surface-hover hover:text-fg';
 const CARD_STACK = 'flex flex-col gap-2 px-2 pb-2';
 
 /** Static copy of a list shown under the pointer while dragging (tilted one level deeper, see CardDragPreview). */

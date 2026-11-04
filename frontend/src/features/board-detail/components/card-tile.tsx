@@ -116,7 +116,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         onKeyDown={onKeyDown}
         aria-labelledby={titleId}
         aria-describedby={describedBy}
-        className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:shadow-raised`}
+        className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:shadow-raised pointer-coarse:min-h-11 pointer-coarse:pr-12`}
       >
         <CardTileBody
           card={card}
@@ -131,7 +131,7 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         aria-label={`“${card.title}” kartının işlemleri`}
         title="Kart işlemleri"
         onClick={() => openActions(card.id, card.listId)}
-        className="absolute top-1 right-1 inline-flex size-7 items-center justify-center rounded-md bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
+        className="absolute top-1 right-1 inline-flex size-7 items-center justify-center rounded-md pointer-coarse:top-0 pointer-coarse:right-0 pointer-coarse:size-11 bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
       >
         <MoreIcon />
       </button>

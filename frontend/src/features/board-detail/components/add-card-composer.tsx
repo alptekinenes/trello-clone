@@ -27,7 +27,7 @@ export function AddCardComposer({ boardId, listId, listTitle }: AddCardComposerP
           type="button"
           onClick={open}
           aria-label={`“${listTitle}” listesine kart ekle`}
-          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
+          className="flex h-9 w-full items-center pointer-coarse:h-11 gap-2 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <PlusIcon />
           Kart ekle

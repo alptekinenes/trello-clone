@@ -82,7 +82,7 @@ export function InlineEdit({
           type="button"
           onClick={start}
           aria-describedby={hintId}
-          className={`max-w-full rounded-sm text-left ${wrap ? 'whitespace-normal break-words' : 'truncate'} ${className}`}
+          className={`max-w-full rounded-sm text-left pointer-coarse:min-h-11 ${wrap ? 'whitespace-normal break-words' : 'truncate'} ${className}`}
         >
           {value}
         </button>
@@ -102,7 +102,7 @@ export function InlineEdit({
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={onKeyDown}
       onBlur={() => finish(true)}
-      className={`rounded-sm ${inputClassName}`}
+      className={`rounded-sm pointer-coarse:min-h-11 ${inputClassName}`}
     />
   );
 }

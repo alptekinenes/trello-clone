@@ -59,7 +59,7 @@ describe('invitation page: the invitation', () => {
     renderApp(PAGE);
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Panoya davet' })).toBeInTheDocument();
-    expect(main()).toHaveTextContent('Ali Demir seni Yol haritası panosuna Üye olarak davet etti.');
+    expect(main()).toHaveTextContent('Ali Demir seni Yol haritası panosuna üye olarak davet etti.');
     expect(main()).toHaveTextContent('Davet bora@example.com adresine gönderildi.');
     expect(main()).toHaveTextContent(/Son geçerlilik: \d+ Kasım 2026/);
     const returnUrl = `returnUrl=${encodeURIComponent(`/invitations/${TOKEN}`)}`;

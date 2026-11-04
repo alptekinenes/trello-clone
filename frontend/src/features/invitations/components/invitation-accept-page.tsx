@@ -1,6 +1,6 @@
 import type { InvitationPreviewDto } from '@trello/contracts';
 import { Link, useParams } from 'react-router';
-import { ROLE_LABEL } from '../../../shared/lib/board-role';
+import { roleInSentence } from '../../../shared/lib/board-role';
 import { formatDueLong } from '../../../shared/lib/date';
 import { Button } from '../../../shared/ui/button';
 import { buttonClassName } from '../../../shared/ui/button-styles';
@@ -21,7 +21,7 @@ function PreviewSummary({ preview }: { preview: InvitationPreviewDto }) {
     <div className="flex flex-col gap-2 text-sm">
       <p>
         <strong>{preview.inviterName}</strong> seni <strong>{preview.boardTitle}</strong> panosuna{' '}
-        <strong>{ROLE_LABEL[preview.role]}</strong> olarak davet etti.
+        <strong>{roleInSentence(preview.role)}</strong> olarak davet etti.
       </p>
       <p className="text-fg-muted">
         Davet <strong className="text-fg">{preview.email}</strong> adresine gönderildi. Son

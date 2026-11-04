@@ -9,7 +9,7 @@ import { useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { apiErrorMessage } from '../../../shared/lib/api-error-message';
-import { ROLE_LABEL } from '../../../shared/lib/board-role';
+import { roleInSentence } from '../../../shared/lib/board-role';
 import { showToast } from '../../../shared/store/toast-store';
 import { useCurrentUser } from '../../auth';
 import {
@@ -51,7 +51,7 @@ export function useMemberActions({ board, members, headingRef, announce }: UseMe
   const navigate = useNavigate();
   const myUserId = useCurrentUser()?.id ?? '';
   const updateRole = useUpdateMemberRole(board.id, (member) =>
-    announce(`${member.name} artık ${ROLE_LABEL[member.role]}.`),
+    announce(`${member.name} artık ${roleInSentence(member.role)}.`),
   );
   const removeMember = useRemoveMember(board.id);
   const leaveBoard = useLeaveBoard(board.id, myUserId);

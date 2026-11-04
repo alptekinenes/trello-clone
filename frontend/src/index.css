@@ -85,9 +85,10 @@
     @apply bg-canvas font-sans text-fg antialiased;
   }
 
-  /* Modals leave a gutter on narrow screens; max-w-* on the dialog caps the width. */
+  /* Modals leave a gutter on all four sides on narrow screens; max-w-* on the dialog caps the width. */
   dialog {
     width: calc(100% - 2rem);
+    max-height: calc(100dvh - 2rem);
   }
 
   :focus-visible {

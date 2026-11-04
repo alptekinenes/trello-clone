@@ -66,8 +66,9 @@
   --ui-on-board: #ffffff;
   /* Translucent bar and controls on top of a board background */
   --ui-board-bar: rgb(0 0 0 / 0.24);
-  --ui-board-control: rgb(255 255 255 / 0.2);
-  --ui-board-control-hover: rgb(255 255 255 / 0.32);
+  /* Darkening, not lightening: white text stays >= 4.5:1 on every board background (>= 6.6:1 measured). */
+  --ui-board-control: rgb(0 0 0 / 0.2);
+  --ui-board-control-hover: rgb(0 0 0 / 0.32);
 
   /* Elevation */
   --ui-shadow-card: 0 1px 1px rgb(9 30 66 / 0.25), 0 0 1px rgb(9 30 66 / 0.31);
