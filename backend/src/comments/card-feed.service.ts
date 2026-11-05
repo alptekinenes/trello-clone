@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { type CardFeedPageDto, FEED_LIMITS } from '@trello/contracts';
-import { ACTIVITY_SELECT, toActivityDto } from '../activity/activity.mapper.js';
+import { Injectable, Logger } from '@nestjs/common';
+import { type ActivityDto, type CardFeedPageDto, FEED_LIMITS } from '@trello/contracts';
+import { ACTIVITY_SELECT, type ActivityRow, toActivityDto } from '../activity/activity.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { COMMENT_SELECT, toCommentDto } from './comment.mapper.js';
 import { badCursor } from './comments.errors.js';
@@ -34,7 +34,21 @@ const FEED_ORDER = [{ createdAt: 'desc' }, { id: 'desc' }] as const;
  */
 @Injectable()
 export class CardFeedService {
+  private readonly logger = new Logger(CardFeedService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /** One unreadable row (e.g. a type this build does not know) is logged and left out, not a 500 for the page. */
+  private readableActivities(rows: ActivityRow[]): ActivityDto[] {
+    return rows.flatMap((row) => {
+      try {
+        return [toActivityDto(row)];
+      } catch {
+        this.logger.warn(`Left out activity ${row.id}: unreadable shape`);
+        return [];
+      }
+    });
+  }
 
   async getPage(boardId: string, cardId: string, request: FeedRequest): Promise<CardFeedPageDto> {
     const cursor = request.cursor ? decodeFeedCursor(request.cursor) : null;
@@ -60,7 +74,7 @@ export class CardFeedService {
     ]);
 
     const { items, hasMore } = mergeFeed(
-      [comments.map(toCommentDto), activities.map(toActivityDto)],
+      [comments.map(toCommentDto), this.readableActivities(activities)],
       limit,
     );
     const last = items.at(-1);

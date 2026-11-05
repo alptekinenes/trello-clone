@@ -82,8 +82,11 @@ export class CommentsService {
   }
 
   /**
-   * The author, or ADMIN+, deletes. The counter is lowered only when this request
-   * removed the row, so two deletes of one comment lower it once and the second gets 404.
+   * The author, or ADMIN+, deletes. The counter update comes first, so the card row is
+   * locked before the comment row: the order of `create` and of a card deletion's cascade,
+   * which keeps a delete racing a card deletion from deadlocking. When another request
+   * removed the row first, the 404 is thrown inside the transaction, so the lowered counter
+   * rolls back and two deletes of one comment lower it once.
    */
   async remove(
     boardId: string,
@@ -99,13 +102,14 @@ export class CommentsService {
       if (!existing) throw commentNotFound();
       if (!canDeleteComment(viewer, existing.authorId)) throw notCommentAuthor();
 
-      const { count } = await tx.comment.deleteMany({ where: { id: commentId, boardId } });
-      if (count === 0) throw commentNotFound();
+      // P2025 (answered 404) when the card was deleted since the read.
       const card = await tx.card.update({
-        where: { id: existing.cardId },
+        where: { id: existing.cardId, boardId },
         data: { commentCount: { decrement: 1 } },
         select: { commentCount: true },
       });
+      const { count } = await tx.comment.deleteMany({ where: { id: commentId, boardId } });
+      if (count === 0) throw commentNotFound();
       return { cardId: existing.cardId, commentCount: card.commentCount };
     });
     this.realtime.toBoard(boardId, origin, [

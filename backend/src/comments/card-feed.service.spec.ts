@@ -61,6 +61,20 @@ describe('CardFeedService', () => {
     expect(page.items.map((i) => i.id)).toEqual(['a1', 'c1']);
   });
 
+  it('leaves out an activity row it cannot read instead of failing the whole page', async () => {
+    const { service } = setup(
+      [commentRow('c1', '2026-11-05T10:00:00.000Z')],
+      [
+        { ...activityRow('a-bad', '2026-11-05T10:02:00.000Z'), type: 'CARD_TELEPORTED' },
+        activityRow('a1', '2026-11-05T10:01:00.000Z'),
+      ],
+    );
+
+    const page = await service.getPage(BOARD, CARD, { details: true });
+
+    expect(page.items.map((i) => i.id)).toEqual(['a1', 'c1']);
+  });
+
   it('reads limit + 1 rows per table, scoped to the card and board, with the default limit', async () => {
     const { service, prisma } = setup();
 

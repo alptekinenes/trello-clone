@@ -154,19 +154,26 @@ describe('CommentsService.update', () => {
 
 describe('CommentsService.remove', () => {
   it('lets the author delete and lowers the counter', async () => {
-    const { service, card, realtime, calls } = setup({ commentCount: 2 });
+    const { service, card, realtime } = setup({ commentCount: 2 });
 
     await service.remove(BOARD, COMMENT, { userId: AUTHOR, role: 'MEMBER' }, ORIGIN);
 
-    expect(calls).toEqual(['comment.deleteMany', 'card.update']);
     expect(card.update).toHaveBeenCalledWith({
-      where: { id: CARD },
+      where: { id: CARD, boardId: BOARD },
       data: { commentCount: { decrement: 1 } },
       select: { commentCount: true },
     });
     expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
       { type: 'comment:deleted', data: { id: COMMENT, cardId: CARD, commentCount: 2 } },
     ]);
+  });
+
+  it('locks the card row before the comment row, in the order card deletion cascades', async () => {
+    const { service, calls } = setup();
+
+    await service.remove(BOARD, COMMENT, { userId: AUTHOR, role: 'MEMBER' }, ORIGIN);
+
+    expect(calls).toEqual(['card.update', 'comment.deleteMany']);
   });
 
   it.each(['ADMIN', 'OWNER'] as const)('lets an %s delete another comment', async (role) => {
@@ -188,13 +195,14 @@ describe('CommentsService.remove', () => {
     expect(realtime.toBoard).not.toHaveBeenCalled();
   });
 
-  it('answers 404 and does not lower the counter when another request deleted it first', async () => {
-    const { service, card, realtime } = setup({ deleted: 0 });
+  it('answers 404 from inside the transaction when another request deleted it first, so the lowered counter rolls back', async () => {
+    const { service, realtime, calls, broadcastsAtCommit } = setup({ deleted: 0 });
 
     await expect(
       service.remove(BOARD, COMMENT, { userId: AUTHOR, role: 'MEMBER' }, ORIGIN),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(card.update).not.toHaveBeenCalled();
+    expect(calls).toEqual(['card.update', 'comment.deleteMany']);
+    expect(broadcastsAtCommit()).toBe(-1);
     expect(realtime.toBoard).not.toHaveBeenCalled();
   });
 
