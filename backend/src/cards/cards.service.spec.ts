@@ -3,6 +3,7 @@ import { ErrorCode, POSITION_GAP } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import type { RealtimeService } from '../realtime/realtime.service.js';
+import type { StorageService } from '../storage/storage.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { CardsService } from './cards.service.js';
 
@@ -87,7 +88,11 @@ function setup({
       }),
     ),
   };
-  const attachment = { findFirst: vi.fn().mockResolvedValue({ mimeType: 'image/png' }) };
+  const attachment = {
+    findFirst: vi.fn().mockResolvedValue({ mimeType: 'image/png' }),
+    findMany: vi.fn().mockResolvedValue([{ storageKey: 'key-1' }, { storageKey: 'key-2' }]),
+  };
+  const storage = { deleteQuietly: vi.fn().mockResolvedValue(undefined) };
   const tx = { card, activity, attachment, $queryRaw: vi.fn().mockResolvedValue(locked) };
   const realtime = { toBoard: vi.fn() };
   // How many broadcasts had been made when the transaction callback returned.
@@ -104,8 +109,9 @@ function setup({
     prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
     new ActivityService(),
+    storage as unknown as StorageService,
   );
-  return { service, realtime, inTransaction, card, tx, prisma, activity, attachment };
+  return { service, realtime, inTransaction, card, tx, prisma, activity, attachment, storage };
 }
 
 function codeOf(error: unknown): unknown {
@@ -955,13 +961,32 @@ describe('CardsService', () => {
       ]);
     });
 
-    it('broadcasts nothing when the delete fails', async () => {
-      const { service, realtime, card } = setup();
+    it('broadcasts nothing and deletes no file when the delete fails', async () => {
+      const { service, realtime, card, storage } = setup();
       card.delete.mockRejectedValue(new Error('P2025'));
 
       await expect(service.remove(BOARD, 'c', ORIGIN)).rejects.toThrow('P2025');
 
       expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(storage.deleteQuietly).not.toHaveBeenCalled();
+    });
+
+    it('collects the files of the card before the delete and removes them after the broadcast', async () => {
+      const { service, attachment, card, realtime, storage } = setup();
+
+      await service.remove(BOARD, 'c', ORIGIN);
+
+      expect(attachment.findMany).toHaveBeenCalledWith({
+        where: { cardId: 'c', boardId: BOARD },
+        select: { storageKey: true },
+      });
+      expect(storage.deleteQuietly).toHaveBeenCalledWith(['key-1', 'key-2']);
+      expect(attachment.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+        card.delete.mock.invocationCallOrder[0],
+      );
+      expect(realtime.toBoard.mock.invocationCallOrder[0]).toBeLessThan(
+        storage.deleteQuietly.mock.invocationCallOrder[0],
+      );
     });
   });
 });

@@ -3,6 +3,7 @@ import { ErrorCode, POSITION_GAP } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import type { RealtimeService } from '../realtime/realtime.service.js';
+import type { StorageService } from '../storage/storage.service.js';
 import { ListsService } from './lists.service.js';
 
 const BOARD = 'board-1';
@@ -33,11 +34,16 @@ function setup({
       ),
     deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
   };
+  const attachment = {
+    findMany: vi.fn().mockResolvedValue([{ storageKey: 'key-1' }, { storageKey: 'key-2' }]),
+  };
   const tx = {
     list,
+    attachment,
     $queryRaw: vi.fn().mockResolvedValue(boardExists ? [{ id: BOARD }] : []),
   };
   const realtime = { toBoard: vi.fn() };
+  const storage = { deleteQuietly: vi.fn().mockResolvedValue(undefined) };
   // How many broadcasts had been made when the transaction callback returned.
   const inTransaction = { broadcasts: -1 };
   const prisma = {
@@ -51,8 +57,9 @@ function setup({
   const service = new ListsService(
     prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
+    storage as unknown as StorageService,
   );
-  return { service, realtime, inTransaction, list, tx };
+  return { service, realtime, inTransaction, list, tx, attachment, storage };
 }
 
 function codeOf(error: unknown): unknown {
@@ -300,12 +307,31 @@ describe('ListsService', () => {
     });
 
     it('answers 404 and broadcasts nothing when no list was deleted', async () => {
-      const { service, realtime, list } = setup();
+      const { service, realtime, list, storage } = setup();
       list.deleteMany.mockResolvedValue({ count: 0 });
 
       await expect(service.remove(BOARD, 'a', ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(realtime.toBoard).not.toHaveBeenCalled();
+      expect(storage.deleteQuietly).not.toHaveBeenCalled();
+    });
+
+    it('collects the files of the cards on the list and deletes them after the delete and the broadcast', async () => {
+      const { service, attachment, list, realtime, storage } = setup();
+
+      await service.remove(BOARD, 'a', ORIGIN);
+
+      expect(attachment.findMany).toHaveBeenCalledWith({
+        where: { boardId: BOARD, card: { listId: 'a' } },
+        select: { storageKey: true },
+      });
+      expect(storage.deleteQuietly).toHaveBeenCalledWith(['key-1', 'key-2']);
+      expect(list.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+        storage.deleteQuietly.mock.invocationCallOrder[0],
+      );
+      expect(realtime.toBoard.mock.invocationCallOrder[0]).toBeLessThan(
+        storage.deleteQuietly.mock.invocationCallOrder[0],
+      );
     });
 
     it.each([

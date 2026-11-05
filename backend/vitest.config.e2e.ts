@@ -35,6 +35,8 @@ export default defineConfig({
       // A temporary directory per run; globalSetup removes it at the end.
       UPLOAD_DIR: uploadDir,
       UPLOAD_RATE_LIMIT_PER_MINUTE: '1000',
+      // The sweep would race the tests that count files; it has its own unit tests.
+      STORAGE_SWEEP_INTERVAL_MINUTES: '0',
     },
   },
 });

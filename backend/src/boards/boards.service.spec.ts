@@ -3,6 +3,7 @@ import { toCardSummary } from '../cards/card.mapper.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import type { RealtimeService } from '../realtime/realtime.service.js';
+import type { StorageService } from '../storage/storage.service.js';
 import { BOARD_SELECT, DEFAULT_LABEL_COLORS, toBoardSummary } from './board.mapper.js';
 import { BoardsService } from './boards.service.js';
 
@@ -53,7 +54,9 @@ function setup() {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 'board-1' }]),
     boardMember: { findMany: vi.fn().mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]) },
     board: { delete: vi.fn().mockResolvedValue(BOARD) },
+    attachment: { findMany: vi.fn().mockResolvedValue([{ storageKey: 'key-1' }]) },
   };
+  const storage = { deleteQuietly: vi.fn().mockResolvedValue(undefined) };
   const realtime = { toBoard: vi.fn(), toUsers: vi.fn(), closeBoardRoom: vi.fn() };
   // How many broadcasts had been made when the transaction callback returned.
   const inTransaction = { broadcasts: -1 };
@@ -69,8 +72,20 @@ function setup() {
   const service = new BoardsService(
     prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
+    storage as unknown as StorageService,
   );
-  return { service, realtime, inTransaction, tx, transaction, board, boardMember, card, cardWatch };
+  return {
+    service,
+    realtime,
+    inTransaction,
+    tx,
+    transaction,
+    board,
+    boardMember,
+    card,
+    cardWatch,
+    storage,
+  };
 }
 
 const SUMMARY = {
@@ -176,11 +191,40 @@ describe('BoardsService', () => {
     expect(tx.board.delete).toHaveBeenCalledWith({ where: { id: 'board-1' } });
   });
 
+  it('remove collects the board files under the lock and deletes them after the commit', async () => {
+    const { service, tx, storage, inTransaction } = setup();
+
+    await service.remove('board-1', ORIGIN);
+
+    expect(tx.attachment.findMany).toHaveBeenCalledWith({
+      where: { boardId: 'board-1' },
+      select: { storageKey: true },
+    });
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.attachment.findMany.mock.invocationCallOrder[0],
+    );
+    expect(tx.attachment.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.board.delete.mock.invocationCallOrder[0],
+    );
+    expect(storage.deleteQuietly).toHaveBeenCalledWith(['key-1']);
+    expect(inTransaction.broadcasts).toBe(0);
+  });
+
+  it('remove deletes no file when the transaction rejects', async () => {
+    const { service, transaction, storage } = setup();
+    transaction.mockRejectedValueOnce(new Error('deadlock'));
+
+    await expect(service.remove('board-1', ORIGIN)).rejects.toThrow('deadlock');
+
+    expect(storage.deleteQuietly).not.toHaveBeenCalled();
+  });
+
   it('remove answers 404 when the board is gone', async () => {
-    const { service, tx, realtime } = setup();
+    const { service, tx, realtime, storage } = setup();
     tx.$queryRaw.mockResolvedValue([]);
 
     await expect(service.remove('board-1', ORIGIN)).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.deleteQuietly).not.toHaveBeenCalled();
 
     expect(tx.board.delete).not.toHaveBeenCalled();
     expect(realtime.toUsers).not.toHaveBeenCalled();

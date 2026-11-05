@@ -29,6 +29,17 @@ describe('validateEnv', () => {
     expect(env.TRUST_PROXY).toBe(0);
     expect(env.UPLOAD_DIR).toBe('uploads');
     expect(env.UPLOAD_RATE_LIMIT_PER_MINUTE).toBe(30);
+    expect(env.STORAGE_SWEEP_INTERVAL_MINUTES).toBe(60);
+  });
+
+  it('accepts 0 to turn the storage sweep off and rejects a negative or too large interval', () => {
+    expect(validateEnv({ ...validEnv, STORAGE_SWEEP_INTERVAL_MINUTES: '0' }).STORAGE_SWEEP_INTERVAL_MINUTES).toBe(0);
+    expect(() => validateEnv({ ...validEnv, STORAGE_SWEEP_INTERVAL_MINUTES: '-1' })).toThrow(
+      /STORAGE_SWEEP_INTERVAL_MINUTES/,
+    );
+    expect(() => validateEnv({ ...validEnv, STORAGE_SWEEP_INTERVAL_MINUTES: '1441' })).toThrow(
+      /STORAGE_SWEEP_INTERVAL_MINUTES/,
+    );
   });
 
   it('rejects an empty UPLOAD_DIR and an out-of-range upload limit', () => {

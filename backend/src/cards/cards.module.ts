@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorageModule } from '../storage/storage.module.js';
 import { ActivityModule } from '../activity/activity.module.js';
 import { CardMembersController, CardWatchController } from './card-members.controller.js';
 import { CardMembersService } from './card-members.service.js';
@@ -7,7 +8,7 @@ import { BoardCardsController, CardsController, ListCardsController } from './ca
 import { CardsService } from './cards.service.js';
 
 @Module({
-  imports: [ActivityModule],
+  imports: [ActivityModule, StorageModule],
   controllers: [
     BoardCardsController,
     ListCardsController,

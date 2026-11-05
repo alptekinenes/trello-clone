@@ -15,6 +15,7 @@ import { lockBoard } from '../ordering/locks.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { BOARD_SELECT, DEFAULT_LABEL_COLORS, toBoardInfo, toBoardSummary } from './board.mapper.js';
 
 /**
@@ -26,6 +27,7 @@ export class BoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Boards the user is a member of, most recently updated first. */
@@ -111,13 +113,18 @@ export class BoardsService {
    * Every member hears about it in their user room (also on the boards page); then the room is emptied.
    */
   async remove(boardId: string, origin: EventOrigin): Promise<void> {
-    const memberIds = await this.prisma.$transaction(async (tx) => {
+    const { memberIds, storageKeys } = await this.prisma.$transaction(async (tx) => {
       if (!(await lockBoard(tx, boardId))) throw boardNotFound();
       const members = await tx.boardMember.findMany({ where: { boardId }, select: { userId: true } });
+      const files = await tx.attachment.findMany({ where: { boardId }, select: { storageKey: true } });
       await tx.board.delete({ where: { id: boardId } });
-      return members.map((member) => member.userId);
+      return {
+        memberIds: members.map((member) => member.userId),
+        storageKeys: files.map((file) => file.storageKey),
+      };
     });
     this.realtime.toUsers(memberIds, boardId, origin, { type: 'board:deleted', data: { boardId } });
     this.realtime.closeBoardRoom(boardId);
+    await this.storage.deleteQuietly(storageKeys);
   }
 }

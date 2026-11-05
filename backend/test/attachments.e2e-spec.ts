@@ -9,9 +9,13 @@ import {
   type FileTokenDto,
   type CardFeedPageDto,
 } from '@trello/contracts';
+import { randomUUID } from 'node:crypto';
+import { utimes, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import request from 'supertest';
 import { deriveFileTokenKey, signFileToken } from '../src/attachments/file-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { StorageSweepService } from '../src/storage/storage-sweep.service.js';
 import {
   addMember,
   createBoard,
@@ -29,7 +33,7 @@ import {
   SVG_IMAGE,
   textOfSize,
 } from './utils/files.js';
-import { resetUploads, storedFiles } from './utils/uploads.js';
+import { resetUploads, storedFiles, uploadDir } from './utils/uploads.js';
 import { createUser, type TestUser } from './utils/users.js';
 
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -612,6 +616,89 @@ describe('Card attachments (e2e, database, disk)', () => {
       const second = await addAttachment(owner, 'yeni.png');
       await patch({ coverAttachmentId: second.attachment.id }).expect(200);
       expect((await detail()).coverAttachmentId).toBe(second.attachment.id);
+    });
+  });
+
+  describe('cascade and orphan cleanup', () => {
+    /** A card with a cover attachment and a PDF; returns the ids. */
+    async function cardWithFiles(listId: string, title: string): Promise<string> {
+      const card = await createCard(app, owner, listId, title);
+      const png = (await upload(PNG_1X1, 'a.png', { card: card.id }).expect(201))
+        .body as AttachmentCreatedDto;
+      await upload(PDF_MINIMAL, 'b.pdf', { card: card.id }).expect(201);
+      await http()
+        .patch(`/api/v1/cards/${card.id}`)
+        .set('Authorization', owner.auth)
+        .send({ coverAttachmentId: png.attachment.id })
+        .expect(200);
+      return card.id;
+    }
+
+    it('deleting a card with a cover removes its rows and files and keeps the others', async () => {
+      const list = await createList(app, owner, boardId, 'Dosyalı');
+      const doomed = await cardWithFiles(list.id, 'Silinecek');
+      await upload(PNG_1X1, 'kalan.png').expect(201);
+      expect(await storedFiles()).toHaveLength(3);
+
+      await http().delete(`/api/v1/cards/${doomed}`).set('Authorization', owner.auth).expect(204);
+
+      expect(await prisma.attachment.count({ where: { cardId: doomed } })).toBe(0);
+      expect(await prisma.attachment.count()).toBe(1);
+      expect(await storedFiles()).toHaveLength(1);
+    });
+
+    it('deleting a list removes the rows and files of all its cards only', async () => {
+      const doomedList = await createList(app, owner, boardId, 'Silinecek liste');
+      await cardWithFiles(doomedList.id, 'Bir');
+      await cardWithFiles(doomedList.id, 'İki');
+      await upload(PNG_1X1, 'kalan.png').expect(201);
+      expect(await storedFiles()).toHaveLength(5);
+
+      await http()
+        .delete(`/api/v1/lists/${doomedList.id}`)
+        .set('Authorization', owner.auth)
+        .expect(204);
+
+      expect(await prisma.attachment.count()).toBe(1);
+      expect(await storedFiles()).toHaveLength(1);
+    });
+
+    it('deleting a board removes every row and file of it, and no file of another board', async () => {
+      const list = await createList(app, owner, boardId, 'Dosyalı');
+      await cardWithFiles(list.id, 'Bir');
+      const otherBoard = await createBoard(app, owner, 'Diğer pano');
+      const otherList = await createList(app, owner, otherBoard);
+      const otherCard = await createCard(app, owner, otherList.id);
+      await upload(PNG_1X1, 'diger.png', { card: otherCard.id }).expect(201);
+      expect(await storedFiles()).toHaveLength(3);
+
+      await http()
+        .delete(`/api/v1/boards/${boardId}`)
+        .set('Authorization', owner.auth)
+        .expect(204);
+
+      expect(await prisma.attachment.count({ where: { boardId } })).toBe(0);
+      const remaining = await prisma.attachment.findMany({ select: { storageKey: true } });
+      expect(remaining).toHaveLength(1);
+      expect(await storedFiles()).toEqual([remaining[0].storageKey]);
+    });
+
+    it('the sweep removes old files without a row and keeps fresh ones and files with a row', async () => {
+      const kept = await addAttachment();
+      const keptKey = (await prisma.attachment.findFirstOrThrow({ where: { id: kept.attachment.id } }))
+        .storageKey;
+      const oldOrphan = randomUUID();
+      const freshOrphan = randomUUID();
+      await writeFile(path.join(uploadDir(), oldOrphan), 'x');
+      await writeFile(path.join(uploadDir(), freshOrphan), 'y');
+      const longAgo = new Date(Date.now() - 3 * 3_600_000);
+      await utimes(path.join(uploadDir(), oldOrphan), longAgo, longAgo);
+      await utimes(path.join(uploadDir(), keptKey), longAgo, longAgo);
+
+      const removed = await app.get(StorageSweepService).sweepOnce(new Date());
+
+      expect(removed).toBe(1);
+      expect((await storedFiles()).sort()).toEqual([freshOrphan, keptKey].sort());
     });
   });
 });

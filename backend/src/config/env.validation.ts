@@ -107,6 +107,12 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(10_000)
   UPLOAD_RATE_LIMIT_PER_MINUTE: number = DEFAULT_UPLOAD_RATE_LIMIT;
+
+  /** Minutes between sweeps that delete stored files without a database row; 0 turns the sweep off. */
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  STORAGE_SWEEP_INTERVAL_MINUTES: number = 60;
 }
 
 /**

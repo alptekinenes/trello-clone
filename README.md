@@ -63,6 +63,7 @@ Hepsi `backend/.env` dosyasındadır; şablon `backend/.env.example`. Uygulama g
 | `TRUST_PROXY` | Hayır | `0` | `X-Forwarded-For` başlığına güvenilen ters vekil sayısı (0–10). Doğrudan erişimde 0; tek bir vekilin arkasında 1. |
 | `UPLOAD_DIR` | Production'da evet | `uploads` | Kart eklerinin saklandığı dizin (göreli yol backend çalışma dizinine göre çözülür). Production'da mutlak yol olmalı; statik olarak sunulan bir dizinde olmamalı. Veritabanıyla birlikte yedeklenir. |
 | `UPLOAD_RATE_LIMIT_PER_MINUTE` | Hayır | `30` | Ek yükleme sınırı (kullanıcı başına ve IP başına dakikada, 1–10000). |
+| `STORAGE_SWEEP_INTERVAL_MINUTES` | Hayır | `60` | Veritabanı satırı olmayan (yetim) ek dosyalarını silen süpürmenin aralığı, dakika (0–1440). 0 süpürmeyi kapatır. Bir saatten yeni dosyalara dokunulmaz. |
 
 Yerelde Playwright'ı tekrar tekrar çalıştırırken sınırlara takılmamak için `AUTH_RATE_LIMIT_PER_MINUTE`, `INVITATION_RATE_LIMIT_PER_MINUTE` ve `API_RATE_LIMIT_PER_MINUTE` değerlerini yükseltin (örn. `1000`). Dev backend `.env` değişikliğini izlemez; değişince yeniden başlatın.
 
@@ -114,7 +115,13 @@ npm run test:e2e -w frontend           # Playwright; backend ve frontend'i kendi
   }
   ```
 
-- **SPA için CSP:** Frontend'i sunan katman Content-Security-Policy başlığını kendisi ekler (backend'in Helmet başlıkları yalnızca API yanıtlarını kapsar). Gerçek zamanlı bağlantı için `connect-src` içinde WebSocket'e izin verin: `connect-src 'self' wss:`.
+- **SPA için CSP:** Frontend'i sunan katman Content-Security-Policy başlığını kendisi ekler (backend'in Helmet başlıkları yalnızca API yanıtlarını kapsar). Gerçek zamanlı bağlantı için `connect-src` içinde WebSocket'e izin verin: `connect-src 'self' wss:`. Kart ekleri ve kapak görselleri aynı origin'den (`/api/v1/files`) geldiği için `img-src 'self'` yeterlidir; `blob:` ya da `data:` gerekmez.
+- **Kart ekleri (yükleme dizini):**
+  - `UPLOAD_DIR` mutlak bir yol olmalıdır ve veritabanıyla birlikte yedeklenmelidir: satırlar ve dosyalar birbirine bağlıdır. Dizin statik olarak sunulmamalıdır; dosyalar yalnızca yetki denetimli `/api/v1/files/:id` rotasından verilir.
+  - Yerel disk sürücüsü tek örnek ya da örnekler arasında paylaşılan bir disk demektir; yatay ölçekleme için nesne deposu sürücüsü (S3) ayrı bir adım olarak gerekir.
+  - Ters vekilde gövde sınırını yükseltin: Nginx için `client_max_body_size 11m;` (varsayılan 1m, 10 MB'lık yüklemeleri 413 ile keser).
+  - Bir karta en fazla 20 dosya, dosya başına en fazla 10 MB eklenebilir; kullanıcı ya da pano kotası yoktur, disk doluluğunu izleyin.
+  - Kart, liste ya da pano silinince dosyalar veritabanı işleminden sonra silinir; silinemeyenleri (ör. Windows'ta açık dosya) süpürme görevi bir saat sonra temizler (`STORAGE_SWEEP_INTERVAL_MINUTES`).
 - **Sağlık kontrolü:** `GET /api/v1/health`.
 - **Sırlar:** `.env` dosyası depoya girmez; production'da sırları ortam değişkeni olarak verin.
 

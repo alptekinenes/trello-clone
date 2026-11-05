@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { rebalanceEvents, rebalancedData } from '../realtime/board-events.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { findCardSummaries } from './card-summaries.js';
 import {
   CARD_DETAIL_SELECT,
@@ -87,6 +88,7 @@ export class CardsService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
     private readonly activity: ActivityService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Active cards on active lists, or every archived card of the board (newest first). */
@@ -322,14 +324,23 @@ export class CardsService {
     return { ...moved, rebalanced: rebalancedData(target, rebalanced) };
   }
 
+  /** The attachment rows go with the card (cascade); their files are deleted after the commit. */
   async remove(boardId: string, cardId: string, origin: EventOrigin): Promise<void> {
-    const { listId } = await this.prisma.card.delete({
-      where: { id: cardId, boardId },
-      select: { listId: true },
+    const { listId, storageKeys } = await this.prisma.$transaction(async (tx) => {
+      const files = await tx.attachment.findMany({
+        where: { cardId, boardId },
+        select: { storageKey: true },
+      });
+      const deleted = await tx.card.delete({
+        where: { id: cardId, boardId },
+        select: { listId: true },
+      });
+      return { listId: deleted.listId, storageKeys: files.map((file) => file.storageKey) };
     });
     this.realtime.toBoard(boardId, origin, [
       { type: 'card:deleted', data: { id: cardId, listId } },
     ]);
+    await this.storage.deleteQuietly(storageKeys);
   }
 
   /**
