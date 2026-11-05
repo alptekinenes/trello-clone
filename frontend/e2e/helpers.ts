@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page } from '@playwright/test';
+import { type APIRequestContext, expect, type Page } from '@playwright/test';
 import pg from 'pg';
 
 const { Client } = pg;
@@ -256,20 +256,71 @@ export function freshEmail(prefix = 'e2e'): string {
 export const PASSWORD = 'secret-password';
 
 /**
- * Registers a user through the API like `signUp`, with a name and (optionally) an email of
- * the test's choosing. Returns the access token and the address that was registered.
+ * Registers a user through an API context like `signUp`, with a name and (optionally) an email of
+ * the test's choosing. Returns the access token, the user id and the address that was registered.
+ * Pass a context of its own (`request`) to register a second person without touching the cookies
+ * of the page under test.
  */
+export async function registerUser(
+  request: APIRequestContext,
+  name: string,
+  email: string = freshEmail(),
+): Promise<{ token: string; email: string; userId: string }> {
+  const res = await request.post('/api/v1/auth/register', {
+    data: { email, password: PASSWORD, name },
+  });
+  expect(res.ok()).toBe(true);
+  const body = (await res.json()) as { accessToken: string; user: { id: string } };
+  return { token: body.accessToken, email, userId: body.user.id };
+}
+
+/** Like `registerUser`, using the page's own context (its refresh cookie lands in that browser). */
 export async function signUpAs(
   page: Page,
   name: string,
   email: string = freshEmail(),
-): Promise<{ token: string; email: string }> {
-  const res = await page.request.post('/api/v1/auth/register', {
-    data: { email, password: PASSWORD, name },
+): Promise<{ token: string; email: string; userId: string }> {
+  return registerUser(page.request, name, email);
+}
+
+/** Puts a board member on a card through the API. */
+export async function apiAssignMember(
+  page: Page,
+  token: string,
+  cardId: string,
+  userId: string,
+): Promise<void> {
+  const res = await page.request.put(`/api/v1/cards/${cardId}/members/${userId}`, {
+    headers: authHeaders(token),
   });
-  expect(res.ok()).toBe(true);
-  const body = (await res.json()) as { accessToken: string };
-  return { token: body.accessToken, email };
+  expect(res.status()).toBe(204);
+}
+
+/** Starts or stops watching a card, as the owner of the token, through the API. */
+export async function apiSetWatching(
+  page: Page,
+  token: string,
+  cardId: string,
+  watching: boolean,
+): Promise<void> {
+  const headers = authHeaders(token);
+  const res = watching
+    ? await page.request.put(`/api/v1/cards/${cardId}/watch`, { headers })
+    : await page.request.delete(`/api/v1/cards/${cardId}/watch`, { headers });
+  expect(res.status()).toBe(204);
+}
+
+/** Removes a member from a board through the API. */
+export async function apiRemoveBoardMember(
+  page: Page,
+  token: string,
+  boardId: string,
+  userId: string,
+): Promise<void> {
+  const res = await page.request.delete(`/api/v1/boards/${boardId}/members/${userId}`, {
+    headers: authHeaders(token),
+  });
+  expect(res.status()).toBe(204);
 }
 
 /**

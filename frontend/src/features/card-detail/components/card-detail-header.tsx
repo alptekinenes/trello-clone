@@ -63,11 +63,10 @@ export function CardDetailHeader({ board, card }: CardDetailHeaderProps) {
           variant="secondary"
           className="h-8 px-3"
           aria-pressed={watching}
-          aria-label="Kartı izle"
           onClick={toggleWatch}
         >
           <EyeIcon />
-          İzle
+          Kartı izle
         </Button>
         {tile && (
           <Menu

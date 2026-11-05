@@ -1,6 +1,7 @@
 import { type BrowserContext, expect, type Locator, type Page, test as base } from '@playwright/test';
 import {
   apiAddChecklistItem,
+  apiAssignMember,
   apiMoveCardToList,
   apiInvite,
   apiDeleteCard,
@@ -11,6 +12,7 @@ import {
   openBoardAs,
   openBoardMenuItem,
   openBoardsPageAs,
+  registerUser,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -50,6 +52,7 @@ interface Collaboration {
   b: Page;
   tokenA: string;
   emailB: string;
+  userIdB: string;
   boardId: string;
   title: string;
 }
@@ -65,12 +68,12 @@ async function collaborate(
 ): Promise<Collaboration> {
   const { title = 'Ortak pano', lists = [], cards = {}, member = true } = options;
   const b = await newPage();
-  const { email } = await signUpAs(b, B_NAME);
+  const { email, userId: userIdB } = await signUpAs(b, B_NAME);
   watchRealtime(page);
   const { token: tokenA } = await signUpAs(page, A_NAME);
   const boardId = await seedBoard(page, tokenA, title, lists, cards);
   if (member) await apiInvite(page, tokenA, boardId, email);
-  return { a: page, b, tokenA, emailB: email, boardId, title };
+  return { a: page, b, tokenA, emailB: email, userIdB, boardId, title };
 }
 
 const cardList = (page: Page, listTitle: string) =>
@@ -383,4 +386,116 @@ test('A archives a card and B loses it; A restores it and B gets it back at the 
   await archive.getByRole('button', { name: '“Birinci” kartını geri yükle' }).click();
   await expect(archive.getByText('Arşivde kart yok.')).toBeVisible();
   await expect.poll(() => cardsByList(b, lists)).toEqual({ Yapılacaklar: ['İkinci', 'Birinci'] });
+});
+
+const cardMembers = (page: Page, title: string) =>
+  tile(page, title).getByRole('list', { name: 'Kart üyeleri' });
+
+test('A puts B on a card, picks a cover and completes it; B sees avatar, cover and check live, then the avatar leaves', async ({
+  page,
+  newPage,
+}) => {
+  const { a, b, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(a, boardId, title);
+  await openBoardAs(b, boardId, title);
+  await expect(tile(b, 'Rapor')).toBeVisible();
+  let reloadsOfB = 0;
+  b.on('load', () => reloadsOfB++);
+
+  const dialog = await openCard(a, 'Rapor');
+  const sideButton = (name: string) =>
+    dialog.getByRole('group', { name: 'Kart işlemleri' }).getByRole('button', { name, exact: true });
+
+  await sideButton('Üyeler').click();
+  await dialog.getByRole('checkbox', { name: B_NAME }).click();
+  await expect(cardMembers(b, 'Rapor')).toContainText(B_NAME);
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+
+  await sideButton('Kapak').click();
+  await dialog.getByTitle('Mor', { exact: true }).click();
+  await expect(dialog.getByTestId('card-cover')).toHaveClass(/bg-label-purple/);
+  await expect(tile(b, 'Rapor').locator('.bg-label-purple')).toHaveCount(1);
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+
+  await dialog.locator('label').filter({ hasText: 'Kartı tamamla' }).click();
+  await expect(tile(b, 'Rapor')).toContainText('Kart tamamlandı');
+
+  await sideButton('Üyeler').click();
+  await dialog.getByRole('checkbox', { name: B_NAME }).click();
+  await expect(dialog.getByRole('checkbox', { name: B_NAME })).not.toBeChecked();
+  await expect(cardMembers(b, 'Rapor')).toHaveCount(0);
+  await expect(tile(b, 'Rapor').locator('.bg-label-purple')).toHaveCount(1);
+  expect(reloadsOfB).toBe(0);
+});
+
+test('an open card on B\'s screen shows A\'s member, cover and completion as they happen', async ({
+  page,
+  newPage,
+}) => {
+  const { a, b, tokenA, userIdB, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(b, boardId, title);
+  const dialog = await openCard(b, 'Rapor');
+  const cardId = b.url().split('/').pop() ?? '';
+
+  await apiAssignMember(a, tokenA, cardId, userIdB);
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toContainText(B_NAME);
+
+  await apiPatchCard(a, tokenA, cardId, { coverColor: 'GREEN', isCompleted: true });
+  await expect(dialog.getByTestId('card-cover')).toHaveClass(/bg-label-green/);
+  await expect(dialog.getByRole('checkbox', { name: 'Kartı tamamla' })).toBeChecked();
+});
+
+test('B\'s watching shows on B\'s screen and does not leak to A\'s', async ({ page, newPage }) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(a, boardId, title);
+  await openBoardAs(b, boardId, title);
+  const dialog = await openCard(b, 'Rapor');
+
+  await dialog.getByRole('button', { name: 'Kartı izle' }).click();
+  await expect(dialog.getByRole('button', { name: 'Kartı izle' })).toHaveAttribute('aria-pressed', 'true');
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(b, 'Rapor')).toContainText('İzliyorsun');
+
+  // Events reach A in order: once a card created after B's watch is on A's screen, a leaked watch would be too.
+  await seedCard(a, tokenA, boardId, 'Yapılacaklar', 'İşaretçi');
+  await expect(tile(a, 'İşaretçi')).toBeVisible();
+  await expect(tile(a, 'Rapor')).not.toContainText('İzliyorsun');
+  await expect(tile(b, 'Rapor')).toContainText('İzliyorsun');
+});
+
+test('when A removes a member from the board, that person\'s avatar leaves the cards on A\'s screen', async ({
+  page,
+  newPage,
+  request,
+}) => {
+  const { a, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  const carol = await registerUser(request, 'Can Üye');
+  await apiInvite(a, tokenA, boardId, carol.email);
+  const cardId = await seedCard(a, tokenA, boardId, 'Yapılacaklar', 'Plan');
+  await apiAssignMember(a, tokenA, cardId, carol.userId);
+  await openBoardAs(a, boardId, title);
+  await expect(cardMembers(a, 'Plan')).toContainText('Can Üye');
+
+  const members = await openMembers(a);
+  await members.getByRole('button', { name: 'Can Üye kişisini panodan çıkar' }).click();
+  await a.getByRole('dialog', { name: 'Üye çıkarılsın mı?' }).getByRole('button', { name: 'Çıkar', exact: true }).click();
+  await expect(members.getByRole('button', { name: 'Can Üye kişisini panodan çıkar' })).toHaveCount(0);
+  await members.getByRole('button', { name: 'Kapat' }).click();
+
+  await expect(cardMembers(a, 'Plan')).toHaveCount(0);
+  await a.reload();
+  await expect(tile(a, 'Plan')).toBeVisible();
+  await expect(cardMembers(a, 'Plan')).toHaveCount(0);
 });

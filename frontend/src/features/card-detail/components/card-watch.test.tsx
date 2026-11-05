@@ -39,7 +39,7 @@ describe('watching a card', () => {
     const dialog = await cardDialog();
 
     const button = within(dialog).getByRole('button', { name: 'Kartı izle' });
-    expect(button).toHaveTextContent('İzle');
+    expect(button).toHaveTextContent('Kartı izle');
     expect(button).toHaveAttribute('aria-pressed', 'false');
     await user.click(button);
 

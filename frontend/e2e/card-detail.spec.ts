@@ -1,10 +1,12 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import {
   apiAssignLabel,
+  apiInvite,
   apiPatchCard,
   keyboardDragReady,
   localDateTime,
   openBoardMenuItem,
+  registerUser,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -22,6 +24,9 @@ interface CardJson {
   dueDate: string | null;
   dueComplete: boolean;
   labelIds: string[];
+  completedAt: string | null;
+  coverColor: string | null;
+  memberIds: string[];
   checklists: { id: string; title: string; items: { content: string; isCompleted: boolean }[] }[];
 }
 
@@ -717,4 +722,180 @@ test('the archived banner stays clear of the close button and restores the card'
   await restore.click();
   await expect(dialog.getByText('Bu kart arşivde.')).toBeHidden();
   await expect(tile(page, 'Arşivli')).toBeVisible();
+});
+
+const MEMBER_NAME = 'Burak Üye';
+
+/** The radio inputs of the cover picker are visually hidden; the swatch next to them is what people click. */
+const swatch = (dialog: Locator, name: string) => dialog.getByTitle(name, { exact: true });
+
+async function getWatchedIds(page: Page, token: string, boardId: string): Promise<string[]> {
+  const res = await page.request.get(`/api/v1/boards/${boardId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok()).toBe(true);
+  return ((await res.json()) as { myWatchedCardIds: string[] }).myWatchedCardIds;
+}
+
+test('assigning and removing a card member shows on the dialog and the tile, and survives a reload', async ({
+  page,
+  request,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Üyeli kart');
+  const second = await registerUser(request, MEMBER_NAME);
+  await apiInvite(page, token, boardId, second.email);
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Üyeli kart');
+  await expect(sideButton(dialog, 'Üyeler')).toBeVisible();
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toHaveCount(0);
+
+  await sideButton(dialog, 'Üyeler').click();
+  const picker = dialog.getByRole('group', { name: 'Pano üyeleri' });
+  await expect(picker.getByRole('checkbox')).toHaveCount(2);
+  await picker.getByRole('checkbox', { name: MEMBER_NAME }).click();
+  await expect(picker.getByRole('checkbox', { name: MEMBER_NAME })).toBeChecked();
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toContainText(MEMBER_NAME);
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(sideButton(dialog, 'Üyeler')).toBeFocused();
+
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Üyeli kart').getByRole('list', { name: 'Kart üyeleri' })).toContainText(
+    MEMBER_NAME,
+  );
+  await expect
+    .poll(async () => (await getCard(page, token, cardId)).memberIds)
+    .toEqual([second.userId]);
+
+  await page.reload();
+  await expect(tile(page, 'Üyeli kart').getByRole('list', { name: 'Kart üyeleri' })).toContainText(
+    MEMBER_NAME,
+  );
+  await tile(page, 'Üyeli kart').click();
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toContainText(MEMBER_NAME);
+
+  await sideButton(dialog, 'Üyeler').click();
+  await dialog.getByRole('checkbox', { name: MEMBER_NAME }).click();
+  await expect(dialog.getByRole('checkbox', { name: MEMBER_NAME })).not.toBeChecked();
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Üyeli kart').getByRole('list', { name: 'Kart üyeleri' })).toHaveCount(0);
+  await expect.poll(async () => (await getCard(page, token, cardId)).memberIds).toEqual([]);
+});
+
+test('Escape closes the members panel without closing the dialog and returns focus to "Üyeler"', async ({
+  page,
+}) => {
+  const { boardId, cardId } = await seedOneCard(page, 'Klavyeli');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Klavyeli');
+
+  await sideButton(dialog, 'Üyeler').click();
+  await expect(dialog.getByRole('checkbox', { name: 'E2E Kullanıcı' })).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(dialog.getByRole('checkbox', { name: 'E2E Kullanıcı' })).toBeChecked();
+  await page.keyboard.press('Escape');
+
+  await expect(dialog.getByRole('group', { name: 'Pano üyeleri' })).toHaveCount(0);
+  await expect(sideButton(dialog, 'Üyeler')).toBeFocused();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('list', { name: 'Kartın üyeleri' })).toContainText('E2E Kullanıcı');
+});
+
+test('completing a card checks its box, marks the tile and survives a reload; unchecking clears it', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Bitecek kart');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Bitecek kart');
+  const toggle = dialog.getByRole('checkbox', { name: 'Kartı tamamla' });
+  const toggleLabel = dialog.locator('label').filter({ hasText: 'Kartı tamamla' });
+  await expect(toggle).not.toBeChecked();
+
+  await toggleLabel.click();
+  await expect(toggle).toBeChecked();
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Bitecek kart')).toContainText('Kart tamamlandı');
+  await expect.poll(async () => (await getCard(page, token, cardId)).completedAt).not.toBeNull();
+
+  await page.reload();
+  await expect(tile(page, 'Bitecek kart')).toContainText('Kart tamamlandı');
+  await tile(page, 'Bitecek kart').click();
+  await expect(toggle).toBeChecked();
+
+  await toggleLabel.click();
+  await expect(toggle).not.toBeChecked();
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Bitecek kart')).not.toContainText('Kart tamamlandı');
+  await expect.poll(async () => (await getCard(page, token, cardId)).completedAt).toBeNull();
+});
+
+test('picking a cover color paints the dialog and the tile; "Kapak yok" removes it; arrow keys move the choice', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Kapaklı kart');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Kapaklı kart');
+  const cover = dialog.getByTestId('card-cover');
+  await expect(cover).toHaveCount(0);
+
+  await sideButton(dialog, 'Kapak').click();
+  const red = dialog.getByRole('radio', { name: 'Kırmızı' });
+  await swatch(dialog, 'Kırmızı').click();
+  await expect(red).toBeChecked();
+  await expect(cover).toHaveClass(/bg-label-red/);
+  await expect.poll(async () => (await getCard(page, token, cardId)).coverColor).toBe('RED');
+
+  await red.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(red).not.toBeChecked();
+  await expect(cover).not.toHaveClass(/bg-label-red/);
+  await expect.poll(async () => (await getCard(page, token, cardId)).coverColor).not.toBe('RED');
+
+  await page.keyboard.press('ArrowLeft');
+  await expect(red).toBeChecked();
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(sideButton(dialog, 'Kapak')).toBeFocused();
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Kapaklı kart').locator('.bg-label-red')).toHaveCount(1);
+  await expect.poll(async () => (await getCard(page, token, cardId)).coverColor).toBe('RED');
+
+  await page.reload();
+  await expect(tile(page, 'Kapaklı kart').locator('.bg-label-red')).toHaveCount(1);
+  await tile(page, 'Kapaklı kart').click();
+  await expect(cover).toHaveClass(/bg-label-red/);
+
+  await sideButton(dialog, 'Kapak').click();
+  await swatch(dialog, 'Kapak yok').click();
+  await expect(cover).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Kapaklı kart').locator('.bg-label-red')).toHaveCount(0);
+  await expect.poll(async () => (await getCard(page, token, cardId)).coverColor).toBeNull();
+});
+
+test('watching a card toggles "Kartı izle", shows the eye on the tile and survives a reload', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'İzlenecek kart');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'İzlenecek kart');
+  const watch = dialog.getByRole('button', { name: 'Kartı izle' });
+  await expect(watch).toHaveAttribute('aria-pressed', 'false');
+
+  await watch.click();
+  await expect(watch).toHaveAttribute('aria-pressed', 'true');
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'İzlenecek kart')).toContainText('İzliyorsun');
+  await expect.poll(() => getWatchedIds(page, token, boardId)).toEqual([cardId]);
+
+  await page.reload();
+  await expect(tile(page, 'İzlenecek kart')).toContainText('İzliyorsun');
+  await tile(page, 'İzlenecek kart').click();
+  await expect(watch).toHaveAttribute('aria-pressed', 'true');
+
+  await watch.click();
+  await expect(watch).toHaveAttribute('aria-pressed', 'false');
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'İzlenecek kart')).not.toContainText('İzliyorsun');
+  await expect.poll(() => getWatchedIds(page, token, boardId)).toEqual([]);
 });

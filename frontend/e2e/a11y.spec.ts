@@ -1,12 +1,15 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, request as playwrightRequest, type Page, test } from '@playwright/test';
 import {
   apiAssignLabel,
+  apiAssignMember,
   apiInvite,
   apiPatchCard,
   apiSetBoardBackground,
+  apiSetWatching,
   expectNoA11yViolations,
   openAccountMenu,
   openBoardMenuItem,
+  registerUser,
   seedBoard,
   seedCard,
   seedChecklist,
@@ -43,6 +46,26 @@ interface Seeded {
 }
 
 /**
+ * Gives the card a cover, a completed state, two members (the owner and a second person, who
+ * has their own context so the page keeps the owner's session) and a watch by the owner.
+ */
+async function decorateCard(page: Page, token: string, boardId: string, cardId: string): Promise<void> {
+  const second = await playwrightRequest.newContext({ baseURL: test.info().project.use.baseURL });
+  try {
+    const { email, userId } = await registerUser(second, 'Burak Üye');
+    await apiInvite(page, token, boardId, email);
+    await apiAssignMember(page, token, cardId, userId);
+  } finally {
+    await second.dispose();
+  }
+  const me = await page.request.get('/api/v1/users/me', { headers: { Authorization: `Bearer ${token}` } });
+  expect(me.ok()).toBe(true);
+  await apiAssignMember(page, token, cardId, ((await me.json()) as { id: string }).id);
+  await apiPatchCard(page, token, cardId, { coverColor: 'PURPLE', isCompleted: true });
+  await apiSetWatching(page, token, cardId, true);
+}
+
+/**
  * A signed-in user with a board that shows every kind of content: three lists, cards with a
  * label, a due date in each state, a description and a checklist, plus an archived card.
  */
@@ -71,6 +94,7 @@ async function seedRichBoard(page: Page, background = 'blue'): Promise<Seeded> {
   });
   await seedChecklist(page, token, cardId, 'Hazırlık', ['Verileri topla', 'Taslağı yaz']);
   await apiPatchCard(page, token, archived, { archived: true });
+  await decorateCard(page, token, boardId, cardId);
   if (background !== 'blue') await apiSetBoardBackground(page, token, boardId, background);
   return { token, boardId, cardId };
 }
@@ -196,6 +220,33 @@ function defineScreens(mode: Mode): void {
       const dialog = page.getByRole('dialog', { name: CARD_TITLE });
       await dialog.getByRole('button', { name: 'Kart menüsü' }).click();
       await expect(dialog.getByRole('menu', { name: 'Kart menüsü' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('card members panel open', async ({ page }) => {
+      const { boardId, cardId } = await seedRichBoard(page);
+      await page.goto(`/boards/${boardId}/c/${cardId}`);
+      const dialog = page.getByRole('dialog', { name: CARD_TITLE });
+      await dialog.getByRole('group', { name: 'Kart işlemleri' }).getByRole('button', { name: 'Üyeler', exact: true }).click();
+      await expect(dialog.getByRole('group', { name: 'Pano üyeleri' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('card cover panel open', async ({ page }) => {
+      const { boardId, cardId } = await seedRichBoard(page);
+      await page.goto(`/boards/${boardId}/c/${cardId}`);
+      const dialog = page.getByRole('dialog', { name: CARD_TITLE });
+      await dialog.getByRole('group', { name: 'Kart işlemleri' }).getByRole('button', { name: 'Kapak', exact: true }).click();
+      await expect(dialog.getByRole('group', { name: 'Kapak rengi' })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('board with a covered, completed, watched card with members', async ({ page }) => {
+      await openRichBoard(page);
+      const tile = page.locator('[aria-roledescription="sıralanabilir kart"]', { hasText: CARD_TITLE });
+      await expect(tile).toContainText('Kart tamamlandı');
+      await expect(tile).toContainText('İzliyorsun');
+      await expect(tile.getByRole('list', { name: 'Kart üyeleri' })).toContainText('Burak Üye');
       await expectNoA11yViolations(page);
     });
 
