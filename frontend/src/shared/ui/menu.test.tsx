@@ -56,6 +56,19 @@ describe('Menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Profil' })).toHaveFocus();
   });
 
+  it('announces its description when it opens', async () => {
+    const user = userEvent.setup();
+    render(
+      <Menu label="Hesap menüsü" trigger="Hesap" description={<p>ayse@example.com</p>}>
+        <MenuItem onSelect={vi.fn()}>Profil</MenuItem>
+      </Menu>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Hesap menüsü' }));
+
+    expect(screen.getByRole('menu')).toHaveAccessibleDescription('ayse@example.com');
+  });
+
   it('focuses the checked item of a menu made only of radio items', async () => {
     const user = userEvent.setup();
     render(

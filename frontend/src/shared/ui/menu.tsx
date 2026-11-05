@@ -48,6 +48,8 @@ interface MenuProps {
   side?: 'bottom' | 'top';
   /** Extra classes of the panel, e.g. a fixed width or a scrollable height. */
   panelClassName?: string;
+  /** Text shown at the top of the panel and announced when the menu opens (e.g. the account). */
+  description?: ReactNode;
   children: ReactNode;
 }
 
@@ -66,6 +68,7 @@ export function Menu({
   align = 'start',
   side = 'bottom',
   panelClassName = '',
+  description,
   children,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
@@ -73,6 +76,7 @@ export function Menu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const descriptionId = `${menuId}-description`;
 
   useEffect(() => {
     if (!open) return;
@@ -172,9 +176,15 @@ export function Menu({
             data-no-dnd
             tabIndex={-1}
             aria-label={label}
+            aria-describedby={description ? descriptionId : undefined}
             onKeyDown={handleMenuKeyDown}
             className={`absolute z-30 min-w-56 rounded-md bg-menu p-1 text-fg shadow-raised ${side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} ${align === 'end' ? 'right-0' : 'left-0'} ${panelClassName}`}
           >
+            {description && (
+              <div id={descriptionId} role="presentation">
+                {description}
+              </div>
+            )}
             {children}
           </div>
         </MenuContext>

@@ -27,6 +27,12 @@ export function AccountMenu() {
       <Menu
         label="Hesap menüsü"
         align="end"
+        description={
+          <div className="px-3 py-2">
+            <p className="text-sm font-medium break-words text-fg">{user.name}</p>
+            <p className="text-xs break-all text-fg-muted">{user.email}</p>
+          </div>
+        }
         triggerClassName="inline-flex size-8 items-center justify-center rounded-full pointer-coarse:size-11"
         triggerNamedByContent
         trigger={
@@ -36,10 +42,6 @@ export function AccountMenu() {
           </>
         }
       >
-        <div className="px-3 py-2">
-          <p className="text-sm font-medium break-words text-fg">{user.name}</p>
-          <p className="text-xs break-all text-fg-muted">{user.email}</p>
-        </div>
         <MenuSeparator />
         <MenuItem onSelect={() => setDialog('profile')}>Profil</MenuItem>
         <MenuGroup label="Tema">
