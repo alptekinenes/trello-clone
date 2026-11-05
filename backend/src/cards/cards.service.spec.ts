@@ -30,6 +30,8 @@ function row(id: string, listId: string, position: number, archivedAt: Date | nu
     coverColor: null,
     archivedAt,
     commentCount: 0,
+    attachmentCount: 0,
+    coverAttachmentId: null,
     description: null,
     labels: [],
     members: [],
@@ -474,6 +476,17 @@ describe('CardsService', () => {
         ...row('c', LIST, 1024),
         boardId: BOARD,
         description: 'Metin',
+        attachments: [
+          {
+            id: 'a1',
+            cardId: 'c',
+            fileName: 'rapor.pdf',
+            mimeType: 'application/pdf',
+            size: 12,
+            createdAt: new Date('2026-11-05T10:00:00.000Z'),
+            uploader: { id: 'u', name: 'Ayşe', avatarUrl: null },
+          },
+        ],
         checklists: [
           {
             id: 'cl',
@@ -498,7 +511,15 @@ describe('CardsService', () => {
         checklistTotal: 1,
         checklistDone: 1,
         checklists: [{ id: 'cl', items: [{ id: 'i', isCompleted: true }] }],
+        attachments: [
+          { id: 'a1', fileName: 'rapor.pdf', mimeType: 'application/pdf', uploader: { id: 'u' } },
+        ],
       });
+      expect(card.findFirst.mock.calls[0][0].select.attachments).toMatchObject({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 20,
+      });
+      expect(JSON.stringify(detail)).not.toContain('storageKey');
     });
 
     it('throws 404 when the card is not on the board', async () => {

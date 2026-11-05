@@ -74,6 +74,24 @@ const CASES: [string, ActivityDto, string][] = [
     }),
     'bu karttan ayrıldı',
   ],
+  [
+    'attachment added',
+    testActivity({
+      id: '1',
+      type: 'CARD_ATTACHMENT_ADDED',
+      data: { ...title, attachment: { id: 'a1', fileName: 'Şirket raporu.pdf' } },
+    }),
+    'bu karta Şirket raporu.pdf dosyasını ekledi',
+  ],
+  [
+    'attachment removed',
+    testActivity({
+      id: '1',
+      type: 'CARD_ATTACHMENT_REMOVED',
+      data: { ...title, attachment: { id: 'a1', fileName: 'eski.png' } },
+    }),
+    'bu karttan eski.png dosyasını sildi',
+  ],
 ];
 
 describe('describeActivity', () => {

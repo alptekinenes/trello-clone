@@ -96,6 +96,26 @@ describe('BoardAccessService lists', () => {
     await expect(service.boardIdOfComment(BOARD_ID)).resolves.toBeNull();
   });
 
+  it('finds the board of an attachment', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ boardId: BOARD_ID });
+    const service = new BoardAccessService({
+      attachment: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.boardIdOfAttachment(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfAttachment('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledOnce();
+  });
+
+  it('returns null for an attachment that does not exist', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const service = new BoardAccessService({
+      attachment: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.boardIdOfAttachment(BOARD_ID)).resolves.toBeNull();
+  });
+
   it('finds the board of a checklist through its card', async () => {
     const findUnique = vi.fn().mockResolvedValue({ card: { boardId: BOARD_ID } });
     const service = new BoardAccessService({

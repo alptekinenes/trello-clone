@@ -4,6 +4,7 @@ import {
   invitationRateLimit,
   NodeEnv,
   trustProxyHops,
+  uploadRateLimit,
   validateEnv,
 } from './env.validation.js';
 
@@ -26,6 +27,15 @@ describe('validateEnv', () => {
     expect(env.INVITATION_RATE_LIMIT_PER_MINUTE).toBe(30);
     expect(env.API_RATE_LIMIT_PER_MINUTE).toBe(300);
     expect(env.TRUST_PROXY).toBe(0);
+    expect(env.UPLOAD_DIR).toBe('uploads');
+    expect(env.UPLOAD_RATE_LIMIT_PER_MINUTE).toBe(30);
+  });
+
+  it('rejects an empty UPLOAD_DIR and an out-of-range upload limit', () => {
+    expect(() => validateEnv({ ...validEnv, UPLOAD_DIR: '' })).toThrow(/UPLOAD_DIR/);
+    expect(() => validateEnv({ ...validEnv, UPLOAD_RATE_LIMIT_PER_MINUTE: '0' })).toThrow(
+      /UPLOAD_RATE_LIMIT_PER_MINUTE/,
+    );
   });
 
   it('requires NODE_ENV and has no default for it', () => {
@@ -43,6 +53,7 @@ describe('validateEnv', () => {
       NODE_ENV: value,
       APP_URL: 'https://app.example.com',
       CORS_ORIGIN: 'https://app.example.com',
+      UPLOAD_DIR: '/srv/uploads',
     });
     expect(env.NODE_ENV).toBe(value);
   });
@@ -108,7 +119,11 @@ describe('invitation settings', () => {
   it('requires APP_URL in production but keeps the localhost default elsewhere', () => {
     const production = { ...validEnv, NODE_ENV: 'production' };
 
-    const withOrigin = { ...production, CORS_ORIGIN: 'https://app.example.com' };
+    const withOrigin = {
+      ...production,
+      CORS_ORIGIN: 'https://app.example.com',
+      UPLOAD_DIR: '/srv/uploads',
+    };
 
     expect(() => validateEnv(withOrigin)).toThrow(/APP_URL: must be set in production/);
     expect(() => validateEnv({ ...withOrigin, APP_URL: '  ' })).toThrow(/APP_URL/);
@@ -144,7 +159,16 @@ describe('production-only rules', () => {
     NODE_ENV: 'production',
     APP_URL: 'https://app.example.com',
     CORS_ORIGIN: 'https://app.example.com',
+    UPLOAD_DIR: '/srv/uploads',
   };
+
+  it('requires an absolute UPLOAD_DIR in production', () => {
+    expect(() => validateEnv({ ...production, UPLOAD_DIR: undefined })).toThrow(
+      /UPLOAD_DIR: must be set to an absolute path/,
+    );
+    expect(() => validateEnv({ ...production, UPLOAD_DIR: 'uploads' })).toThrow(/UPLOAD_DIR/);
+    expect(() => validateEnv({ ...production, UPLOAD_DIR: '  ' })).toThrow(/UPLOAD_DIR/);
+  });
 
   it('accepts a complete production config', () => {
     expect(validateEnv(production).CORS_ORIGIN).toBe('https://app.example.com');
@@ -258,5 +282,20 @@ describe('TRUST_PROXY', () => {
     expect(trustProxyHops()).toBe(0);
     vi.stubEnv('TRUST_PROXY', 'abc');
     expect(trustProxyHops()).toBe(0);
+  });
+});
+
+describe('uploadRateLimit', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('reads the limit from the environment and falls back to 30', () => {
+    vi.stubEnv('UPLOAD_RATE_LIMIT_PER_MINUTE', '4');
+    expect(uploadRateLimit()).toBe(4);
+    vi.stubEnv('UPLOAD_RATE_LIMIT_PER_MINUTE', '');
+    expect(uploadRateLimit()).toBe(30);
+    vi.stubEnv('UPLOAD_RATE_LIMIT_PER_MINUTE', 'abc');
+    expect(uploadRateLimit()).toBe(30);
   });
 });

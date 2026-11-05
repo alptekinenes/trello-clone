@@ -56,6 +56,7 @@ describe('Card detail (e2e, database)', () => {
         boardId,
         description: null,
         checklists: [],
+        attachments: [],
       } satisfies CardDetailDto);
     });
 

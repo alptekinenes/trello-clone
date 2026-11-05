@@ -39,6 +39,21 @@ function patchCardIfPresent(
   return hasCard(detail, cardId) ? patchCard(detail, cardId, { commentCount }) : detail;
 }
 
+function patchAttachments(
+  detail: BoardDetailDto,
+  cardId: string,
+  attachmentCount: number,
+  deletedId?: string,
+): BoardDetailDto {
+  const card = detail.cards.find((candidate) => candidate.id === cardId);
+  if (!card) return detail;
+  const lostCover = deletedId !== undefined && card.coverAttachmentId === deletedId;
+  return patchCard(detail, cardId, {
+    attachmentCount,
+    ...(lostCover ? { coverAttachmentId: null } : {}),
+  });
+}
+
 function withLabelIds(
   detail: BoardDetailDto,
   cardId: string,
@@ -128,6 +143,13 @@ export function applyBoardEvent(
       return done(patchCardIfPresent(detail, event.data.comment.cardId, event.data.commentCount));
     case 'comment:deleted':
       return done(patchCardIfPresent(detail, event.data.cardId, event.data.commentCount));
+    // Same for attachments; a deleted cover attachment clears the tile's cover (the server's foreign key did the same).
+    case 'attachment:created':
+      return done(patchAttachments(detail, event.data.attachment.cardId, event.data.attachmentCount));
+    case 'attachment:deleted':
+      return done(
+        patchAttachments(detail, event.data.cardId, event.data.attachmentCount, event.data.id),
+      );
     // The tile shows only the count.
     case 'comment:updated':
       return done(detail);

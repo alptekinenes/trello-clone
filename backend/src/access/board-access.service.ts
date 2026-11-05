@@ -61,6 +61,16 @@ export class BoardAccessService {
     return comment?.boardId ?? null;
   }
 
+  /** Board of an attachment, or null when the attachment does not exist. */
+  async boardIdOfAttachment(attachmentId: string): Promise<string | null> {
+    if (!isUUID(attachmentId)) return null;
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { boardId: true },
+    });
+    return attachment?.boardId ?? null;
+  }
+
   /** Board of a checklist, or null when the checklist does not exist. */
   async boardIdOfChecklist(checklistId: string): Promise<string | null> {
     if (!isUUID(checklistId)) return null;

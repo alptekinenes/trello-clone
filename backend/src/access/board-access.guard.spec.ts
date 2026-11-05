@@ -24,6 +24,7 @@ function setup(minRole: string | undefined) {
     boardIdOfChecklistItem: vi.fn().mockResolvedValue('board-of-item'),
     boardIdOfLabel: vi.fn().mockResolvedValue('board-of-label'),
     boardIdOfComment: vi.fn().mockResolvedValue('board-of-comment'),
+    boardIdOfAttachment: vi.fn().mockResolvedValue('board-of-attachment'),
   };
   const guard = new BoardAccessGuard(reflector, access as unknown as BoardAccessService);
   return { guard, access };
@@ -124,6 +125,21 @@ describe('BoardAccessGuard', () => {
     expect(access.requireRole.mock.calls[0][0]).toBe('board-of-comment');
     expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Comment not found');
     expect(request.boardAccess).toEqual({ boardId: 'board-of-comment', role: 'ADMIN' });
+  });
+
+  it('resolves the board from :attachmentId and reports a missing attachment', async () => {
+    const { guard, access } = setup('MEMBER');
+    const request: Partial<BoardRequest> = {
+      user: USER,
+      params: { attachmentId: 'attachment-1' },
+    };
+
+    await guard.canActivate(createContext(request));
+
+    expect(access.boardIdOfAttachment).toHaveBeenCalledWith('attachment-1');
+    expect(access.requireRole.mock.calls[0][0]).toBe('board-of-attachment');
+    expect(notFoundMessage(access.requireRole.mock.calls[0][3])).toBe('Attachment not found');
+    expect(request.boardAccess).toEqual({ boardId: 'board-of-attachment', role: 'ADMIN' });
   });
 
   it('lets the card win when a route has both :cardId and :labelId', async () => {

@@ -27,6 +27,18 @@ function comment(cardId: string) {
   } as const;
 }
 
+function attachment(cardId: string, id = 'att-1') {
+  return {
+    id,
+    cardId,
+    fileName: 'rapor.pdf',
+    mimeType: 'application/pdf',
+    size: 1200,
+    uploader: { id: 'u-1', name: 'Ayşe', avatarUrl: null },
+    createdAt: '2026-11-05T10:00:00.000Z',
+  } as const;
+}
+
 function item(id: string, checklistId: string, content: string, position: number, isCompleted = false) {
   return { id, checklistId, content, isCompleted, position } satisfies ChecklistItemDto;
 }
@@ -54,6 +66,9 @@ function base(): CardDetailDto {
     ],
     checklistTotal: 2,
     checklistDone: 1,
+    attachments: [attachment(CARD)],
+    attachmentCount: 1,
+    coverAttachmentId: 'att-1',
   });
   return card;
 }
@@ -336,6 +351,40 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
       check: ({ card }) => expect(card.commentCount).toBe(1),
     },
     ignored('ignores another card', event('comment:deleted', { id: 'cm1', cardId: OTHER, commentCount: 1 })),
+  ],
+  'attachment:created': [
+    {
+      name: 'adds the attachment first and sets the count',
+      event: event('attachment:created', { attachment: attachment(CARD, 'att-2'), attachmentCount: 2 }),
+      check: ({ card }) => {
+        expect(card.attachments.map((a) => a.id)).toEqual(['att-2', 'att-1']);
+        expect(card.attachmentCount).toBe(2);
+      },
+    },
+    {
+      name: 'does not add an attachment the card already has',
+      event: event('attachment:created', { attachment: attachment(CARD, 'att-1'), attachmentCount: 1 }),
+      check: ({ card }) => {
+        expect(card.attachments.map((a) => a.id)).toEqual(['att-1']);
+        expect(card.attachmentCount).toBe(1);
+      },
+    },
+    ignored(
+      'ignores another card',
+      event('attachment:created', { attachment: attachment(OTHER), attachmentCount: 5 }),
+    ),
+  ],
+  'attachment:deleted': [
+    {
+      name: 'removes the attachment, sets the count and clears its cover',
+      event: event('attachment:deleted', { id: 'att-1', cardId: CARD, attachmentCount: 0 }),
+      check: ({ card }) => {
+        expect(card.attachments).toEqual([]);
+        expect(card.attachmentCount).toBe(0);
+        expect(card.coverAttachmentId).toBeNull();
+      },
+    },
+    ignored('ignores another card', event('attachment:deleted', { id: 'att-1', cardId: OTHER, attachmentCount: 0 })),
   ],
   'activity:created': [
     ignored(

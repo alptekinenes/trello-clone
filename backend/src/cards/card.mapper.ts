@@ -1,10 +1,20 @@
-import type { CardDetailDto, CardSummaryDto, LabelColor } from '@trello/contracts';
+import {
+  ATTACHMENT_LIMITS,
+  type CardDetailDto,
+  type CardSummaryDto,
+  type LabelColor,
+} from '@trello/contracts';
 import {
   CHECKLIST_ORDER,
   CHECKLIST_SELECT,
   type ChecklistRow,
   toChecklistDto,
 } from '../checklists/checklist.mapper.js';
+import {
+  ATTACHMENT_SELECT,
+  type AttachmentRow,
+  toAttachmentDto,
+} from '../attachments/attachment.mapper.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
 /** Assignment order; userId breaks ties. */
@@ -28,6 +38,8 @@ export const CARD_SELECT = {
   coverColor: true,
   archivedAt: true,
   commentCount: true,
+  attachmentCount: true,
+  coverAttachmentId: true,
   labels: { select: { labelId: true }, orderBy: { assignedAt: 'asc' } },
   members: { select: { userId: true }, orderBy: CARD_MEMBER_ORDER },
   checklists: { select: { items: { select: { isCompleted: true } } } },
@@ -39,6 +51,11 @@ export const CARD_DETAIL_SELECT = {
   boardId: true,
   description: true,
   checklists: { select: CHECKLIST_SELECT, orderBy: [...CHECKLIST_ORDER] },
+  attachments: {
+    select: ATTACHMENT_SELECT,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: ATTACHMENT_LIMITS.MAX_PER_CARD,
+  },
 } satisfies Prisma.CardSelect;
 
 /** List order; id breaks ties so every reader sees the same order. */
@@ -55,6 +72,8 @@ export interface CardRow {
   coverColor: LabelColor | null;
   archivedAt: Date | null;
   commentCount: number;
+  attachmentCount: number;
+  coverAttachmentId: string | null;
   labels: { labelId: string }[];
   members: { userId: string }[];
   checklists: { items: { isCompleted: boolean }[] }[];
@@ -78,6 +97,8 @@ export function toCardSummary(card: CardRow, hasDescription: boolean): CardSumma
     checklistTotal: items.length,
     checklistDone: items.filter((item) => item.isCompleted).length,
     commentCount: card.commentCount,
+    attachmentCount: card.attachmentCount,
+    coverAttachmentId: card.coverAttachmentId,
   };
 }
 
@@ -85,6 +106,7 @@ export interface CardDetailRow extends Omit<CardRow, 'checklists'> {
   boardId: string;
   description: string | null;
   checklists: ChecklistRow[];
+  attachments: AttachmentRow[];
 }
 
 export function toCardDetail(card: CardDetailRow): CardDetailDto {
@@ -93,5 +115,6 @@ export function toCardDetail(card: CardDetailRow): CardDetailDto {
     boardId: card.boardId,
     description: card.description,
     checklists: card.checklists.map(toChecklistDto),
+    attachments: card.attachments.map(toAttachmentDto),
   };
 }

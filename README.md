@@ -61,6 +61,8 @@ Hepsi `backend/.env` dosyasındadır; şablon `backend/.env.example`. Uygulama g
 | `INVITATION_RATE_LIMIT_PER_MINUTE` | Hayır | `30` | Davet oluşturma/önizleme/kabul isteği sınırı (IP başına dakikada, her rota için ayrı, 1–10000). |
 | `API_RATE_LIMIT_PER_MINUTE` | Hayır | `300` | Daha sıkı sınırı olmayan tüm rotalar için genel sınır (IP başına dakikada, 1–100000). |
 | `TRUST_PROXY` | Hayır | `0` | `X-Forwarded-For` başlığına güvenilen ters vekil sayısı (0–10). Doğrudan erişimde 0; tek bir vekilin arkasında 1. |
+| `UPLOAD_DIR` | Production'da evet | `uploads` | Kart eklerinin saklandığı dizin (göreli yol backend çalışma dizinine göre çözülür). Production'da mutlak yol olmalı; statik olarak sunulan bir dizinde olmamalı. Veritabanıyla birlikte yedeklenir. |
+| `UPLOAD_RATE_LIMIT_PER_MINUTE` | Hayır | `30` | Ek yükleme sınırı (kullanıcı başına ve IP başına dakikada, 1–10000). |
 
 Yerelde Playwright'ı tekrar tekrar çalıştırırken sınırlara takılmamak için `AUTH_RATE_LIMIT_PER_MINUTE`, `INVITATION_RATE_LIMIT_PER_MINUTE` ve `API_RATE_LIMIT_PER_MINUTE` değerlerini yükseltin (örn. `1000`). Dev backend `.env` değişikliğini izlemez; değişince yeniden başlatın.
 

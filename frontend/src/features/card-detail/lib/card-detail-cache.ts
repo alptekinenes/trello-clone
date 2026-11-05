@@ -1,5 +1,6 @@
 import type {
   CardDetailDto,
+  AttachmentDto,
   CardSummaryDto,
   ChecklistDto,
   ChecklistItemDto,
@@ -18,6 +19,8 @@ export type CardSummaryContent = Pick<
   | 'checklistTotal'
   | 'checklistDone'
   | 'commentCount'
+  | 'attachmentCount'
+  | 'coverAttachmentId'
   | 'completedAt'
   | 'coverColor'
   | 'memberIds'
@@ -37,6 +40,8 @@ export function summaryOf(card: CardDetailDto): CardSummaryContent {
     checklistTotal: card.checklistTotal,
     checklistDone: card.checklistDone,
     commentCount: card.commentCount,
+    attachmentCount: card.attachmentCount,
+    coverAttachmentId: card.coverAttachmentId,
     completedAt: card.completedAt,
     coverColor: card.coverColor,
     memberIds: card.memberIds,
@@ -207,4 +212,30 @@ export function findItem(card: CardDetailDto, itemId: string): ChecklistItemDto 
 
 export function findChecklist(card: CardDetailDto, checklistId: string): ChecklistDto | undefined {
   return card.checklists.find((checklist) => checklist.id === checklistId);
+}
+
+/** Puts the attachment first (newest first) unless it is already there. */
+export function insertAttachment(
+  card: CardDetailDto,
+  attachment: AttachmentDto,
+  attachmentCount: number,
+): CardDetailDto {
+  if (card.attachments.some((existing) => existing.id === attachment.id)) {
+    return { ...card, attachmentCount };
+  }
+  return { ...card, attachments: [attachment, ...card.attachments], attachmentCount };
+}
+
+/** Drops the attachment; a cover that pointed at it goes too. */
+export function removeAttachment(
+  card: CardDetailDto,
+  attachmentId: string,
+  attachmentCount: number,
+): CardDetailDto {
+  return {
+    ...card,
+    attachments: card.attachments.filter((attachment) => attachment.id !== attachmentId),
+    attachmentCount,
+    coverAttachmentId: card.coverAttachmentId === attachmentId ? null : card.coverAttachmentId,
+  };
 }

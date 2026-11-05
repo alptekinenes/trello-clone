@@ -100,6 +100,8 @@ export function testCard(
     checklistTotal: 0,
     checklistDone: 0,
     commentCount: 0,
+    attachmentCount: 0,
+    coverAttachmentId: null,
     completedAt: null,
     coverColor: null,
     memberIds: [],
@@ -111,7 +113,7 @@ export function testCard(
 export function testCardDetail(
   card: Partial<CardDetailDto> & Pick<CardDetailDto, 'id' | 'listId' | 'title'>,
 ): CardDetailDto {
-  return { ...testCard(card), boardId: BOARD_ID, description: null, checklists: [], ...card };
+  return { ...testCard(card), boardId: BOARD_ID, description: null, checklists: [], attachments: [], ...card };
 }
 
 /** Another member of the test board; joins after the test user unless `joinedAt` says otherwise. */

@@ -34,3 +34,7 @@ export const checklistItemNotFound = () =>
 /** Same for comments on boards the user cannot see. */
 export const commentNotFound = () =>
   new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Comment not found' });
+
+/** Same for attachments on boards the user cannot see. */
+export const attachmentNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Attachment not found' });

@@ -7,6 +7,7 @@ import type {
   CardChecklistCounts,
   ActivityType,
   CardSummaryDto,
+  AttachmentCreatedDto,
   ChecklistDto,
   CommentDto,
   ChecklistItemDto,
@@ -21,7 +22,10 @@ import { ACTIVITY_SELECT, toActivityDto } from '../src/activity/activity.mapper.
 import { hashToken, newOpaqueToken } from '../src/common/crypto/opaque-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createTestApp } from './utils/create-test-app.js';
+import { PNG_1X1 } from './utils/files.js';
+import { randomUUID } from 'node:crypto';
 import { resetDatabase } from './utils/database.js';
+import { resetUploads } from './utils/uploads.js';
 import { closeAllSockets, collectUntilSentinel, expectNext } from './utils/realtime.js';
 import {
   api,
@@ -152,6 +156,7 @@ describe('Realtime events (e2e, socket.io)', () => {
 
   beforeEach(async () => {
     await resetDatabase(app);
+    await resetUploads();
   });
 
   afterEach(() => {
@@ -461,6 +466,57 @@ describe('Realtime events (e2e, socket.io)', () => {
         status: 204,
         events: (w) => [
           event('comment:deleted', { id: seededCommentId, cardId: w.card1.id, commentCount: 0 }),
+        ],
+      },
+    ];
+
+    /** Writes an attachment row straight to the database (no broadcast) and counts it on the card. */
+    let seededAttachmentId = '';
+    async function seedAttachment(w: World, uploaderId: string): Promise<void> {
+      const [, created] = await prisma.$transaction([
+        prisma.card.update({
+          where: { id: w.card1.id },
+          data: { attachmentCount: { increment: 1 } },
+        }),
+        prisma.attachment.create({
+          data: {
+            cardId: w.card1.id,
+            boardId: w.boardId,
+            uploaderId,
+            fileName: 'hazir.png',
+            mimeType: 'image/png',
+            size: PNG_1X1.length,
+            storageKey: randomUUID(),
+          },
+          select: { id: true },
+        }),
+      ]);
+      seededAttachmentId = created.id;
+    }
+
+    const attachmentRows: BoardRow[] = [
+      {
+        endpoint: 'POST /cards/:cardId/attachments',
+        act: (as, w) =>
+          as.post(`/cards/${w.card1.id}/attachments`).attach('file', PNG_1X1, 'logo.png'),
+        status: 201,
+        events: async (w, res) => [
+          event('attachment:created', res.body as AttachmentCreatedDto),
+          await activityEvent(w.card1.id, 'CARD_ATTACHMENT_ADDED'),
+        ],
+      },
+      {
+        endpoint: 'DELETE /attachments/:attachmentId (by an admin, not the uploader)',
+        arrange: (w) => seedAttachment(w, w.b.user.id),
+        act: (as) => as.delete(`/attachments/${seededAttachmentId}`),
+        status: 204,
+        events: async (w) => [
+          event('attachment:deleted', {
+            id: seededAttachmentId,
+            cardId: w.card1.id,
+            attachmentCount: 0,
+          }),
+          await activityEvent(w.card1.id, 'CARD_ATTACHMENT_REMOVED'),
         ],
       },
     ];
@@ -820,7 +876,7 @@ describe('Realtime events (e2e, socket.io)', () => {
     ];
 
     const ROWS: Row[] = [
-      ...[...listAndCardRows, ...labelRows, ...memberRows, ...commentRows, ...checklistRows].map(viaBoardRoom),
+      ...[...listAndCardRows, ...labelRows, ...memberRows, ...commentRows, ...attachmentRows, ...checklistRows].map(viaBoardRoom),
       ...watchRows,
       ...boardRows,
     ];

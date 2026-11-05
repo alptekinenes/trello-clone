@@ -1,6 +1,6 @@
 import type { CommentDto } from './comments.js';
 
-/** Same eight values as the Prisma `ActivityType` enum (a backend test keeps them equal). */
+/** Same ten values as the Prisma `ActivityType` enum (a backend test keeps them equal). */
 export const ActivityType = {
   CARD_CREATED: 'CARD_CREATED',
   CARD_MOVED: 'CARD_MOVED',
@@ -10,6 +10,8 @@ export const ActivityType = {
   CARD_UNCOMPLETED: 'CARD_UNCOMPLETED',
   CARD_MEMBER_ADDED: 'CARD_MEMBER_ADDED',
   CARD_MEMBER_REMOVED: 'CARD_MEMBER_REMOVED',
+  CARD_ATTACHMENT_ADDED: 'CARD_ATTACHMENT_ADDED',
+  CARD_ATTACHMENT_REMOVED: 'CARD_ATTACHMENT_REMOVED',
 } as const;
 export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
 
@@ -23,6 +25,11 @@ export interface UserRefDto {
 export interface ListRef {
   id: string;
   title: string;
+}
+
+export interface AttachmentRefData {
+  id: string;
+  fileName: string;
 }
 
 export interface MemberRefData {
@@ -40,6 +47,8 @@ export interface ActivityDataMap {
   CARD_UNCOMPLETED: { cardTitle: string };
   CARD_MEMBER_ADDED: { cardTitle: string; member: MemberRefData };
   CARD_MEMBER_REMOVED: { cardTitle: string; member: MemberRefData };
+  CARD_ATTACHMENT_ADDED: { cardTitle: string; attachment: AttachmentRefData };
+  CARD_ATTACHMENT_REMOVED: { cardTitle: string; attachment: AttachmentRefData };
 }
 
 export type ActivityDto = {

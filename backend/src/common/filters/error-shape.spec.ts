@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  PayloadTooLargeException,
   ConflictException,
   ForbiddenException,
   HttpStatus,
@@ -31,6 +32,12 @@ describe('toErrorShape', () => {
       code: ErrorCode.EMAIL_TAKEN,
       message: 'Email is already registered',
     });
+  });
+
+  it('maps 413 to PAYLOAD_TOO_LARGE', () => {
+    const shape = toErrorShape(new PayloadTooLargeException('File too large'));
+    expect(shape.statusCode).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(shape.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
   });
 
   it('ignores an unknown code in the exception body', () => {

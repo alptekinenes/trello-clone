@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { testCardDetail } from '../../../test/fixtures';
 import {
   applyCardUpdate,
+  insertAttachment,
   moveItem,
   patchChecklist,
   patchItem,
+  removeAttachment,
   removeChecklist,
   removeItem,
   setLabelAssigned,
@@ -57,6 +59,8 @@ describe('summaryOf', () => {
       checklistTotal: 3,
       checklistDone: 1,
       commentCount: 2,
+      attachmentCount: 0,
+      coverAttachmentId: null,
       completedAt: null,
       coverColor: null,
       memberIds: [],
@@ -186,5 +190,36 @@ describe('checklist helpers', () => {
     expect(moveItem(CARD, 'nope', 'b', 1)).toBe(CARD);
     moveItem(CARD, 'a1', 'b', 1);
     expect(itemIds(CARD, 'a')).toEqual(['a1', 'a2']);
+  });
+});
+
+describe('attachment helpers', () => {
+  const file = (id: string) => ({
+    id,
+    cardId: 'card',
+    fileName: `${id}.png`,
+    mimeType: 'image/png' as const,
+    size: 10,
+    uploader: { id: 'u', name: 'Ayşe', avatarUrl: null },
+    createdAt: '2026-11-05T10:00:00.000Z',
+  });
+
+  it('insertAttachment puts the newest first and ignores a duplicate', () => {
+    const one = insertAttachment(CARD, file('a'), 1);
+    const two = insertAttachment(one, file('b'), 2);
+
+    expect(two.attachments.map((a) => a.id)).toEqual(['b', 'a']);
+    expect(two.attachmentCount).toBe(2);
+    expect(insertAttachment(two, file('b'), 2).attachments).toHaveLength(2);
+  });
+
+  it('removeAttachment drops the file and a cover that pointed at it', () => {
+    const withCover = { ...insertAttachment(CARD, file('a'), 1), coverAttachmentId: 'a' };
+
+    const removed = removeAttachment(withCover, 'a', 0);
+    expect(removed.attachments).toEqual([]);
+    expect(removed.attachmentCount).toBe(0);
+    expect(removed.coverAttachmentId).toBeNull();
+    expect(removeAttachment(withCover, 'other', 1).coverAttachmentId).toBe('a');
   });
 });

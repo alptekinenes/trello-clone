@@ -1,4 +1,5 @@
 import type { ActivityDto } from './activity.js';
+import type { AttachmentCreatedDto } from './attachments.js';
 import type { BoardSummaryDto, MemberDto } from './boards.js';
 import type { CardMemberChange, CardSummaryDto } from './cards.js';
 import type { CommentDto } from './comments.js';
@@ -71,6 +72,8 @@ export interface BoardEventMap {
   'comment:updated': CommentDto;
   'comment:deleted': { id: string; cardId: string; commentCount: number };
   /** Follows the event of the change that caused it. */
+  'attachment:created': AttachmentCreatedDto;
+  'attachment:deleted': { id: string; cardId: string; attachmentCount: number };
   'activity:created': ActivityDto;
   'position:rebalanced': PositionRebalancedData;
 }
@@ -143,6 +146,8 @@ const BOARD_EVENTS: Record<BoardEventName, true> = {
   'comment:created': true,
   'comment:updated': true,
   'comment:deleted': true,
+  'attachment:created': true,
+  'attachment:deleted': true,
   'activity:created': true,
   'position:rebalanced': true,
 };

@@ -19,6 +19,8 @@ const CARD_ROW = {
   coverColor: null,
   archivedAt: null,
   commentCount: 0,
+  attachmentCount: 0,
+  coverAttachmentId: null,
   labels: [],
   members: [],
   checklists: [],

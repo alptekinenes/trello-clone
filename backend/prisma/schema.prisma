@@ -50,6 +50,7 @@ model User {
   sentInvitations Invitation[]   @relation("InvitationInvitedBy")
   comments        Comment[]
   activities      Activity[]
+  attachments     Attachment[]
 }
 
 model RefreshToken {
@@ -86,6 +87,7 @@ model Board {
   labels      Label[]
   comments    Comment[]
   activities  Activity[]
+  attachments Attachment[]
 }
 
 model BoardMember {
@@ -141,32 +143,38 @@ model List {
 }
 
 model Card {
-  id           String      @id @default(uuid()) @db.Uuid
+  id                String      @id @default(uuid()) @db.Uuid
   /// Denormalized from List for single-query access checks and room lookup.
-  boardId      String      @db.Uuid
-  listId       String      @db.Uuid
-  title        String      @db.VarChar(512)
-  description  String?     @db.Text
-  dueDate      DateTime?
-  dueComplete  Boolean     @default(false)
+  boardId           String      @db.Uuid
+  listId            String      @db.Uuid
+  title             String      @db.VarChar(512)
+  description       String?     @db.Text
+  dueDate           DateTime?
+  dueComplete       Boolean     @default(false)
   /// Set when the card was marked complete; null means not complete.
-  completedAt  DateTime?
-  coverColor   LabelColor?
-  position     Float
-  archivedAt   DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  completedAt       DateTime?
+  coverColor        LabelColor?
+  position          Float
+  archivedAt        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
   /// Number of comments; changed in the comment's own transaction.
-  commentCount Int         @default(0)
+  commentCount      Int         @default(0)
+  /// Number of attachments; changed in the attachment's own transaction.
+  attachmentCount   Int         @default(0)
+  /// Image cover. Never set together with coverColor: the service clears the other one.
+  coverAttachmentId String?     @unique @db.Uuid
 
-  board      Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  list       List         @relation(fields: [listId], references: [id], onDelete: Cascade)
-  labels     CardLabel[]
-  checklists Checklist[]
-  members    CardMember[]
-  watchers   CardWatch[]
-  comments   Comment[]
-  activities Activity[]
+  board           Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list            List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels          CardLabel[]
+  checklists      Checklist[]
+  members         CardMember[]
+  watchers        CardWatch[]
+  comments        Comment[]
+  activities      Activity[]
+  attachments     Attachment[] @relation("CardAttachments")
+  coverAttachment Attachment?  @relation("CardCover", fields: [coverAttachmentId], references: [id], onDelete: SetNull)
 
   @@index([listId, position])
   @@index([boardId])
@@ -264,6 +272,8 @@ enum ActivityType {
   CARD_UNCOMPLETED
   CARD_MEMBER_ADDED
   CARD_MEMBER_REMOVED
+  CARD_ATTACHMENT_ADDED
+  CARD_ATTACHMENT_REMOVED
 }
 
 model Comment {
@@ -284,6 +294,31 @@ model Comment {
 
   @@index([cardId, createdAt, id])
   @@index([boardId, createdAt])
+}
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  cardId     String   @db.Uuid
+  /// Same as the card's boardId: single-query access checks and the board cascade.
+  boardId    String   @db.Uuid
+  uploaderId String   @db.Uuid
+  /// Cleaned display name (no path, no control/bidi characters). Never part of a storage path.
+  fileName   String   @db.VarChar(255)
+  /// Detected from the content (magic bytes), never the client's claim. One of ATTACHMENT_MIME_TYPES.
+  mimeType   String   @db.VarChar(100)
+  /// Bytes, at most ATTACHMENT_LIMITS.MAX_BYTES.
+  size       Int
+  /// Server-generated uuid v4; the file's name in storage.
+  storageKey String   @unique @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  card     Card  @relation("CardAttachments", fields: [cardId], references: [id], onDelete: Cascade)
+  board    Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  uploader User  @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  coverOf  Card? @relation("CardCover")
+
+  @@index([cardId, createdAt, id])
+  @@index([boardId])
 }
 
 /// Append-only log. `data` holds copies of names from that moment (ActivityDataMap in contracts).

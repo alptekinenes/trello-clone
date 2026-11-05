@@ -2,9 +2,11 @@ import type { BoardEvent, CardDetailDto, PositionRebalancedData } from '@trello/
 import {
   findChecklist,
   findItem,
+  insertAttachment,
   moveItem,
   patchChecklist,
   patchItemPosition,
+  removeAttachment,
   removeChecklist,
   removeItem,
   setLabelAssigned,
@@ -149,6 +151,18 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
     case 'comment:deleted': {
       const { cardId, commentCount } = event.data;
       return cardId === card.id ? done({ ...card, commentCount }) : done(card);
+    }
+
+    // The counter arrives with the event; the same event twice gives the same card.
+    case 'attachment:created': {
+      const { attachment, attachmentCount } = event.data;
+      return attachment.cardId === card.id
+        ? done(insertAttachment(card, attachment, attachmentCount))
+        : done(card);
+    }
+    case 'attachment:deleted': {
+      const { id, cardId, attachmentCount } = event.data;
+      return cardId === card.id ? done(removeAttachment(card, id, attachmentCount)) : done(card);
     }
 
     case 'position:rebalanced':

@@ -1,3 +1,4 @@
+import type { AttachmentDto } from './attachments.js';
 import type { ChecklistDto } from './checklists.js';
 import type { LabelColor } from './enums.js';
 import type { PositionRebalancedData } from './position.js';
@@ -22,6 +23,10 @@ export interface CardSummaryDto {
   checklistDone: number;
   /** Number of comments on the card. */
   commentCount: number;
+  /** Number of attachments on the card. */
+  attachmentCount: number;
+  /** The attachment shown as the card's image cover; never set together with coverColor. */
+  coverAttachmentId: string | null;
   completedAt: string | null;
   coverColor: LabelColor | null;
   /** Board members on the card, in assignment order. */
@@ -34,6 +39,8 @@ export interface CardDetailDto extends CardSummaryDto {
   description: string | null;
   /** Ordered by (position, id). */
   checklists: ChecklistDto[];
+  /** Newest first, at most ATTACHMENT_LIMITS.MAX_PER_CARD. */
+  attachments: AttachmentDto[];
 }
 
 /** Neighbours in the target list; same rules as ListAnchors. */

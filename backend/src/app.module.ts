@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccessModule } from './access/access.module.js';
+import { AttachmentsModule } from './attachments/attachments.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BoardsModule } from './boards/boards.module.js';
 import { ChecklistsModule } from './checklists/checklists.module.js';
@@ -38,6 +39,7 @@ import { UsersModule } from './users/users.module.js';
     LabelsModule,
     ChecklistsModule,
     CommentsModule,
+    AttachmentsModule,
   ],
   providers: [
     // Order matters: rate limiting runs before authentication.

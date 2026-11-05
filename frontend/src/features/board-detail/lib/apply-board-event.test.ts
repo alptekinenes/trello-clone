@@ -25,6 +25,7 @@ const BLUE: LabelDto = { id: 'label-blue', boardId: BOARD_ID, name: 'Plan', colo
 const HELPER: MemberDto = testMember({ userId: 'u-helper', name: 'Yardımcı' });
 const ITEM = { id: 'i1', checklistId: 'k1', content: 'Madde', isCompleted: true, position: 1 };
 const COUNTS = { checklistTotal: 3, checklistDone: 2 };
+const CARD_ID = 'list-1-card-1';
 const COMMENTER = { id: 'u-helper', name: 'Yardımcı', avatarUrl: null };
 
 function comment(cardId: string) {
@@ -49,7 +50,9 @@ function base(): BoardDetailDto {
       ...testCards('list-1', 'Bir', 'İki'),
       ...testCards('list-2', 'Üç'),
     ].map((card, i) =>
-      i === 0 ? { ...card, labelIds: [RED.id], memberIds: ['u-helper'] } : card,
+      i === 0
+        ? { ...card, labelIds: [RED.id], memberIds: ['u-helper'], coverAttachmentId: 'att-1' }
+        : card,
     ),
     [RED],
   );
@@ -60,6 +63,16 @@ function event<K extends BoardEventName>(type: K, data: BoardEventMap[K]): Board
   // `type` and `data` are paired by K; TypeScript cannot see that through the union.
   return { type, data } as BoardEvent;
 }
+
+const ATTACHMENT = {
+  id: 'att-1',
+  cardId: CARD_ID,
+  fileName: 'rapor.pdf',
+  mimeType: 'application/pdf',
+  size: 1200,
+  uploader: { id: 'u-helper', name: 'Yardımcı', avatarUrl: null },
+  createdAt: '2026-11-05T10:00:00.000Z',
+} as const;
 
 const cardIds = (detail: BoardDetailDto) => detail.cards.map((card) => card.id);
 const listIds = (detail: BoardDetailDto) => detail.lists.map((list) => list.id);
@@ -508,6 +521,49 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
     {
       name: 'ignores a card that is not on the board',
       event: event('comment:deleted', { id: 'cm1', cardId: 'elsewhere', commentCount: 0 }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
+    },
+  ],
+  'attachment:created': [
+    {
+      name: 'sets the card attachment count from the event',
+      event: event('attachment:created', {
+        attachment: { ...ATTACHMENT, cardId: 'list-1-card-1' },
+        attachmentCount: 3,
+      }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')?.attachmentCount).toBe(3),
+    },
+    {
+      name: 'ignores a card that is not on the board',
+      event: event('attachment:created', {
+        attachment: { ...ATTACHMENT, cardId: 'elsewhere' },
+        attachmentCount: 3,
+      }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
+    },
+  ],
+  'attachment:deleted': [
+    {
+      name: 'sets the count and keeps a cover that is another attachment',
+      event: event('attachment:deleted', { id: 'att-9', cardId: 'list-1-card-1', attachmentCount: 1 }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')).toMatchObject({
+          attachmentCount: 1,
+        }),
+    },
+    {
+      name: 'clears the cover when the deleted attachment was the cover',
+      event: event('attachment:deleted', { id: 'att-1', cardId: 'list-1-card-1', attachmentCount: 0 }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')).toMatchObject({
+          attachmentCount: 0,
+          coverAttachmentId: null,
+        }),
+    },
+    {
+      name: 'ignores a card that is not on the board',
+      event: event('attachment:deleted', { id: 'att-1', cardId: 'elsewhere', attachmentCount: 0 }),
       check: ({ detail }, before) => expect(detail).toBe(before),
     },
   ],

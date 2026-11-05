@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { plainToInstance, Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -14,6 +15,7 @@ import {
 export const DEFAULT_AUTH_RATE_LIMIT = 10;
 export const DEFAULT_INVITATION_RATE_LIMIT = 30;
 export const DEFAULT_API_RATE_LIMIT = 300;
+export const DEFAULT_UPLOAD_RATE_LIMIT = 30;
 
 export enum NodeEnv {
   Development = 'development',
@@ -91,6 +93,20 @@ export class EnvironmentVariables {
   @Min(0)
   @Max(10)
   TRUST_PROXY: number = 0;
+
+  /**
+   * Directory of the uploaded attachment files (relative paths resolve against the backend's
+   * working directory). Back it up together with the database. Production requires an absolute path.
+   */
+  @IsString()
+  @IsNotEmpty()
+  UPLOAD_DIR: string = 'uploads';
+
+  /** Uploads per user (and per client IP) per minute on the upload route. */
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  UPLOAD_RATE_LIMIT_PER_MINUTE: number = DEFAULT_UPLOAD_RATE_LIMIT;
 }
 
 /**
@@ -112,6 +128,12 @@ export function invitationRateLimit(): number {
 export function apiRateLimit(): number {
   const value = Number(process.env.API_RATE_LIMIT_PER_MINUTE);
   return Number.isInteger(value) && value > 0 ? value : DEFAULT_API_RATE_LIMIT;
+}
+
+/** Same lazy read as `authRateLimit`, for the attachment upload route. */
+export function uploadRateLimit(): number {
+  const value = Number(process.env.UPLOAD_RATE_LIMIT_PER_MINUTE);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_UPLOAD_RATE_LIMIT;
 }
 
 /** Lazy read of `TRUST_PROXY` (validated at startup); 0 when unset or invalid. */
@@ -152,6 +174,10 @@ function productionProblems(config: Record<string, unknown>): string[] {
     problems.push(
       'CORS_ORIGIN: must be a single http(s) origin without a path, e.g. https://app.example.com',
     );
+  }
+  const uploadDir = typeof config.UPLOAD_DIR === 'string' ? config.UPLOAD_DIR.trim() : '';
+  if (uploadDir === '' || !path.isAbsolute(uploadDir)) {
+    problems.push('UPLOAD_DIR: must be set to an absolute path in production');
   }
   const secret = config.JWT_ACCESS_SECRET;
   if (typeof secret === 'string' && secret.toLowerCase().startsWith(PLACEHOLDER_SECRET_PREFIX)) {

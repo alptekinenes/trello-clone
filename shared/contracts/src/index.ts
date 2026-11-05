@@ -1,4 +1,5 @@
 export * from './activity.js';
+export * from './attachments.js';
 export * from './auth.js';
 export * from './boards.js';
 export * from './cards.js';

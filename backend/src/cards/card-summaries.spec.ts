@@ -14,6 +14,8 @@ function cardRow(id: string) {
     members: [],
     archivedAt: null,
     commentCount: 0,
+    attachmentCount: 0,
+    coverAttachmentId: null,
     labels: [],
     checklists: [],
   };

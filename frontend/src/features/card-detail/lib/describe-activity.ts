@@ -23,6 +23,10 @@ export function describeActivity(activity: ActivityDto): string {
       return activity.data.member.id === activity.actor.id
         ? 'bu karttan ayrıldı'
         : `${activity.data.member.name} kişisini bu karttan çıkardı`;
+    case 'CARD_ATTACHMENT_ADDED':
+      return `bu karta ${activity.data.attachment.fileName} dosyasını ekledi`;
+    case 'CARD_ATTACHMENT_REMOVED':
+      return `bu karttan ${activity.data.attachment.fileName} dosyasını sildi`;
     default:
       return assertUnhandled(activity);
   }

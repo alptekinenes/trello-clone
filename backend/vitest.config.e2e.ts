@@ -1,4 +1,8 @@
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
+
+const uploadDir = path.join(tmpdir(), 'trello-clone-e2e-uploads');
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
@@ -7,6 +11,7 @@ export default defineConfig({
     root: './',
     setupFiles: ['reflect-metadata'],
     include: ['test/**/*.e2e-spec.ts'],
+    globalSetup: ['./test/utils/global-setup.ts'],
     // Waits are event-driven; these are only upper bounds, generous enough for a loaded machine.
     testTimeout: 15_000,
     hookTimeout: 30_000,
@@ -27,6 +32,9 @@ export default defineConfig({
       APP_URL: 'http://localhost:5173',
       // High so e2e suites do not hit it; the rate-limit test stubs a low value.
       INVITATION_RATE_LIMIT_PER_MINUTE: '1000',
+      // A temporary directory per run; globalSetup removes it at the end.
+      UPLOAD_DIR: uploadDir,
+      UPLOAD_RATE_LIMIT_PER_MINUTE: '1000',
     },
   },
 });
