@@ -66,6 +66,8 @@ export interface UpdateCardRequest {
   isCompleted?: boolean;
   /** null removes the cover. */
   coverColor?: LabelColor | null;
+  /** An image attachment of this card as the cover; null removes it. Never sent together with a non-null coverColor. */
+  coverAttachmentId?: string | null;
 }
 
 export interface CardMemberChange {

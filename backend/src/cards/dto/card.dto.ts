@@ -63,6 +63,18 @@ function IsDueYearSupported(): PropertyDecorator {
   });
 }
 
+/** A cover is a color or an image, never both; null only clears its own kind. */
+function IsNotWithCoverColor(): PropertyDecorator {
+  return ValidateBy({
+    name: 'isNotWithCoverColor',
+    validator: {
+      validate: (_value: unknown, args) =>
+        (args?.object as UpdateCardRequest | undefined)?.coverColor == null,
+      defaultMessage: () => 'coverAttachmentId and coverColor cannot both be set',
+    },
+  });
+}
+
 /**
  * Every field is optional. Null is rejected, except for `description` and
  * `dueDate` and `coverColor`, where it clears the value.
@@ -105,6 +117,12 @@ export class UpdateCardDto implements UpdateCardRequest {
   @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsIn(LABEL_COLORS)
   coverColor?: LabelColor | null;
+
+  /** An image attachment of the card; null removes it. Not together with a non-null coverColor. */
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsUUID()
+  @IsNotWithCoverColor()
+  coverAttachmentId?: string | null;
 }
 
 export class MoveCardDto extends CardAnchorsDto implements MoveCardRequest {

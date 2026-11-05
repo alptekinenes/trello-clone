@@ -57,3 +57,21 @@ export interface AttachmentCreatedDto {
 export function canDeleteAttachment(viewer: MemberRef, uploaderId: string): boolean {
   return viewer.userId === uploaderId || hasBoardRole(viewer.role, 'ADMIN');
 }
+
+/** Key for reading files of one board; a 5 to 10 minute window, bound to the board and the user. */
+export interface FileTokenDto {
+  token: string;
+  expiresAt: string;
+}
+
+/** Clients refresh the key this often; it is valid for at least 5 minutes. */
+export const FILE_TOKEN_REFRESH_MS = 4 * 60_000;
+
+/**
+ * Path of a file under `/api/v1`. Images are shown inline unless `download`;
+ * everything else is always downloaded.
+ */
+export function fileUrlPath(attachmentId: string, token: string, download = false): string {
+  const base = `/files/${attachmentId}?token=${encodeURIComponent(token)}`;
+  return download ? `${base}&download=true` : base;
+}

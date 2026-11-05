@@ -6,9 +6,11 @@ import {
   type CardDetailDto,
   ErrorCode,
   type FeedItemDto,
+  type FileTokenDto,
   type CardFeedPageDto,
 } from '@trello/contracts';
 import request from 'supertest';
+import { deriveFileTokenKey, signFileToken } from '../src/attachments/file-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import {
   addMember,
@@ -363,6 +365,253 @@ describe('Card attachments (e2e, database, disk)', () => {
       await http().delete(`/api/v1/cards/${cardId}`).set('Authorization', owner.auth).expect(204);
 
       expect(await prisma.attachment.count()).toBe(0);
+    });
+  });
+
+  describe('file token and file route', () => {
+    const tokenOf = async (board = boardId, as = owner): Promise<string> => {
+      const res = await http()
+        .get(`/api/v1/boards/${board}/file-token`)
+        .set('Authorization', as.auth)
+        .expect(200);
+      return (res.body as FileTokenDto).token;
+    };
+    const file = (id: string, token: string, query = '') =>
+      http().get(`/api/v1/files/${id}?token=${encodeURIComponent(token)}${query}`);
+    const binary = (res: request.Response): Buffer => Buffer.from(res.body as Buffer);
+
+    function parseBinary(
+      res: request.Response,
+      callback: (error: Error | null, body: Buffer) => void,
+    ): void {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => callback(null, Buffer.concat(chunks)));
+    }
+
+    it('issues a no-store key that lives 5 to 10 minutes', async () => {
+      const res = await http()
+        .get(`/api/v1/boards/${boardId}/file-token`)
+        .set('Authorization', owner.auth)
+        .expect(200);
+
+      expect(res.headers['cache-control']).toBe('no-store');
+      const body = res.body as FileTokenDto;
+      expect(typeof body.token).toBe('string');
+      const lifetime = new Date(body.expiresAt).getTime() - Date.now();
+      expect(lifetime).toBeGreaterThan(4 * 60_000);
+      expect(lifetime).toBeLessThanOrEqual(10 * 60_000);
+    });
+
+    it('answers 401 without a token and 404 to a non-member for the key endpoint', async () => {
+      await http().get(`/api/v1/boards/${boardId}/file-token`).expect(401);
+      await http()
+        .get(`/api/v1/boards/${boardId}/file-token`)
+        .set('Authorization', other.auth)
+        .expect(404);
+    });
+
+    it('serves a PNG inline with the locked-down headers and the exact bytes', async () => {
+      const created = await addAttachment(owner, 'Şirket logosu.png');
+      const res = await file(created.attachment.id, await tokenOf())
+        .buffer(true)
+        .parse(parseBinary)
+        .expect(200);
+
+      const disposition = res.headers['content-disposition'] as string;
+      const cacheControl = res.headers['cache-control'] as string;
+      expect(res.headers['content-type']).toBe('image/png');
+      expect(disposition).toMatch(/^inline; filename="Sirket logosu\.png"; filename\*=UTF-8''/);
+      expect(disposition).toContain('%C5%9Eirket%20logosu.png');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['content-security-policy']).toBe(
+        "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+      );
+      expect(cacheControl).toMatch(/^private, max-age=\d+$/);
+      expect(Number(/max-age=(\d+)/.exec(cacheControl)?.[1])).toBeLessThanOrEqual(600);
+      expect(res.headers['content-length']).toBe(String(PNG_1X1.length));
+      expect(res.headers['accept-ranges']).toBe('none');
+      expect(binary(res).equals(PNG_1X1)).toBe(true);
+    });
+
+    it('downloads an image with download=true, and always downloads a PDF', async () => {
+      const png = await addAttachment(owner, 'a.png');
+      const pdf = (await upload(PDF_MINIMAL, 'Rapor.pdf').expect(201)).body as AttachmentCreatedDto;
+      const token = await tokenOf();
+
+      const forced = await file(png.attachment.id, token, '&download=true').expect(200);
+      expect(forced.headers['content-disposition']).toMatch(/^attachment; /);
+      const asPdf = await file(pdf.attachment.id, token).expect(200);
+      expect(asPdf.headers['content-type']).toBe('application/pdf');
+      expect(asPdf.headers['content-disposition']).toMatch(/^attachment; /);
+    });
+
+    it('serves UTF-8 text as text/plain with a charset, as a download', async () => {
+      const text = (await upload(Buffer.from('Merhaba dünya'), 'not.txt').expect(201))
+        .body as AttachmentCreatedDto;
+
+      const res = await file(text.attachment.id, await tokenOf()).expect(200);
+
+      expect(res.headers['content-type']).toBe('text/plain; charset=utf-8');
+      expect(res.headers['content-disposition']).toMatch(/^attachment; /);
+      expect(res.text).toBe('Merhaba dünya');
+    });
+
+    it('ignores a Range header: 200 with the whole body', async () => {
+      const created = await addAttachment();
+
+      const res = await file(created.attachment.id, await tokenOf())
+        .set('Range', 'bytes=0-3')
+        .buffer(true)
+        .parse(parseBinary)
+        .expect(200);
+
+      expect(res.headers['accept-ranges']).toBe('none');
+      expect(binary(res).equals(PNG_1X1)).toBe(true);
+    });
+
+    it('answers 400 without a key and 403 FILE_TOKEN_INVALID for a forged or expired one', async () => {
+      const created = await addAttachment();
+      const token = await tokenOf();
+
+      await http().get(`/api/v1/files/${created.attachment.id}`).expect(400);
+      const forged = await file(created.attachment.id, `${token.slice(0, -3)}AAA`).expect(403);
+      expect(forged.body.code).toBe(ErrorCode.FILE_TOKEN_INVALID);
+      const garbage = await file(created.attachment.id, 'not.a.key').expect(403);
+      expect(garbage.body.code).toBe(ErrorCode.FILE_TOKEN_INVALID);
+
+      const key = deriveFileTokenKey(process.env.JWT_ACCESS_SECRET ?? '');
+      const past = new Date(Date.now() - 20 * 60_000);
+      const expired = signFileToken(key, { boardId, userId: owner.user.id }, past).token;
+      const res = await file(created.attachment.id, expired).expect(403);
+      expect(res.body.code).toBe(ErrorCode.FILE_TOKEN_INVALID);
+    });
+
+    it('answers 404 with the key of another board, for a deleted attachment and a missing id', async () => {
+      const created = await addAttachment();
+      const foreign = await createUser(app, 'Başka');
+      const foreignBoard = await createBoard(app, foreign);
+      const foreignToken = await tokenOf(foreignBoard, foreign);
+      const token = await tokenOf();
+
+      await file(created.attachment.id, foreignToken).expect(404);
+      await file(MISSING_ID, token).expect(404);
+      await del(created.attachment.id).expect(204);
+      await file(created.attachment.id, token).expect(404);
+    });
+
+    it('answers 404 to a member who left the board even with an unexpired key', async () => {
+      const created = await addAttachment();
+      const token = await tokenOf(boardId, member);
+      await file(created.attachment.id, token).expect(200);
+
+      await prisma.boardMember.delete({
+        where: { boardId_userId: { boardId, userId: member.user.id } },
+      });
+
+      await file(created.attachment.id, token).expect(404);
+    });
+
+    it.each([
+      '..%2F..%2Fetc%2Fpasswd',
+      '%2e%2e%2f%2e%2e%2fetc%2fpasswd',
+      '..%5C..%5Cx',
+      'not-a-uuid',
+    ])('treats the id %s as not found, never as a path', async (id) => {
+      await addAttachment();
+      const token = await tokenOf();
+
+      const res = await http().get(`/api/v1/files/${id}?token=${encodeURIComponent(token)}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('answers 404 when the row exists but the file is gone', async () => {
+      const created = await addAttachment();
+      await resetUploads();
+
+      await file(created.attachment.id, await tokenOf()).expect(404);
+    });
+  });
+
+  describe('image cover', () => {
+    const patch = (body: object, card = cardId, as = owner) =>
+      http().patch(`/api/v1/cards/${card}`).set('Authorization', as.auth).send(body);
+
+    it('sets an image attachment as the cover and clears the cover color', async () => {
+      const created = await addAttachment();
+      await patch({ coverColor: 'BLUE' }).expect(200);
+
+      const res = await patch({ coverAttachmentId: created.attachment.id }).expect(200);
+
+      expect(res.body).toMatchObject({
+        coverAttachmentId: created.attachment.id,
+        coverColor: null,
+      });
+      expect((await detail()).coverAttachmentId).toBe(created.attachment.id);
+    });
+
+    it('clears the image cover when a cover color is set, and when it is set to null', async () => {
+      const created = await addAttachment();
+      await patch({ coverAttachmentId: created.attachment.id }).expect(200);
+
+      const colored = await patch({ coverColor: 'RED' }).expect(200);
+      expect(colored.body).toMatchObject({ coverAttachmentId: null, coverColor: 'RED' });
+
+      await patch({ coverAttachmentId: created.attachment.id }).expect(200);
+      const cleared = await patch({ coverAttachmentId: null }).expect(200);
+      expect(cleared.body).toMatchObject({ coverAttachmentId: null, coverColor: null });
+    });
+
+    it('keeps the cover when another field changes', async () => {
+      const created = await addAttachment();
+      await patch({ coverAttachmentId: created.attachment.id }).expect(200);
+
+      const res = await patch({ title: 'Yeni ad' }).expect(200);
+
+      expect(res.body.coverAttachmentId).toBe(created.attachment.id);
+    });
+
+    it('answers 400 when a color and an attachment are both set', async () => {
+      const created = await addAttachment();
+
+      const res = await patch({
+        coverColor: 'RED',
+        coverAttachmentId: created.attachment.id,
+      }).expect(400);
+
+      expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+      expect((await detail()).coverAttachmentId).toBeNull();
+    });
+
+    it('answers 400 INVALID_COVER for a PDF, another card attachment and a missing attachment', async () => {
+      const pdf = (await upload(PDF_MINIMAL, 'a.pdf').expect(201)).body as AttachmentCreatedDto;
+      const list = await createList(app, owner, boardId, 'Diğer');
+      const otherCard = await createCard(app, owner, list.id, 'Başka kart');
+      const elsewhere = (await upload(PNG_1X1, 'b.png', { card: otherCard.id }).expect(201))
+        .body as AttachmentCreatedDto;
+
+      for (const id of [pdf.attachment.id, elsewhere.attachment.id, MISSING_ID]) {
+        const res = await patch({ coverAttachmentId: id }).expect(400);
+        expect(res.body.code).toBe(ErrorCode.INVALID_COVER);
+      }
+      expect((await detail()).coverAttachmentId).toBeNull();
+    });
+
+    it('answers 400 for a malformed attachment id and 404 to a non-member', async () => {
+      await patch({ coverAttachmentId: 'abc' }).expect(400);
+      await patch({ coverAttachmentId: MISSING_ID }, cardId, other).expect(404);
+    });
+
+    it('can pick a new cover after the old cover attachment was deleted', async () => {
+      const first = await addAttachment();
+      await patch({ coverAttachmentId: first.attachment.id }).expect(200);
+      await del(first.attachment.id).expect(204);
+      expect((await detail()).coverAttachmentId).toBeNull();
+
+      const second = await addAttachment(owner, 'yeni.png');
+      await patch({ coverAttachmentId: second.attachment.id }).expect(200);
+      expect((await detail()).coverAttachmentId).toBe(second.attachment.id);
     });
   });
 });

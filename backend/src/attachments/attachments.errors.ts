@@ -30,3 +30,16 @@ export const notAttachmentUploader = () =>
     code: ErrorCode.FORBIDDEN,
     message: 'Only the uploader or a board admin can delete this attachment',
   });
+
+export const invalidCover = () =>
+  new BadRequestException({
+    code: ErrorCode.INVALID_COVER,
+    message: 'Only an image attachment of this card can be its cover',
+  });
+
+/** The key is malformed, forged or expired. */
+export const fileTokenInvalid = () =>
+  new ForbiddenException({
+    code: ErrorCode.FILE_TOKEN_INVALID,
+    message: 'The file key is not valid. Request a new one.',
+  });

@@ -9,6 +9,7 @@ import { CardsService } from './cards.service.js';
 const BOARD = 'board-1';
 const ORIGIN: EventOrigin = { actorId: 'user-1', socketId: 'socket-1' };
 const LIST = 'list-1';
+const ATTACHMENT = '6f1c3c1e-7a51-4b8a-9d55-0f3a3e1d2c4b';
 const OTHER_LIST = 'list-2';
 const ARCHIVED_AT = new Date('2026-10-28T10:00:00.000Z');
 
@@ -86,7 +87,8 @@ function setup({
       }),
     ),
   };
-  const tx = { card, activity, $queryRaw: vi.fn().mockResolvedValue(locked) };
+  const attachment = { findFirst: vi.fn().mockResolvedValue({ mimeType: 'image/png' }) };
+  const tx = { card, activity, attachment, $queryRaw: vi.fn().mockResolvedValue(locked) };
   const realtime = { toBoard: vi.fn() };
   // How many broadcasts had been made when the transaction callback returned.
   const inTransaction = { broadcasts: -1 };
@@ -103,7 +105,7 @@ function setup({
     realtime as unknown as RealtimeService,
     new ActivityService(),
   );
-  return { service, realtime, inTransaction, card, tx, prisma, activity };
+  return { service, realtime, inTransaction, card, tx, prisma, activity, attachment };
 }
 
 function codeOf(error: unknown): unknown {
@@ -371,6 +373,63 @@ describe('CardsService', () => {
 
       expect(card.update.mock.calls[0][0].data.coverColor).toBe('BLUE');
       expect(card.update.mock.calls[1][0].data.coverColor).toBeNull();
+    });
+
+    it('sets an image attachment of the card as the cover and clears the color', async () => {
+      const { service, card, attachment } = setup();
+
+      await service.update(BOARD, 'c', { coverAttachmentId: ATTACHMENT }, ORIGIN);
+
+      expect(attachment.findFirst).toHaveBeenCalledWith({
+        where: { id: ATTACHMENT, cardId: 'c', boardId: BOARD },
+        select: { mimeType: true },
+      });
+      const { data } = card.update.mock.calls[0][0];
+      expect(data.coverAttachment).toEqual({ connect: { id: ATTACHMENT } });
+      expect(data.coverColor).toBeNull();
+    });
+
+    it.each([
+      ['an attachment of another card', null],
+      ['a PDF', { mimeType: 'application/pdf' }],
+      ['an SVG', { mimeType: 'image/svg+xml' }],
+    ])('refuses %s as the cover with INVALID_COVER', async (_label, found) => {
+      const { service, card, attachment, realtime } = setup();
+      attachment.findFirst.mockResolvedValue(found);
+
+      const error = await service
+        .update(BOARD, 'c', { coverAttachmentId: ATTACHMENT }, ORIGIN)
+        .catch((e: unknown) => e);
+
+      expect((error as { getStatus(): number }).getStatus()).toBe(400);
+      expect(codeOf(error)).toBe(ErrorCode.INVALID_COVER);
+      expect(card.update).not.toHaveBeenCalled();
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+
+    it('clears the image cover when a cover color is set, and leaves it alone otherwise', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { coverColor: 'RED' }, ORIGIN);
+      await service.update(BOARD, 'c', { coverColor: null }, ORIGIN);
+      await service.update(BOARD, 'c', { coverAttachmentId: null }, ORIGIN);
+      await service.update(BOARD, 'c', { title: 'Yeni' }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data.coverAttachment).toEqual({ disconnect: true });
+      expect(card.update.mock.calls[1][0].data).not.toHaveProperty('coverAttachment');
+      expect(card.update.mock.calls[2][0].data.coverAttachment).toEqual({ disconnect: true });
+      expect(card.update.mock.calls[2][0].data).not.toHaveProperty('coverColor');
+      expect(card.update.mock.calls[3][0].data).not.toHaveProperty('coverAttachment');
+    });
+
+    it('clears both kinds of cover when both are null', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { coverColor: null, coverAttachmentId: null }, ORIGIN);
+
+      const { data } = card.update.mock.calls[0][0];
+      expect(data.coverColor).toBeNull();
+      expect(data.coverAttachment).toEqual({ disconnect: true });
     });
 
     it('restores an archived card to the end of its list under the list lock', async () => {

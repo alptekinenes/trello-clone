@@ -65,6 +65,37 @@ describe('UpdateCardDto isCompleted and coverColor', () => {
   });
 });
 
+describe('UpdateCardDto coverAttachmentId', () => {
+  it('accepts a uuid or null', () => {
+    expect(check(UpdateCardDto, { coverAttachmentId: ID }).invalidFields).toEqual([]);
+    expect(check(UpdateCardDto, { coverAttachmentId: null }).invalidFields).toEqual([]);
+  });
+
+  it('accepts null together with a cover color, and a color together with null', () => {
+    expect(
+      check(UpdateCardDto, { coverAttachmentId: null, coverColor: 'RED' }).invalidFields,
+    ).toEqual([]);
+    expect(
+      check(UpdateCardDto, { coverAttachmentId: ID, coverColor: null }).invalidFields,
+    ).toEqual([]);
+    expect(
+      check(UpdateCardDto, { coverAttachmentId: null, coverColor: null }).invalidFields,
+    ).toEqual([]);
+  });
+
+  it('rejects a non-uuid and an attachment together with a cover color', () => {
+    expect(check(UpdateCardDto, { coverAttachmentId: 'abc' }).invalidFields).toEqual([
+      'coverAttachmentId',
+    ]);
+    expect(check(UpdateCardDto, { coverAttachmentId: 5 }).invalidFields).toEqual([
+      'coverAttachmentId',
+    ]);
+    expect(
+      check(UpdateCardDto, { coverAttachmentId: ID, coverColor: 'RED' }).invalidFields,
+    ).toEqual(['coverAttachmentId']);
+  });
+});
+
 describe('UpdateCardDto description', () => {
   it('turns a blank description into null and trims the rest', () => {
     expect(check(UpdateCardDto, { description: '   \n ' }).dto.description).toBeNull();

@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  ActivityDto,
-  CardDetailDto,
-  CardSummaryDto,
-  CreateCardRequest,
-  MoveCardRequest,
-  MoveCardResponse,
-  UpdateCardRequest,
+import {
+  type ActivityDto,
+  type CardDetailDto,
+  type CardSummaryDto,
+  type CreateCardRequest,
+  isInlineImage,
+  type MoveCardRequest,
+  type MoveCardResponse,
+  type UpdateCardRequest,
 } from '@trello/contracts';
 import { cardNotFound, listNotFound } from '../access/access.errors.js';
+import { invalidCover } from '../attachments/attachments.errors.js';
 import {
   type ActivityEntry,
   activityEvents,
@@ -209,6 +211,14 @@ export class CardsService {
           data.completedAt = input.isCompleted ? (current.completedAt ?? new Date()) : null;
         }
         if (input.coverColor !== undefined) data.coverColor = input.coverColor;
+        // A cover is a color or an image: setting one clears the other, and null clears only its own kind.
+        if (input.coverColor != null) data.coverAttachment = { disconnect: true };
+        if (input.coverAttachmentId === null) data.coverAttachment = { disconnect: true };
+        if (input.coverAttachmentId) {
+          await this.requireCoverImage(tx, boardId, cardId, input.coverAttachmentId);
+          data.coverAttachment = { connect: { id: input.coverAttachmentId } };
+          data.coverColor = null;
+        }
         if (input.archived === true && !current.archivedAt) {
           data.archivedAt = new Date();
         }
@@ -341,6 +351,20 @@ export class CardsService {
     if (card.listId !== before.listId) throw positionConflict();
     const active = locked.filter((list) => !list.archivedAt).map((list) => list.id);
     return { card, activeListIds: new Set(active), lists: locked };
+  }
+
+  /** The attachment must belong to this card and be an image that is shown inline. */
+  private async requireCoverImage(
+    tx: Tx,
+    boardId: string,
+    cardId: string,
+    attachmentId: string,
+  ): Promise<void> {
+    const attachment = await tx.attachment.findFirst({
+      where: { id: attachmentId, cardId, boardId },
+      select: { mimeType: true },
+    });
+    if (!attachment || !isInlineImage(attachment.mimeType)) throw invalidCover();
   }
 
   private async findOnBoard(tx: Tx, boardId: string, cardId: string): Promise<CurrentCard> {

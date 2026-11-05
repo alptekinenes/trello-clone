@@ -3,6 +3,7 @@ import type { BoardRole } from './enums.js';
 import {
   ATTACHMENT_MIME_TYPES,
   canDeleteAttachment,
+  fileUrlPath,
   INLINE_IMAGE_TYPES,
   isInlineImage,
 } from './attachments.js';
@@ -34,5 +35,16 @@ describe('canDeleteAttachment', () => {
     expect(canDeleteAttachment({ userId: 'a', role: 'OWNER' }, 'b')).toBe(true);
     expect(canDeleteAttachment({ userId: 'a', role: 'ADMIN' }, 'b')).toBe(true);
     expect(canDeleteAttachment({ userId: 'a', role: 'MEMBER' }, 'b')).toBe(false);
+  });
+});
+
+describe('fileUrlPath', () => {
+  it('puts the id and the encoded key in the path and query', () => {
+    expect(fileUrlPath('a1', 'b.c.d+/=')).toBe('/files/a1?token=b.c.d%2B%2F%3D');
+  });
+
+  it('adds download=true only when asked', () => {
+    expect(fileUrlPath('a1', 'k', true)).toBe('/files/a1?token=k&download=true');
+    expect(fileUrlPath('a1', 'k', false)).toBe('/files/a1?token=k');
   });
 });
