@@ -215,6 +215,32 @@ describe('deleting a comment', () => {
     expect(sent).toEqual([{ method: 'DELETE', id: 'theirs' }]);
   });
 
+  it('moves focus to the next comment\'s button after deleting, so it does not fall to the page', async () => {
+    const { user, feed } = openCard(CARD_PATH, {}, [], [], [MINE, THEIRS], 'ADMIN');
+    writeEndpoints(feed);
+    const dialog = await cardDialog();
+    await within(dialog).findByText('Can\'ın yorumu');
+
+    await user.click(item(dialog, 'Benim yorumum').getByRole('button', { name: 'Yorumu sil' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Yorum silinsin mi?' })).getByRole('button', { name: 'Sil' }));
+
+    await waitFor(() => expect(within(dialog).queryByText('Benim yorumum')).not.toBeInTheDocument());
+    expect(item(dialog, 'Can\'ın yorumu').getByRole('button', { name: 'Yorumu sil' })).toHaveFocus();
+  });
+
+  it('moves focus to the comment form after deleting the last comment', async () => {
+    const { user, feed } = openCard(CARD_PATH, {}, [], [], [MINE]);
+    writeEndpoints(feed);
+    const dialog = await cardDialog();
+    await within(dialog).findByText('Benim yorumum');
+
+    await user.click(item(dialog, 'Benim yorumum').getByRole('button', { name: 'Yorumu sil' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Yorum silinsin mi?' })).getByRole('button', { name: 'Sil' }));
+
+    await waitFor(() => expect(within(dialog).queryByText('Benim yorumum')).not.toBeInTheDocument());
+    expect(within(dialog).getByRole('textbox', { name: 'Yorum yaz' })).toHaveFocus();
+  });
+
   it('keeps the comment when the user backs out', async () => {
     const { user, feed } = openCard(CARD_PATH, {}, [], [], [MINE]);
     const sent = writeEndpoints(feed);

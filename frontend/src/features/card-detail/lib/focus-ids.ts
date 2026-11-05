@@ -2,5 +2,8 @@
 export const CARD_TITLE_BUTTON_ID = 'card-detail-title-button';
 export const CARD_MENU_BUTTON_ID = 'card-detail-menu-button';
 
+/** DOM id of the field that writes a new comment. */
+export const COMMENT_COMPOSER_ID = 'card-detail-comment-composer';
+
 /** DOM id of an item of the comments and activity feed. */
 export const feedItemDomId = (itemId: string): string => `feed-item-${itemId}`;

@@ -27,6 +27,7 @@ export function CommentItem({ boardId, cardId, comment, viewer }: CommentItemPro
 
   return (
     <li
+      ref={actions.itemRef}
       id={feedItemDomId(comment.id)}
       tabIndex={-1}
       aria-busy={pending || undefined}

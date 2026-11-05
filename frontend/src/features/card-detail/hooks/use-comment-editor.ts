@@ -4,11 +4,24 @@ import { type KeyboardEvent, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { useDeleteComment, useEditComment } from '../api/use-comment-mutations';
+import { COMMENT_COMPOSER_ID } from '../lib/focus-ids';
 import {
   commentBodySchema,
   type CommentFormOutput,
   type CommentFormValues,
 } from '../schemas/card-detail-schemas';
+
+/** Focuses the first button of a later feed item, or the comment form when none has one. */
+function focusAfterDelete(item: HTMLElement | null) {
+  for (let next = item?.nextElementSibling; next; next = next.nextElementSibling) {
+    const button = next.querySelector('button');
+    if (button) {
+      button.focus();
+      return;
+    }
+  }
+  document.getElementById(COMMENT_COMPOSER_ID)?.focus();
+}
 
 /**
  * What the viewer can do with one comment: edit it in place (Ctrl/Cmd+Enter saves, Escape
@@ -24,6 +37,7 @@ export function useCommentActions(
   const [isEditing, setIsEditing] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const editButtonRef = useRef<HTMLButtonElement>(null);
+  const itemRef = useRef<HTMLLIElement>(null);
   const editComment = useEditComment(boardId, cardId);
   const deleteComment = useDeleteComment(boardId, cardId);
   const form = useForm<CommentFormValues, unknown, CommentFormOutput>({
@@ -63,8 +77,10 @@ export function useCommentActions(
   }
 
   function confirmDelete() {
+    // The row and its buttons are about to go: hand the focus on once the confirmation is gone.
+    flushSync(() => setIsConfirmingDelete(false));
+    focusAfterDelete(itemRef.current);
     deleteComment.mutate(comment.id);
-    setIsConfirmingDelete(false);
   }
 
   return {
@@ -72,6 +88,7 @@ export function useCommentActions(
     canDelete,
     isEditing,
     editButtonRef,
+    itemRef,
     form,
     startEditing,
     stopEditing,
