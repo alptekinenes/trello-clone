@@ -1,4 +1,4 @@
-import type { CardDetailDto, CardSummaryDto } from '@trello/contracts';
+import type { CardDetailDto, CardSummaryDto, LabelColor } from '@trello/contracts';
 import {
   CHECKLIST_ORDER,
   CHECKLIST_SELECT,
@@ -6,6 +6,12 @@ import {
   toChecklistDto,
 } from '../checklists/checklist.mapper.js';
 import type { Prisma } from '../generated/prisma/client.js';
+
+/** Assignment order; userId breaks ties. */
+const CARD_MEMBER_ORDER: Prisma.CardMemberOrderByWithRelationInput[] = [
+  { assignedAt: 'asc' },
+  { userId: 'asc' },
+];
 
 /**
  * Columns and relations a card tile needs (labels and checklist counts included).
@@ -18,8 +24,11 @@ export const CARD_SELECT = {
   position: true,
   dueDate: true,
   dueComplete: true,
+  completedAt: true,
+  coverColor: true,
   archivedAt: true,
   labels: { select: { labelId: true }, orderBy: { assignedAt: 'asc' } },
+  members: { select: { userId: true }, orderBy: CARD_MEMBER_ORDER },
   checklists: { select: { items: { select: { isCompleted: true } } } },
 } as const;
 
@@ -41,8 +50,11 @@ export interface CardRow {
   position: number;
   dueDate: Date | null;
   dueComplete: boolean;
+  completedAt: Date | null;
+  coverColor: LabelColor | null;
   archivedAt: Date | null;
   labels: { labelId: string }[];
+  members: { userId: string }[];
   checklists: { items: { isCompleted: boolean }[] }[];
 }
 
@@ -57,6 +69,9 @@ export function toCardSummary(card: CardRow, hasDescription: boolean): CardSumma
     dueComplete: card.dueComplete,
     archivedAt: card.archivedAt?.toISOString() ?? null,
     labelIds: card.labels.map((label) => label.labelId),
+    completedAt: card.completedAt?.toISOString() ?? null,
+    coverColor: card.coverColor,
+    memberIds: card.members.map((member) => member.userId),
     hasDescription,
     checklistTotal: items.length,
     checklistDone: items.filter((item) => item.isCompleted).length,

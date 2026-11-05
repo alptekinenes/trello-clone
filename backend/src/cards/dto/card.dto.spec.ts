@@ -52,6 +52,19 @@ describe('UpdateCardDto', () => {
   });
 });
 
+describe('UpdateCardDto isCompleted and coverColor', () => {
+  it('accepts a boolean isCompleted and a palette color or null', () => {
+    expect(check(UpdateCardDto, { isCompleted: true, coverColor: 'BLUE' }).invalidFields).toEqual([]);
+    expect(check(UpdateCardDto, { isCompleted: false, coverColor: null }).invalidFields).toEqual([]);
+  });
+
+  it('rejects null or non-boolean isCompleted and a color outside the palette', () => {
+    expect(check(UpdateCardDto, { isCompleted: null }).invalidFields).toEqual(['isCompleted']);
+    expect(check(UpdateCardDto, { isCompleted: 'yes' }).invalidFields).toEqual(['isCompleted']);
+    expect(check(UpdateCardDto, { coverColor: 'red' }).invalidFields).toEqual(['coverColor']);
+  });
+});
+
 describe('UpdateCardDto description', () => {
   it('turns a blank description into null and trims the rest', () => {
     expect(check(UpdateCardDto, { description: '   \n ' }).dto.description).toBeNull();

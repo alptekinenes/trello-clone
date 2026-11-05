@@ -2,11 +2,14 @@ import {
   type CardAnchors,
   CARD_LIMITS,
   type CreateCardRequest,
+  LABEL_COLORS,
+  type LabelColor,
   type MoveCardRequest,
   type UpdateCardRequest,
 } from '@trello/contracts';
 import {
   IsBoolean,
+  IsIn,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
@@ -62,7 +65,7 @@ function IsDueYearSupported(): PropertyDecorator {
 
 /**
  * Every field is optional. Null is rejected, except for `description` and
- * `dueDate`, where it clears the value.
+ * `dueDate` and `coverColor`, where it clears the value.
  */
 export class UpdateCardDto implements UpdateCardRequest {
   @ValidateIf((_, value) => value !== undefined)
@@ -93,6 +96,15 @@ export class UpdateCardDto implements UpdateCardRequest {
   @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   archived?: boolean;
+
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  isCompleted?: boolean;
+
+  /** null removes the cover. */
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsIn(LABEL_COLORS)
+  coverColor?: LabelColor | null;
 }
 
 export class MoveCardDto extends CardAnchorsDto implements MoveCardRequest {

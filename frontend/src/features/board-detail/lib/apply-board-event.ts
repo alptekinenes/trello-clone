@@ -8,6 +8,7 @@ import {
   removeLabel,
   removeList,
   removeMember,
+  setCardMember,
   upsertCard,
   upsertLabel,
   upsertList,
@@ -108,6 +109,11 @@ export function applyBoardEvent(
       const { cardId, labelId } = event.data;
       return done(withLabelIds(detail, cardId, (ids) => ids.filter((id) => id !== labelId)));
     }
+
+    case 'card:member-added':
+      return done(setCardMember(detail, event.data.cardId, event.data.userId, true));
+    case 'card:member-removed':
+      return done(setCardMember(detail, event.data.cardId, event.data.userId, false));
 
     case 'label:created':
     case 'label:updated':

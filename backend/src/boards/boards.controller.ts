@@ -33,8 +33,9 @@ export class BoardsController {
   detail(
     @Param('boardId') boardId: string,
     @CurrentBoardRole() role: BoardRoleName,
+    @CurrentUser() user: AuthUser,
   ): Promise<BoardDetailDto> {
-    return this.boards.getDetail(boardId, role);
+    return this.boards.getDetail(boardId, user.id, role);
   }
 
   @Patch(':boardId')

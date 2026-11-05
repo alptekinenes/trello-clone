@@ -1,4 +1,5 @@
 import type { ChecklistDto } from './checklists.js';
+import type { LabelColor } from './enums.js';
 import type { PositionRebalancedData } from './position.js';
 
 export const CARD_LIMITS = {
@@ -19,6 +20,10 @@ export interface CardSummaryDto {
   hasDescription: boolean;
   checklistTotal: number;
   checklistDone: number;
+  completedAt: string | null;
+  coverColor: LabelColor | null;
+  /** Board members on the card, in assignment order. */
+  memberIds: string[];
 }
 
 /** Everything the card dialog needs. Label names and colors come from the board detail. */
@@ -48,6 +53,15 @@ export interface UpdateCardRequest {
   dueComplete?: boolean;
   /** true archives the card; false restores it to the end of its list. */
   archived?: boolean;
+  /** true marks the card complete (keeps the first completion time); false clears it. */
+  isCompleted?: boolean;
+  /** null removes the cover. */
+  coverColor?: LabelColor | null;
+}
+
+export interface CardMemberChange {
+  cardId: string;
+  userId: string;
 }
 
 export interface MoveCardRequest extends CardAnchors {

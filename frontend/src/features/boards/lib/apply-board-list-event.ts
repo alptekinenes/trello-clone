@@ -18,6 +18,9 @@ export function applyBoardListEvent(boards: BoardSummaryDto[], event: UserEvent)
         ? boards.filter((board) => board.id !== boardId)
         : boards;
     }
+    // Only the open board cares (see useBoardRealtime).
+    case 'card:watch-updated':
+      return boards;
     default: {
       const unhandled: never = event;
       return unhandled;

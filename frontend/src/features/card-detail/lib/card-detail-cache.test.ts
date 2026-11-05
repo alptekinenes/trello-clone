@@ -9,6 +9,7 @@ import {
   removeChecklist,
   removeItem,
   setLabelAssigned,
+  setMemberAssigned,
   summaryOf,
   upsertChecklist,
   upsertItem,
@@ -50,6 +51,9 @@ describe('summaryOf', () => {
       hasDescription: true,
       checklistTotal: 3,
       checklistDone: 1,
+      completedAt: null,
+      coverColor: null,
+      memberIds: [],
     });
     expect(summary).not.toHaveProperty('listId');
     expect(summary).not.toHaveProperty('position');
@@ -76,6 +80,39 @@ describe('applyCardUpdate', () => {
 
   it('ignores completion without a due date', () => {
     expect(applyCardUpdate(CARD, { dueComplete: true }).dueComplete).toBe(false);
+  });
+});
+
+describe('applyCardUpdate: completion and cover', () => {
+  it('marks complete with a time and keeps the first one', () => {
+    const done = applyCardUpdate(CARD, { isCompleted: true });
+    expect(done.completedAt).toEqual(expect.any(String));
+    const again = applyCardUpdate({ ...done, completedAt: '2026-11-01T08:00:00.000Z' }, { isCompleted: true });
+    expect(again.completedAt).toBe('2026-11-01T08:00:00.000Z');
+  });
+
+  it('clears the completion', () => {
+    const done = { ...CARD, completedAt: '2026-11-01T08:00:00.000Z' };
+    expect(applyCardUpdate(done, { isCompleted: false }).completedAt).toBeNull();
+  });
+
+  it('sets and removes the cover color', () => {
+    const covered = applyCardUpdate(CARD, { coverColor: 'BLUE' });
+    expect(covered.coverColor).toBe('BLUE');
+    expect(applyCardUpdate(covered, { coverColor: null }).coverColor).toBeNull();
+    expect(applyCardUpdate(covered, { title: 'Yeni' }).coverColor).toBe('BLUE');
+  });
+});
+
+describe('setMemberAssigned', () => {
+  it('adds a member once and removes them', () => {
+    const added = setMemberAssigned(setMemberAssigned(CARD, 'u1', true), 'u1', true);
+    expect(added.memberIds).toEqual(['u1']);
+    expect(setMemberAssigned(added, 'u1', false).memberIds).toEqual([]);
+  });
+
+  it('returns the same card when nothing changes', () => {
+    expect(setMemberAssigned(CARD, 'u1', false)).toBe(CARD);
   });
 });
 

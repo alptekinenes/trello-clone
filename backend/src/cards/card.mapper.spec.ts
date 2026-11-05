@@ -7,8 +7,11 @@ const BASE: CardRow = {
   position: 1024,
   dueDate: null,
   dueComplete: false,
+  completedAt: null,
+  coverColor: null,
   archivedAt: null,
   labels: [],
+  members: [],
   checklists: [],
 };
 
@@ -26,6 +29,27 @@ describe('toCardSummary', () => {
       hasDescription: false,
       checklistTotal: 0,
       checklistDone: 0,
+      completedAt: null,
+      coverColor: null,
+      memberIds: [],
+    });
+  });
+
+  it('maps completion, cover color and member ids in the given order', () => {
+    const summary = toCardSummary(
+      {
+        ...BASE,
+        completedAt: new Date('2026-11-05T10:00:00.000Z'),
+        coverColor: 'BLUE',
+        members: [{ userId: 'u2' }, { userId: 'u1' }],
+      },
+      false,
+    );
+
+    expect(summary).toMatchObject({
+      completedAt: '2026-11-05T10:00:00.000Z',
+      coverColor: 'BLUE',
+      memberIds: ['u2', 'u1'],
     });
   });
 

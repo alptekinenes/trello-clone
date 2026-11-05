@@ -31,6 +31,7 @@ type Tx = Prisma.TransactionClient;
 interface CurrentCard {
   listId: string;
   archivedAt: Date | null;
+  completedAt: Date | null;
 }
 
 /** What a card write returns from its transaction: the result and the siblings that were respread. */
@@ -140,6 +141,10 @@ export class CardsService {
             data: { dueComplete: true },
           });
         }
+        if (input.isCompleted !== undefined) {
+          data.completedAt = input.isCompleted ? (current.completedAt ?? new Date()) : null;
+        }
+        if (input.coverColor !== undefined) data.coverColor = input.coverColor;
         if (input.archived === true && !current.archivedAt) {
           data.archivedAt = new Date();
         }
@@ -245,7 +250,7 @@ export class CardsService {
   private async findOnBoard(tx: Tx, boardId: string, cardId: string): Promise<CurrentCard> {
     const card = await tx.card.findFirst({
       where: { id: cardId, boardId },
-      select: { listId: true, archivedAt: true },
+      select: { listId: true, archivedAt: true, completedAt: true },
     });
     if (!card) throw cardNotFound();
     return card;

@@ -15,8 +15,11 @@ const CARD_ROW = {
   position: 1024,
   dueDate: null,
   dueComplete: false,
+  completedAt: null,
+  coverColor: null,
   archivedAt: null,
   labels: [],
+  members: [],
   checklists: [],
 };
 const BOARD = { id: 'board-1', title: 'Proje', background: 'green', updatedAt: UPDATED_AT };
@@ -39,6 +42,7 @@ function setup() {
       .mockResolvedValueOnce([CARD_ROW])
       .mockResolvedValueOnce([{ id: 'card-1' }]),
   };
+  const cardWatch = { findMany: vi.fn().mockResolvedValue([{ cardId: 'card-1' }]) };
   const boardMember = {
     findMany: vi.fn().mockResolvedValue([{ role: 'MEMBER', board: BOARD }]),
   };
@@ -58,12 +62,12 @@ function setup() {
       realtime.closeBoardRoom.mock.calls.length;
     return result;
   });
-  const prisma = { board, boardMember, card, $transaction: transaction };
+  const prisma = { board, boardMember, card, cardWatch, $transaction: transaction };
   const service = new BoardsService(
     prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
   );
-  return { service, realtime, inTransaction, tx, transaction, board, boardMember, card };
+  return { service, realtime, inTransaction, tx, transaction, board, boardMember, card, cardWatch };
 }
 
 const SUMMARY = {
@@ -106,19 +110,31 @@ describe('BoardsService', () => {
   it('getDetail returns the board, members, labels, lists and cards', async () => {
     const { service } = setup();
 
-    await expect(service.getDetail('board-1', 'ADMIN')).resolves.toEqual({
+    await expect(service.getDetail('board-1', 'user-1', 'ADMIN')).resolves.toEqual({
       board: { ...SUMMARY, myRole: 'ADMIN' },
       members: [],
       labels: [{ id: 'label-1', boardId: 'board-1', name: '', color: 'GREEN' }],
       lists: [{ id: 'list-1', boardId: 'board-1', title: 'Yapılacaklar', position: 1024, archivedAt: null }],
       cards: [toCardSummary(CARD_ROW, true)],
+      myWatchedCardIds: ['card-1'],
+    });
+  });
+
+  it('getDetail reads only the watches of the requesting user on this board', async () => {
+    const { service, cardWatch } = setup();
+
+    await service.getDetail('board-1', 'user-1', 'MEMBER');
+
+    expect(cardWatch.findMany).toHaveBeenCalledWith({
+      where: { boardId: 'board-1', userId: 'user-1' },
+      select: { cardId: true },
     });
   });
 
   it('getDetail loads only active cards on active lists', async () => {
     const { service, board, card } = setup();
 
-    await service.getDetail('board-1', 'MEMBER');
+    await service.getDetail('board-1', 'user-1', 'MEMBER');
 
     expect(board.findUniqueOrThrow.mock.calls[0][0].select).not.toHaveProperty('cards');
     const query = card.findMany.mock.calls[0][0];

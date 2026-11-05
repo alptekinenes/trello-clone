@@ -63,6 +63,7 @@ export function boardDetail(
     labels,
     lists,
     cards,
+    myWatchedCardIds: [],
   };
 }
 
@@ -96,6 +97,9 @@ export function testCard(
     hasDescription: false,
     checklistTotal: 0,
     checklistDone: 0,
+    completedAt: null,
+    coverColor: null,
+    memberIds: [],
     ...card,
   };
 }

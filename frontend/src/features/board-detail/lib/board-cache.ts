@@ -177,6 +177,45 @@ export function patchMember(
   };
 }
 
+/** Drops the member from the board and from every card they were on. */
 export function removeMember(detail: BoardDetailDto, userId: string): BoardDetailDto {
-  return { ...detail, members: detail.members.filter((member) => member.userId !== userId) };
+  return {
+    ...detail,
+    members: detail.members.filter((member) => member.userId !== userId),
+    cards: detail.cards.map((card) =>
+      card.memberIds.includes(userId)
+        ? { ...card, memberIds: card.memberIds.filter((id) => id !== userId) }
+        : card,
+    ),
+  };
+}
+
+/** The card with the user added to (or taken off) its members; a card this cache lacks is left alone. */
+export function setCardMember(
+  detail: BoardDetailDto,
+  cardId: string,
+  userId: string,
+  assigned: boolean,
+): BoardDetailDto {
+  const card = detail.cards.find((item) => item.id === cardId);
+  if (!card || card.memberIds.includes(userId) === assigned) return detail;
+  const memberIds = assigned
+    ? [...card.memberIds, userId]
+    : card.memberIds.filter((id) => id !== userId);
+  return patchCard(detail, cardId, { memberIds });
+}
+
+/** The board with the card added to (or taken off) the current user's watched cards. */
+export function setCardWatched(
+  detail: BoardDetailDto,
+  cardId: string,
+  watching: boolean,
+): BoardDetailDto {
+  if (detail.myWatchedCardIds.includes(cardId) === watching) return detail;
+  return {
+    ...detail,
+    myWatchedCardIds: watching
+      ? [...detail.myWatchedCardIds, cardId]
+      : detail.myWatchedCardIds.filter((id) => id !== cardId),
+  };
 }

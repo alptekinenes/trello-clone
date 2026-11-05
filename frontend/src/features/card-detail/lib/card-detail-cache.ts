@@ -17,6 +17,9 @@ export type CardSummaryContent = Pick<
   | 'hasDescription'
   | 'checklistTotal'
   | 'checklistDone'
+  | 'completedAt'
+  | 'coverColor'
+  | 'memberIds'
 >;
 
 /**
@@ -32,6 +35,9 @@ export function summaryOf(card: CardDetailDto): CardSummaryContent {
     hasDescription: card.description !== null,
     checklistTotal: card.checklistTotal,
     checklistDone: card.checklistDone,
+    completedAt: card.completedAt,
+    coverColor: card.coverColor,
+    memberIds: card.memberIds,
   };
 }
 
@@ -49,7 +55,25 @@ export function applyCardUpdate(card: CardDetailDto, changes: UpdateCardRequest)
   if (changes.dueComplete !== undefined && next.dueDate !== null) {
     next.dueComplete = changes.dueComplete;
   }
+  if (changes.isCompleted !== undefined) {
+    // Completing again keeps the first completion time, like the server.
+    next.completedAt = changes.isCompleted ? (card.completedAt ?? new Date().toISOString()) : null;
+  }
+  if (changes.coverColor !== undefined) next.coverColor = changes.coverColor;
   return next;
+}
+
+/** The card with the user added to (or taken off) its members; assigning twice changes nothing. */
+export function setMemberAssigned(
+  card: CardDetailDto,
+  userId: string,
+  assigned: boolean,
+): CardDetailDto {
+  if (card.memberIds.includes(userId) === assigned) return card;
+  return {
+    ...card,
+    memberIds: assigned ? [...card.memberIds, userId] : card.memberIds.filter((id) => id !== userId),
+  };
 }
 
 /** The card with the label added to (or taken off) its labels. */

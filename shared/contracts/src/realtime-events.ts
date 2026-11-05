@@ -1,5 +1,5 @@
 import type { BoardSummaryDto, MemberDto } from './boards.js';
-import type { CardSummaryDto } from './cards.js';
+import type { CardMemberChange, CardSummaryDto } from './cards.js';
 import type { ChecklistDto, ChecklistItemDto } from './checklists.js';
 import type { ErrorCode } from './errors.js';
 import type { LabelDto } from './labels.js';
@@ -41,6 +41,8 @@ export interface BoardEventMap {
   'card:deleted': { id: string; listId: string };
   'card:label-added': { cardId: string; labelId: string };
   'card:label-removed': { cardId: string; labelId: string };
+  'card:member-added': CardMemberChange;
+  'card:member-removed': CardMemberChange;
   'label:created': LabelDto;
   'label:updated': LabelDto;
   'label:deleted': { id: string };
@@ -72,6 +74,8 @@ export interface UserEventMap {
   'membership:added': BoardSummaryDto;
   'membership:removed': { boardId: string };
   'board:deleted': { boardId: string };
+  /** Only the watching user's own sockets; never the board room. */
+  'card:watch-updated': { cardId: string; watching: boolean };
 }
 
 export type BoardEventName = keyof BoardEventMap;
@@ -116,6 +120,8 @@ const BOARD_EVENTS: Record<BoardEventName, true> = {
   'card:deleted': true,
   'card:label-added': true,
   'card:label-removed': true,
+  'card:member-added': true,
+  'card:member-removed': true,
   'label:created': true,
   'label:updated': true,
   'label:deleted': true,
@@ -133,6 +139,7 @@ const USER_EVENTS: Record<UserEventName, true> = {
   'membership:added': true,
   'membership:removed': true,
   'board:deleted': true,
+  'card:watch-updated': true,
 };
 export const BOARD_EVENT_NAMES = Object.keys(BOARD_EVENTS) as BoardEventName[];
 export const USER_EVENT_NAMES = Object.keys(USER_EVENTS) as UserEventName[];

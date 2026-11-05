@@ -35,15 +35,15 @@ enum LabelColor {
 }
 
 model User {
-  id              String         @id @default(uuid()) @db.Uuid
+  id           String   @id @default(uuid()) @db.Uuid
   /// Stored trimmed and lowercased.
-  email           String         @unique @db.VarChar(254)
+  email        String   @unique @db.VarChar(254)
   /// argon2id hash.
-  passwordHash    String
-  name            String         @db.VarChar(100)
-  avatarUrl       String?        @db.VarChar(2048)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  passwordHash String
+  name         String   @db.VarChar(100)
+  avatarUrl    String?  @db.VarChar(2048)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   refreshTokens   RefreshToken[]
   memberships     BoardMember[]
@@ -63,19 +63,19 @@ model RefreshToken {
   userAgent    String?   @db.VarChar(512)
   createdAt    DateTime  @default(now())
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([familyId])
 }
 
 model Board {
-  id          String        @id @default(uuid()) @db.Uuid
-  title       String        @db.VarChar(100)
+  id         String   @id @default(uuid()) @db.Uuid
+  title      String   @db.VarChar(100)
   /// Theme token key, validated against BOARD_BACKGROUNDS.
-  background  String        @default("blue") @db.VarChar(32)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  background String   @default("blue") @db.VarChar(32)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   members     BoardMember[]
   invitations Invitation[]
@@ -90,8 +90,10 @@ model BoardMember {
   role     BoardRole @default(MEMBER)
   joinedAt DateTime  @default(now())
 
-  board    Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board       Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardMembers CardMember[]
+  cardWatches CardWatch[]
 
   @@id([boardId, userId])
   @@index([userId])
@@ -112,8 +114,8 @@ model Invitation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  board       Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  invitedBy   User             @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  board     Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  invitedBy User  @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
 
   @@unique([boardId, email])
   @@index([email])
@@ -128,8 +130,8 @@ model List {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards      Card[]
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
 
   @@index([boardId, position])
 }
@@ -143,30 +145,64 @@ model Card {
   description String?     @db.Text
   dueDate     DateTime?
   dueComplete Boolean     @default(false)
+  /// Set when the card was marked complete; null means not complete.
+  completedAt DateTime?
+  coverColor  LabelColor?
   position    Float
   archivedAt  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  board       Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  list        List        @relation(fields: [listId], references: [id], onDelete: Cascade)
-  labels      CardLabel[]
-  checklists  Checklist[]
+  board      Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list       List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels     CardLabel[]
+  checklists Checklist[]
+  members    CardMember[]
+  watchers   CardWatch[]
 
   @@index([listId, position])
   @@index([boardId])
 }
 
-model Label {
-  id        String      @id @default(uuid()) @db.Uuid
-  boardId   String      @db.Uuid
-  name      String      @default("") @db.VarChar(50)
-  color     LabelColor
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+/// A board member assigned to a card. Leaving the board drops the row (FK to the membership).
+model CardMember {
+  cardId     String   @db.Uuid
+  /// Same as the card's boardId; with userId it points at the board membership.
+  boardId    String   @db.Uuid
+  userId     String   @db.Uuid
+  assignedAt DateTime @default(now())
 
-  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards     CardLabel[]
+  card       Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  membership BoardMember @relation(fields: [boardId, userId], references: [boardId, userId], onDelete: Cascade)
+
+  @@id([cardId, userId])
+  @@index([userId, boardId])
+}
+
+/// A user watching a card. Private to that user; never broadcast to the board.
+model CardWatch {
+  cardId    String   @db.Uuid
+  boardId   String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  card       Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  membership BoardMember @relation(fields: [boardId, userId], references: [boardId, userId], onDelete: Cascade)
+
+  @@id([cardId, userId])
+  @@index([userId, boardId])
+}
+
+model Label {
+  id        String     @id @default(uuid()) @db.Uuid
+  boardId   String     @db.Uuid
+  name      String     @default("") @db.VarChar(50)
+  color     LabelColor
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards CardLabel[]
 
   @@index([boardId])
 }
@@ -176,37 +212,37 @@ model CardLabel {
   labelId    String   @db.Uuid
   assignedAt DateTime @default(now())
 
-  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  label      Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([cardId, labelId])
   @@index([labelId])
 }
 
 model Checklist {
-  id        String          @id @default(uuid()) @db.Uuid
-  cardId    String          @db.Uuid
-  title     String          @db.VarChar(200)
+  id        String   @id @default(uuid()) @db.Uuid
+  cardId    String   @db.Uuid
+  title     String   @db.VarChar(200)
   position  Float
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  items     ChecklistItem[]
+  card  Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items ChecklistItem[]
 
   @@index([cardId, position])
 }
 
 model ChecklistItem {
-  id          String    @id @default(uuid()) @db.Uuid
-  checklistId String    @db.Uuid
-  content     String    @db.VarChar(500)
-  isCompleted Boolean   @default(false)
+  id          String   @id @default(uuid()) @db.Uuid
+  checklistId String   @db.Uuid
+  content     String   @db.VarChar(500)
+  isCompleted Boolean  @default(false)
   position    Float
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
 
   @@index([checklistId, position])
 }

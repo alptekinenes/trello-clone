@@ -61,8 +61,8 @@ export class BoardsService {
     return summary;
   }
 
-  async getDetail(boardId: string, myRole: BoardRole): Promise<BoardDetailDto> {
-    const [board, cards] = await Promise.all([
+  async getDetail(boardId: string, userId: string, myRole: BoardRole): Promise<BoardDetailDto> {
+    const [board, cards, watches] = await Promise.all([
       this.prisma.board.findUniqueOrThrow({
         where: { id: boardId },
         select: {
@@ -77,6 +77,7 @@ export class BoardsService {
         archivedAt: null,
         list: { archivedAt: null },
       }),
+      this.prisma.cardWatch.findMany({ where: { boardId, userId }, select: { cardId: true } }),
     ]);
     return {
       board: toBoardSummary(board, myRole),
@@ -84,6 +85,7 @@ export class BoardsService {
       labels: board.labels.map(toLabelDto),
       lists: board.lists.map(toListDto),
       cards,
+      myWatchedCardIds: watches.map((watch) => watch.cardId),
     };
   }
 

@@ -8,6 +8,7 @@ import {
   removeChecklist,
   removeItem,
   setLabelAssigned,
+  setMemberAssigned,
   upsertChecklist,
   upsertItem,
 } from './card-detail-cache';
@@ -97,6 +98,17 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
         : done(card);
     case 'label:deleted':
       return done(withoutLabel(card, event.data.id));
+    case 'card:member-added': {
+      const { cardId, userId } = event.data;
+      return cardId === card.id ? done(setMemberAssigned(card, userId, true)) : done(card);
+    }
+    case 'card:member-removed': {
+      const { cardId, userId } = event.data;
+      return cardId === card.id ? done(setMemberAssigned(card, userId, false)) : done(card);
+    }
+    // The member left the board; the server dropped them from every card without per-card events.
+    case 'member:removed':
+      return done(setMemberAssigned(card, event.data.userId, false));
 
     case 'checklist:created':
       return event.data.cardId === card.id ? done(upsertChecklist(card, event.data)) : done(card);
@@ -137,7 +149,6 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
     case 'board:updated':
     case 'member:added':
     case 'member:updated':
-    case 'member:removed':
     case 'list:created':
     case 'list:updated':
     case 'list:moved':

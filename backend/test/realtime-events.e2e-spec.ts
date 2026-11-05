@@ -236,6 +236,20 @@ describe('Realtime events (e2e, socket.io)', () => {
         ],
       },
       {
+        endpoint: 'PATCH /cards/:cardId (isCompleted)',
+        act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ isCompleted: true }),
+        events: (_w, res) => [
+          event('card:updated', { card: res.body as CardSummaryDto, descriptionChanged: false }),
+        ],
+      },
+      {
+        endpoint: 'PATCH /cards/:cardId (cover color)',
+        act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ coverColor: 'BLUE' }),
+        events: (_w, res) => [
+          event('card:updated', { card: res.body as CardSummaryDto, descriptionChanged: false }),
+        ],
+      },
+      {
         endpoint: 'PATCH /cards/:cardId (archive)',
         act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ archived: true }),
         events: (_w, res) => [
@@ -342,6 +356,43 @@ describe('Realtime events (e2e, socket.io)', () => {
       {
         endpoint: 'DELETE /cards/:cardId/labels/:labelId (not assigned)',
         act: (as, w) => as.delete(`/cards/${w.card1.id}/labels/${w.label.id}`),
+        status: 204,
+        events: () => [],
+      },
+    ];
+
+    const memberRows: BoardRow[] = [
+      {
+        endpoint: 'PUT /cards/:cardId/members/:userId (new assignment)',
+        act: (as, w) => as.put(`/cards/${w.card1.id}/members/${w.b.user.id}`),
+        status: 204,
+        events: (w) => [event('card:member-added', { cardId: w.card1.id, userId: w.b.user.id })],
+      },
+      {
+        endpoint: 'PUT /cards/:cardId/members/:userId (already assigned)',
+        arrange: async (w) => {
+          await prisma.cardMember.create({
+            data: { cardId: w.card1.id, boardId: w.boardId, userId: w.b.user.id },
+          });
+        },
+        act: (as, w) => as.put(`/cards/${w.card1.id}/members/${w.b.user.id}`),
+        status: 204,
+        events: () => [],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/members/:userId (assigned)',
+        arrange: async (w) => {
+          await prisma.cardMember.create({
+            data: { cardId: w.card1.id, boardId: w.boardId, userId: w.b.user.id },
+          });
+        },
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/members/${w.b.user.id}`),
+        status: 204,
+        events: (w) => [event('card:member-removed', { cardId: w.card1.id, userId: w.b.user.id })],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/members/:userId (not assigned)',
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/members/${w.b.user.id}`),
         status: 204,
         events: () => [],
       },
@@ -475,6 +526,54 @@ describe('Realtime events (e2e, socket.io)', () => {
         updatedAt: summary.updatedAt,
       };
     }
+
+    /** Watching is private: only the watching user's other tab hears about it, the board room never. */
+    const watchRows: Row[] = [
+      {
+        endpoint: 'PUT /cards/:cardId/watch (new watch)',
+        act: (as, w) => as.put(`/cards/${w.card1.id}/watch`),
+        status: 204,
+        audience: (world) => [
+          {
+            watcher: world.a2,
+            events: [event('card:watch-updated', { cardId: world.card1.id, watching: true })],
+          },
+        ],
+      },
+      {
+        endpoint: 'PUT /cards/:cardId/watch (already watching)',
+        arrange: async (w) => {
+          await prisma.cardWatch.create({
+            data: { cardId: w.card1.id, boardId: w.boardId, userId: w.a.user.id },
+          });
+        },
+        act: (as, w) => as.put(`/cards/${w.card1.id}/watch`),
+        status: 204,
+        audience: () => [],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/watch (watching)',
+        arrange: async (w) => {
+          await prisma.cardWatch.create({
+            data: { cardId: w.card1.id, boardId: w.boardId, userId: w.a.user.id },
+          });
+        },
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/watch`),
+        status: 204,
+        audience: (world) => [
+          {
+            watcher: world.a2,
+            events: [event('card:watch-updated', { cardId: world.card1.id, watching: false })],
+          },
+        ],
+      },
+      {
+        endpoint: 'DELETE /cards/:cardId/watch (not watching)',
+        act: (as, w) => as.delete(`/cards/${w.card1.id}/watch`),
+        status: 204,
+        audience: () => [],
+      },
+    ];
 
     const boardRows: Row[] = [
       {
@@ -654,7 +753,8 @@ describe('Realtime events (e2e, socket.io)', () => {
     ];
 
     const ROWS: Row[] = [
-      ...[...listAndCardRows, ...labelRows, ...checklistRows].map(viaBoardRoom),
+      ...[...listAndCardRows, ...labelRows, ...memberRows, ...checklistRows].map(viaBoardRoom),
+      ...watchRows,
       ...boardRows,
     ];
 

@@ -50,6 +50,8 @@ export interface BoardDetailDto {
   lists: ListDto[];
   /** Active cards on the active lists, ordered by position. */
   cards: CardSummaryDto[];
+  /** Cards (active or archived) the current user watches. Per user; never broadcast. */
+  myWatchedCardIds: string[];
 }
 
 export interface CreateBoardRequest {

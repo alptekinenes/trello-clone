@@ -35,7 +35,9 @@ function base(): BoardDetailDto {
     [
       ...testCards('list-1', 'Bir', 'İki'),
       ...testCards('list-2', 'Üç'),
-    ].map((card, i) => (i === 0 ? { ...card, labelIds: [RED.id] } : card)),
+    ].map((card, i) =>
+      i === 0 ? { ...card, labelIds: [RED.id], memberIds: ['u-helper'] } : card,
+    ),
     [RED],
   );
   return { ...detail, members: [...detail.members, HELPER] };
@@ -112,6 +114,45 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
       name: 'removes the member',
       event: event('member:removed', { userId: 'u-helper' }),
       check: ({ detail }) => expect(detail.members.map((m) => m.userId)).toEqual([ME]),
+    },
+    {
+      name: 'takes the member off every card',
+      event: event('member:removed', { userId: 'u-helper' }),
+      check: ({ detail }) => expect(detail.cards.every((card) => card.memberIds.length === 0)).toBe(true),
+    },
+  ],
+  'card:member-added': [
+    {
+      name: 'adds the member to the card in order',
+      event: event('card:member-added', { cardId: 'list-1-card-1', userId: ME }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')?.memberIds).toEqual([
+          'u-helper',
+          ME,
+        ]),
+    },
+    {
+      name: 'is idempotent and ignores an unknown card',
+      event: event('card:member-added', { cardId: 'list-1-card-1', userId: 'u-helper' }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
+    },
+    {
+      name: 'ignores a card this board does not have',
+      event: event('card:member-added', { cardId: 'nope', userId: ME }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
+    },
+  ],
+  'card:member-removed': [
+    {
+      name: 'takes the member off the card',
+      event: event('card:member-removed', { cardId: 'list-1-card-1', userId: 'u-helper' }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')?.memberIds).toEqual([]),
+    },
+    {
+      name: 'does nothing when the member was not on the card',
+      event: event('card:member-removed', { cardId: 'list-1-card-2', userId: 'u-helper' }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
     },
   ],
   'list:created': [

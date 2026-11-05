@@ -169,6 +169,34 @@ describe('useBoardRealtime: applying events', () => {
     expect(queryClient.getQueryData(boardKeys.detail(BOARD_ID))).toBe(once);
   });
 
+  it('follows the watch state sent to my other tab', async () => {
+    const { queryClient } = await openBoard();
+    const watched = () =>
+      queryClient.getQueryData<BoardDetailDto>(boardKeys.detail(BOARD_ID))?.myWatchedCardIds;
+
+    emit('card:watch-updated', { cardId: 'c1', watching: true }, here);
+    await waitFor(() => expect(watched()).toEqual(['c1']));
+    const once = queryClient.getQueryData(boardKeys.detail(BOARD_ID));
+    emit('card:watch-updated', { cardId: 'c1', watching: true }, here);
+    expect(queryClient.getQueryData(boardKeys.detail(BOARD_ID))).toBe(once);
+
+    emit('card:watch-updated', { cardId: 'c1', watching: false }, here);
+    await waitFor(() => expect(watched()).toEqual([]));
+  });
+
+  it('shows a member assigned to a card by someone else', async () => {
+    const { queryClient, state } = await openBoard();
+    const cardId = state.detail.cards[0]?.id ?? '';
+
+    emit('card:member-added', { cardId, userId: OTHER_USER }, here);
+
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<BoardDetailDto>(boardKeys.detail(BOARD_ID))?.cards[0]?.memberIds,
+      ).toEqual([OTHER_USER]),
+    );
+  });
+
   it('ignores events of another board', async () => {
     const { queryClient } = await openBoard();
     const before = queryClient.getQueryData(boardKeys.detail(BOARD_ID));

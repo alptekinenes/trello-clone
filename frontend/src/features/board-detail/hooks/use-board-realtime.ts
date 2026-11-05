@@ -19,6 +19,7 @@ import { refreshUnlessMutating } from '../api/refresh-board';
 import { archivedCardsKey } from '../api/use-card-mutations';
 import { archivedListsKey } from '../api/use-list-mutations';
 import { applyBoardEvent } from '../lib/apply-board-event';
+import { setCardWatched } from '../lib/board-cache';
 import { type FocusSpot, focusSpot, rescueTarget } from '../lib/focus-rescue';
 import { useCardUiStore } from '../store/card-ui-store';
 
@@ -152,6 +153,13 @@ export function useBoardRealtime(boardId: string): void {
     if (message.boardId !== boardId) return;
     if (isEviction(message, myUserId)) {
       evict(queryClient, navigate, boardId, (title) => evictionToast(message, title, myUserId));
+      return;
+    }
+    if (message.type === 'card:watch-updated') {
+      const { cardId, watching } = message.data;
+      queryClient.setQueryData<BoardDetailDto>(boardKeys.detail(boardId), (detail) =>
+        detail ? setCardWatched(detail, cardId, watching) : detail,
+      );
       return;
     }
     const event = asBoardEvent(message);

@@ -6,6 +6,8 @@ import {
   patchMember,
   removeList,
   removeMember,
+  setCardMember,
+  setCardWatched,
   upsertList,
   upsertMember,
 } from './board-cache';
@@ -64,6 +66,46 @@ describe('member helpers', () => {
   it('removeMember drops the member and leaves the input untouched', () => {
     expect(names(removeMember(detail, 'u-ayse'))).toEqual([testUser.name, 'Bora']);
     expect(names(detail)).toEqual([testUser.name, 'Ayşe', 'Bora']);
+  });
+});
+
+describe('card members and watching', () => {
+  const withCards = () =>
+    boardDetail('OWNER', 'Pano', testLists('Liste'), [
+      { ...testCards('list-1', 'Bir')[0], memberIds: ['u-ayse'] },
+      ...testCards('list-1', 'Bir', 'İki').slice(1),
+    ]);
+
+  it('removeMember also takes the member off every card', () => {
+    const detail = withCards();
+    const next = removeMember(detail, 'u-ayse');
+    expect(next.cards[0]?.memberIds).toEqual([]);
+    expect(detail.cards[0]?.memberIds).toEqual(['u-ayse']);
+    expect(next.cards[1]).toBe(detail.cards[1]);
+  });
+
+  it('setCardMember adds once in order and removes', () => {
+    const detail = withCards();
+    const id = detail.cards[0]?.id ?? '';
+    const added = setCardMember(detail, id, 'u-bora', true);
+    expect(added.cards[0]?.memberIds).toEqual(['u-ayse', 'u-bora']);
+    expect(setCardMember(added, id, 'u-bora', true)).toBe(added);
+    expect(setCardMember(added, id, 'u-ayse', false).cards[0]?.memberIds).toEqual(['u-bora']);
+  });
+
+  it('setCardMember leaves the board alone for an unknown card or a no-op', () => {
+    const detail = withCards();
+    expect(setCardMember(detail, 'nope', 'u-ayse', true)).toBe(detail);
+    expect(setCardMember(detail, detail.cards[0]?.id ?? '', 'u-zed', false)).toBe(detail);
+  });
+
+  it('setCardWatched adds and removes the id once', () => {
+    const detail = withCards();
+    const watched = setCardWatched(detail, 'c1', true);
+    expect(watched.myWatchedCardIds).toEqual(['c1']);
+    expect(setCardWatched(watched, 'c1', true)).toBe(watched);
+    expect(setCardWatched(watched, 'c1', false).myWatchedCardIds).toEqual([]);
+    expect(setCardWatched(detail, 'c1', false)).toBe(detail);
   });
 });
 

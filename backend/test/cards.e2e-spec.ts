@@ -121,6 +121,9 @@ describe('Cards (e2e, database)', () => {
         hasDescription: false,
         checklistTotal: 0,
         checklistDone: 0,
+        completedAt: null,
+        coverColor: null,
+        memberIds: [],
       });
       expect(second.position).toBe(2 * POSITION_GAP);
       expect(await columns()).toEqual({

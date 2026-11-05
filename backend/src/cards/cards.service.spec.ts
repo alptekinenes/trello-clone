@@ -14,6 +14,7 @@ const ARCHIVED_AT = new Date('2026-10-28T10:00:00.000Z');
 interface Current {
   listId: string;
   archivedAt: Date | null;
+  completedAt?: Date | null;
 }
 
 function row(id: string, listId: string, position: number, archivedAt: Date | null = null) {
@@ -24,9 +25,12 @@ function row(id: string, listId: string, position: number, archivedAt: Date | nu
     position,
     dueDate: null,
     dueComplete: false,
+    completedAt: null,
+    coverColor: null,
     archivedAt,
     description: null,
     labels: [],
+    members: [],
     checklists: [],
   };
 }
@@ -293,6 +297,54 @@ describe('CardsService', () => {
       const { service, card } = setup({ reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }] });
       await service.update(BOARD, 'c', { archived: true }, ORIGIN);
       expect(card.update.mock.calls[0][0].data.archivedAt).toBeUndefined();
+    });
+
+    it('marks a card complete with the current time', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { isCompleted: true }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('keeps the first completion time when completing twice', async () => {
+      const first = new Date('2026-11-01T08:00:00.000Z');
+      const { service, card } = setup({
+        reads: [{ listId: LIST, archivedAt: null, completedAt: first }],
+      });
+
+      await service.update(BOARD, 'c', { isCompleted: true }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data.completedAt).toBe(first);
+    });
+
+    it('clears the completion time when isCompleted is false', async () => {
+      const { service, card } = setup({
+        reads: [{ listId: LIST, archivedAt: null, completedAt: new Date() }],
+      });
+
+      await service.update(BOARD, 'c', { isCompleted: false }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data.completedAt).toBeNull();
+    });
+
+    it('leaves completion alone when isCompleted is not sent', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { title: 'Yeni' }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data).not.toHaveProperty('completedAt');
+      expect(card.update.mock.calls[0][0].data).not.toHaveProperty('coverColor');
+    });
+
+    it('sets and removes the cover color', async () => {
+      const { service, card } = setup();
+
+      await service.update(BOARD, 'c', { coverColor: 'BLUE' }, ORIGIN);
+      await service.update(BOARD, 'c', { coverColor: null }, ORIGIN);
+
+      expect(card.update.mock.calls[0][0].data.coverColor).toBe('BLUE');
+      expect(card.update.mock.calls[1][0].data.coverColor).toBeNull();
     });
 
     it('restores an archived card to the end of its list under the list lock', async () => {

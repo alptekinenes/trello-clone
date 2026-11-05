@@ -32,6 +32,7 @@ function base(): CardDetailDto {
     description: 'Eski metin',
     hasDescription: true,
     labelIds: ['red'],
+    memberIds: ['u-1'],
     checklists: [
       checklist('cl-1', 'Yapılacaklar', 1024, [
         item('i-1', 'cl-1', 'Taslak', 1024, true),
@@ -306,7 +307,31 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
   ],
   'member:added': [ignored('is the board’s business', event('member:added', testMember({ userId: 'u', name: 'U' })))],
   'member:updated': [ignored('is the board’s business', event('member:updated', testMember({ userId: 'u', name: 'U' })))],
-  'member:removed': [ignored('is the board’s business', event('member:removed', { userId: 'u' }))],
+  'member:removed': [
+    {
+      name: 'drops the member from the card',
+      event: event('member:removed', { userId: 'u-1' }),
+      check: ({ card }) => expect(card.memberIds).toEqual([]),
+    },
+    ignored('ignores a member who is not on the card', event('member:removed', { userId: 'u' })),
+  ],
+  'card:member-added': [
+    {
+      name: 'adds the member',
+      event: event('card:member-added', { cardId: CARD, userId: 'u-2' }),
+      check: ({ card }) => expect(card.memberIds).toEqual(['u-1', 'u-2']),
+    },
+    ignored('is idempotent', event('card:member-added', { cardId: CARD, userId: 'u-1' })),
+    ignored('ignores another card', event('card:member-added', { cardId: OTHER, userId: 'u-2' })),
+  ],
+  'card:member-removed': [
+    {
+      name: 'removes the member',
+      event: event('card:member-removed', { cardId: CARD, userId: 'u-1' }),
+      check: ({ card }) => expect(card.memberIds).toEqual([]),
+    },
+    ignored('ignores another card', event('card:member-removed', { cardId: OTHER, userId: 'u-1' })),
+  ],
   'list:created': [ignored('is the board’s business', event('list:created', testLists('Yeni')[0]))],
   'list:updated': [ignored('is the board’s business', event('list:updated', testLists('Yeni')[0]))],
   'list:moved': [ignored('is the board’s business', event('list:moved', { id: 'list-1', position: 5 }))],

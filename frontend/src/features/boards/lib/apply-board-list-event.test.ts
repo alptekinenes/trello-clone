@@ -8,6 +8,7 @@ const B = boardSummary({ id: 'B', title: 'B' });
 
 function message(type: 'membership:added', data: typeof A): UserEvent;
 function message(type: 'membership:removed' | 'board:deleted', data: { boardId: string }): UserEvent;
+function message(type: 'card:watch-updated', data: { cardId: string; watching: boolean }): UserEvent;
 function message(type: string, data: unknown): UserEvent {
   return { type, data } as UserEvent;
 }
@@ -27,6 +28,13 @@ describe('applyBoardListEvent', () => {
     const added = boardSummary({ id: 'C' });
     const once = applyBoardListEvent([A], message('membership:added', added));
     expect(applyBoardListEvent(once, message('membership:added', added))).toEqual(once);
+  });
+
+  it('leaves the board list alone for a card watch change', () => {
+    const boards = [A, B];
+    expect(
+      applyBoardListEvent(boards, message('card:watch-updated', { cardId: 'c', watching: true })),
+    ).toBe(boards);
   });
 
   it.each(['membership:removed', 'board:deleted'] as const)('%s takes the board off the list', (type) => {
