@@ -100,6 +100,16 @@ describe('Dialog options', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('gives the 2xl size the widest panel', () => {
+    render(
+      <Dialog title="Kart" size="2xl" onClose={vi.fn()}>
+        <p>İçerik</p>
+      </Dialog>,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Kart' })).toHaveClass('max-w-6xl');
+  });
+
   it('lets children close the dialog through useDialogClose', async () => {
     const onClose = vi.fn();
     function Child() {

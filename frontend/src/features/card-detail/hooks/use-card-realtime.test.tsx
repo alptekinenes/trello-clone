@@ -3,7 +3,15 @@ import type { ChecklistDto, ChecklistItemDto } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { fakeRealtime } from '../../../test/fake-realtime';
-import { BOARD_ID, apiError, boardDetail, testCard, testLists } from '../../../test/fixtures';
+import {
+  BOARD_ID,
+  apiError,
+  boardDetail,
+  testActivity,
+  testCard,
+  testComment,
+  testLists,
+} from '../../../test/fixtures';
 import { BOARD_URL, CARD_ID, CARD_PATH, CARD_URL, LIST, cardDialog, openCard } from '../../../test/card-dialog';
 import { server } from '../../../test/msw-server';
 import { cardKeys } from '../api/card-keys';
@@ -23,8 +31,11 @@ const CHECKLIST: ChecklistDto = {
 };
 
 /** Opens the card dialog, then connects the socket and waits for the join's refetch to settle. */
-async function openLiveCard(detail: Parameters<typeof openCard>[1] = {}) {
-  const opened = openCard(CARD_PATH, detail);
+async function openLiveCard(
+  detail: Parameters<typeof openCard>[1] = {},
+  feedItems: Parameters<typeof openCard>[4] = [],
+) {
+  const opened = openCard(CARD_PATH, detail, [], [], feedItems);
   const dialog = await cardDialog();
   fakeRealtime.connect();
   await waitFor(() => expect(fakeRealtime.joins).toEqual([BOARD_ID]));
@@ -222,5 +233,87 @@ describe('useCardRealtime: the card is deleted', () => {
 
     expect(await screen.findByText('Kart bulunamadı. Silinmiş olabilir.')).toBeInTheDocument();
     expect(screen.queryByText('Bu kart başka biri tarafından silindi.')).not.toBeInTheDocument();
+  });
+});
+
+describe('useCardRealtime: comments and activity', () => {
+  const list = (dialog: HTMLElement) =>
+    within(within(dialog).getByRole('region', { name: 'Yorumlar ve etkinlik' }));
+
+  it('shows a comment from someone else at the top and updates the counter', async () => {
+    const { dialog, queryClient } = await openLiveCard({}, [testComment({ id: 'c1', body: 'Eski' })]);
+    await list(dialog).findByText('Eski');
+    const created = testComment({
+      id: 'c2',
+      body: 'Canlı yorum',
+      createdAt: '2026-11-05T11:00:00.000Z',
+      author: { id: 'u2', name: 'Can Demir', avatarUrl: null },
+    });
+
+    fakeRealtime.serverEmit('comment:created', { comment: created, commentCount: 2 }, here);
+
+    expect(await list(dialog).findByText('Canlı yorum')).toBeInTheDocument();
+    const items = list(dialog).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('Can Demir');
+    expect(queryClient.getQueryData<{ commentCount: number }>(cardKeys.detail(BOARD_ID, CARD_ID))).toMatchObject({
+      commentCount: 2,
+    });
+
+    // The same event again changes nothing.
+    fakeRealtime.serverEmit('comment:created', { comment: created, commentCount: 2 }, here);
+    expect(list(dialog).getAllByText('Canlı yorum')).toHaveLength(1);
+  });
+
+  it('follows an edit and a delete', async () => {
+    const { dialog } = await openLiveCard({ commentCount: 2 }, [
+      testComment({ id: 'c2', body: 'İkinci', createdAt: '2026-11-05T10:02:00.000Z' }),
+      testComment({ id: 'c1', body: 'Birinci', createdAt: '2026-11-05T10:01:00.000Z' }),
+    ]);
+    await list(dialog).findByText('Birinci');
+
+    fakeRealtime.serverEmit(
+      'comment:updated',
+      testComment({
+        id: 'c1',
+        body: 'Düzeltildi',
+        createdAt: '2026-11-05T10:01:00.000Z',
+        editedAt: '2026-11-05T10:09:00.000Z',
+      }),
+      here,
+    );
+    expect(await list(dialog).findByText('Düzeltildi')).toBeInTheDocument();
+    expect(list(dialog).getByText('(düzenlendi)')).toBeInTheDocument();
+
+    fakeRealtime.serverEmit('comment:deleted', { id: 'c2', cardId: CARD_ID, commentCount: 1 }, here);
+    await waitFor(() => expect(list(dialog).queryByText('İkinci')).not.toBeInTheDocument());
+    expect(list(dialog).getByText('Düzeltildi')).toBeInTheDocument();
+  });
+
+  it('adds activity only while details are shown', async () => {
+    const { dialog, user } = await openLiveCard();
+    await list(dialog).findByText('Henüz yorum yok.');
+    const activity = testActivity({ id: 'a1', createdAt: new Date().toISOString() });
+
+    fakeRealtime.serverEmit('activity:created', activity, here);
+    expect(list(dialog).queryByText(/tamamlandı olarak işaretledi/)).not.toBeInTheDocument();
+
+    await user.click(list(dialog).getByRole('button', { name: 'Ayrıntıları göster' }));
+    await list(dialog).findByText('Henüz yorum yok.');
+    fakeRealtime.serverEmit('activity:created', activity, here);
+
+    expect(await list(dialog).findByText(/bu kartı tamamlandı olarak işaretledi/)).toBeInTheDocument();
+  });
+
+  it('ignores comments of another card', async () => {
+    const { dialog } = await openLiveCard();
+    await list(dialog).findByText('Henüz yorum yok.');
+
+    fakeRealtime.serverEmit(
+      'comment:created',
+      { comment: testComment({ id: 'x', body: 'Başka kart', cardId: 'card-2' }), commentCount: 1 },
+      here,
+    );
+
+    expect(list(dialog).queryByText('Başka kart')).not.toBeInTheDocument();
   });
 });

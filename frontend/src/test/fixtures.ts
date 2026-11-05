@@ -1,9 +1,11 @@
 import type {
+  ActivityDto,
   BoardDetailDto,
   BoardRole,
   BoardSummaryDto,
   CardDetailDto,
   CardSummaryDto,
+  CommentDto,
   ErrorCode,
   LabelDto,
   ListDto,
@@ -133,4 +135,33 @@ export function boardWithMembers(myRole: BoardRole, others: MemberDto[], title =
     (a, b) => rank[a.role] - rank[b.role] || a.joinedAt.localeCompare(b.joinedAt),
   );
   return { ...detail, members };
+}
+
+/** A comment on card-1 by the test user, unless `author` says otherwise. */
+export function testComment(
+  comment: Partial<CommentDto> & Pick<CommentDto, 'id' | 'body'>,
+): CommentDto {
+  return {
+    kind: 'comment',
+    cardId: 'card-1',
+    author: { id: testUser.id, name: testUser.name, avatarUrl: null },
+    createdAt: '2026-11-05T10:00:00.000Z',
+    editedAt: null,
+    ...comment,
+  };
+}
+
+/** A "completed" activity on card-1 by the test user; pass `type` and `data` for another kind. */
+export function testActivity(
+  activity: Partial<ActivityDto> & Pick<ActivityDto, 'id'>,
+): ActivityDto {
+  return {
+    kind: 'activity',
+    cardId: 'card-1',
+    actor: { id: testUser.id, name: testUser.name, avatarUrl: null },
+    createdAt: '2026-11-05T09:00:00.000Z',
+    type: 'CARD_COMPLETED',
+    data: { cardTitle: 'Rapor' },
+    ...activity,
+  } as ActivityDto;
 }

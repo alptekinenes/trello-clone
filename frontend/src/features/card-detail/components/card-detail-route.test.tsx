@@ -34,6 +34,19 @@ describe('card dialog route', () => {
     expect(within(dialog).getByRole('button', { name: 'Kart menüsü' })).toBeInTheDocument();
   });
 
+  it('lays the details and the comments panel side by side from 1024 px, in the widest dialog', async () => {
+    open(`/boards/${BOARD_ID}/c/${CARD_ID}`);
+
+    const dialog = await cardDialog();
+    const panel = within(dialog).getByRole('region', { name: 'Yorumlar ve etkinlik' });
+
+    expect(dialog).toHaveClass('max-w-6xl');
+    expect(panel.parentElement).toHaveClass('lg:grid-cols-[minmax(0,1fr)_22rem]');
+    expect(panel.parentElement?.firstElementChild).toContainElement(
+      within(dialog).getByRole('button', { name: 'Rapor' }),
+    );
+  });
+
   it('keeps the same close button while the card loads, so focus stays on it', async () => {
     open(CARD_PATH);
     const dialog = await screen.findByRole('dialog');
@@ -143,6 +156,7 @@ describe('card dialog route', () => {
       http.get(BOARD_URL, () =>
         HttpResponse.json(boardDetail('OWNER', 'Pano', [list], [testCard({ id: 'flaky', listId: list.id, title: 'Rapor' })])),
       ),
+      http.get('*/api/v1/cards/flaky/feed', () => HttpResponse.json({ items: [], nextCursor: null })),
       http.get('*/api/v1/cards/flaky', () => {
         attempts += 1;
         return attempts === 1 ? failure() : HttpResponse.json(testCardDetail({ id: 'flaky', listId: list.id, title: 'Rapor' }));

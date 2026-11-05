@@ -4,6 +4,10 @@ import { CARD_PATH, cardDialog, openCard, recordPatches } from '../../../test/ca
 
 afterEach(() => vi.unstubAllEnvs());
 
+/** Queries inside one section of the dialog; the comment form has a "Kaydet" and a textbox of its own. */
+const inSection = (dialog: HTMLElement, name: string) =>
+  within(within(dialog).getByRole('region', { name }));
+
 describe('description', () => {
   it('saves the text and shows the indicator on the tile', async () => {
     const { user, serverCard } = openCard(CARD_PATH);
@@ -13,11 +17,11 @@ describe('description', () => {
     await user.click(
       within(dialog).getByRole('button', { name: 'Daha ayrıntılı bir açıklama ekle…' }),
     );
-    await user.type(within(dialog).getByRole('textbox', { name: 'Açıklama' }), 'İlk satır{Enter}İkinci');
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.type(inSection(dialog, 'Açıklama').getByRole('textbox', { name: 'Açıklama' }), 'İlk satır{Enter}İkinci');
+    await user.click(inSection(dialog, 'Açıklama').getByRole('button', { name: 'Kaydet' }));
 
     expect(within(dialog).getByText(/İlk satır/)).toBeInTheDocument();
-    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(inSection(dialog, 'Açıklama').queryByRole('textbox')).not.toBeInTheDocument();
     await waitFor(() => expect(sent).toEqual([{ description: 'İlk satır\nİkinci' }]));
     expect(screen.getByText('Açıklaması var')).toBeInTheDocument();
   });
@@ -28,9 +32,9 @@ describe('description', () => {
     const dialog = await cardDialog();
 
     await user.click(within(dialog).getByRole('button', { name: 'Açıklamayı düzenle' }));
-    await user.type(within(dialog).getByRole('textbox', { name: 'Açıklama' }), ' yeni{Escape}');
+    await user.type(inSection(dialog, 'Açıklama').getByRole('textbox', { name: 'Açıklama' }), ' yeni{Escape}');
 
-    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(inSection(dialog, 'Açıklama').queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
     expect(within(dialog).getByText('Eski')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Açıklamayı düzenle' })).toHaveFocus();
@@ -43,7 +47,7 @@ describe('description', () => {
     const dialog = await cardDialog();
 
     await user.click(within(dialog).getByRole('button', { name: /açıklama ekle/ }));
-    await user.type(within(dialog).getByRole('textbox', { name: 'Açıklama' }), 'Hızlı{Control>}{Enter}{/Control}');
+    await user.type(inSection(dialog, 'Açıklama').getByRole('textbox', { name: 'Açıklama' }), 'Hızlı{Control>}{Enter}{/Control}');
 
     await waitFor(() => expect(sent).toEqual([{ description: 'Hızlı' }]));
   });
@@ -63,10 +67,10 @@ describe('description', () => {
     expect(screen.getByText('Açıklaması var')).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: 'Açıklamayı düzenle' }));
-    const field = within(dialog).getByRole('textbox', { name: 'Açıklama' });
+    const field = inSection(dialog, 'Açıklama').getByRole('textbox', { name: 'Açıklama' });
     await user.clear(field);
     await user.type(field, '   ');
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(inSection(dialog, 'Açıklama').getByRole('button', { name: 'Kaydet' }));
 
     await waitFor(() => expect(sent).toEqual([{ description: null }]));
     await waitFor(() => expect(screen.queryByText('Açıklaması var')).not.toBeInTheDocument());
@@ -78,10 +82,10 @@ describe('description', () => {
     const dialog = await cardDialog();
 
     await user.click(within(dialog).getByRole('button', { name: /açıklama ekle/ }));
-    const field = within(dialog).getByRole('textbox', { name: 'Açıklama' });
+    const field = inSection(dialog, 'Açıklama').getByRole('textbox', { name: 'Açıklama' });
     await user.click(field);
     await user.paste('a'.repeat(10_001));
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(inSection(dialog, 'Açıklama').getByRole('button', { name: 'Kaydet' }));
 
     expect(field).toHaveAccessibleDescription('Açıklama en fazla 10000 karakter olabilir.');
     expect(sent).toEqual([]);
@@ -103,7 +107,7 @@ describe('due date', () => {
     expect(input).toHaveFocus();
     await user.clear(input);
     await user.type(input, '2026-11-05T14:30');
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(inSection(dialog, 'Son tarih').getByRole('button', { name: 'Kaydet' }));
 
     await waitFor(() => expect(sent).toEqual([{ dueDate: '2026-11-05T11:30:00.000Z' }]));
     expect(within(dialog).getByLabelText('Tamamlandı')).not.toBeChecked();
@@ -152,7 +156,7 @@ describe('due date', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Son tarih' }));
     await user.clear(within(dialog).getByLabelText('Son tarih', { selector: 'input' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(inSection(dialog, 'Son tarih').getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByText('Bir tarih ve saat seç.')).toBeInTheDocument();
     expect(sent).toEqual([]);
 

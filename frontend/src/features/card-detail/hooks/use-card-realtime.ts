@@ -5,6 +5,8 @@ import { asBoardEvent } from '../../../shared/lib/realtime-message';
 import { refreshUnlessMutating } from '../../board-detail';
 import { cardKeys } from '../api/card-keys';
 import { applyCardEvent, type AppliedCardEvent } from '../lib/apply-card-event';
+import { applyFeedEvent } from '../lib/apply-feed-event';
+import type { FeedData } from '../lib/feed-cache';
 import { useCardDetailStore } from '../store/card-detail-store';
 
 /**
@@ -29,6 +31,13 @@ export function useCardRealtime(boardId: string, cardId: string): void {
       applied.value = applyCardEvent(card, event);
       return applied.value.card;
     });
+
+    for (const details of [false, true]) {
+      queryClient.setQueryData<FeedData>(
+        cardKeys.feed(boardId, cardId, details),
+        (feed) => feed && applyFeedEvent(feed, event, cardId, details),
+      );
+    }
 
     if (applied.value?.gone) markGone(cardId);
     if (applied.value?.refetch || fetching) {

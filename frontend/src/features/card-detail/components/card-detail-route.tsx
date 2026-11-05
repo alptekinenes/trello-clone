@@ -92,7 +92,7 @@ export function CardDetailRoute() {
     !removed && card && board ? <CardDetailHeader board={board} card={card} /> : <div className="flex-1" />;
 
   return (
-    <Dialog title={title} hideTitle size="xl" showCloseButton header={header} onClose={onClose}>
+    <Dialog title={title} hideTitle size="2xl" showCloseButton header={header} onClose={onClose}>
       {content()}
     </Dialog>
   );

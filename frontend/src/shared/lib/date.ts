@@ -66,3 +66,39 @@ export function fromDateTimeLocalValue(value: string): string | null {
   const iso = date.toISOString();
   return toDateTimeLocalValue(iso) === value ? iso : null;
 }
+
+const relativeFormat = new Intl.RelativeTimeFormat(LOCALE, { numeric: 'auto' });
+const timeOfDayFormat = new Intl.DateTimeFormat(LOCALE, {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const timeOfDayWithYearFormat = new Intl.DateTimeFormat(LOCALE, {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const SECOND_MS = 1000;
+const MINUTE_MS = 60 * SECOND_MS;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const JUST_NOW_MS = 45 * SECOND_MS;
+
+/**
+ * How long ago something happened: "az önce", "5 dakika önce", "3 saat önce", "dün", "3 gün önce";
+ * from a week on the date and time ("5 Kas 14:30", with the year when it differs from `now`'s).
+ */
+export function formatRelativeTime(iso: string, now = Date.now()): string {
+  const then = new Date(iso);
+  const age = now - then.getTime();
+  if (age < JUST_NOW_MS) return 'az önce';
+  if (age < HOUR_MS) return relativeFormat.format(-Math.max(1, Math.floor(age / MINUTE_MS)), 'minute');
+  if (age < DAY_MS) return relativeFormat.format(-Math.floor(age / HOUR_MS), 'hour');
+  if (age < 7 * DAY_MS) return relativeFormat.format(-Math.floor(age / DAY_MS), 'day');
+  const sameYear = then.getFullYear() === new Date(now).getFullYear();
+  return (sameYear ? timeOfDayFormat : timeOfDayWithYearFormat).format(then);
+}

@@ -1,14 +1,14 @@
 import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react';
 import { CloseIcon } from './icons';
 
-type DialogSize = 'md' | 'lg' | 'xl';
+type DialogSize = 'md' | 'lg' | 'xl' | '2xl';
 
 interface DialogProps {
   title: string;
   /** Called on Escape and by the dialog's own buttons; the parent then unmounts the dialog. */
   onClose: () => void;
   children: ReactNode;
-  /** `lg` is a wide, scrollable panel (card details). */
+  /** `lg` and up are wide, scrollable panels; `2xl` fits the card dialog's two columns. */
   size?: DialogSize;
   /** Keeps the title as the accessible name but does not show it. */
   hideTitle?: boolean;
@@ -25,6 +25,7 @@ const SIZE_CLASS: Record<DialogSize, string> = {
   md: 'max-w-md p-4 sm:p-6',
   lg: 'max-w-3xl overflow-y-auto p-4 sm:p-6',
   xl: 'max-w-4xl overflow-y-auto p-4 sm:p-6',
+  '2xl': 'max-w-6xl overflow-y-auto p-4 sm:p-6',
 };
 
 const CLOSE_BUTTON_CLASS =

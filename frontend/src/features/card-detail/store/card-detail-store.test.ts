@@ -20,3 +20,22 @@ describe('card detail store: gone card', () => {
     expect(state().goneCardId).toBeNull();
   });
 });
+
+describe('card detail store: feed details', () => {
+  it('starts hidden and toggles', () => {
+    expect(state().showFeedDetails).toBe(false);
+    state().toggleFeedDetails();
+    expect(state().showFeedDetails).toBe(true);
+    state().toggleFeedDetails();
+    expect(state().showFeedDetails).toBe(false);
+  });
+
+  it('keeps the choice when a dialog opens, resets or another card opens', () => {
+    state().toggleFeedDetails();
+    state().open('card-1');
+    state().reset();
+    state().open('card-2');
+    expect(state().showFeedDetails).toBe(true);
+    state().toggleFeedDetails();
+  });
+});

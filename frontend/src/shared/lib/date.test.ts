@@ -3,6 +3,7 @@ import {
   DUE_SOON_MS,
   formatDueLong,
   formatDueShort,
+  formatRelativeTime,
   fromDateTimeLocalValue,
   getDueStatus,
   toDateTimeLocalValue,
@@ -81,5 +82,37 @@ describe('datetime-local values', () => {
     expect(fromDateTimeLocalValue('yarın')).toBeNull();
     expect(fromDateTimeLocalValue('2026-02-31T10:00')).toBeNull();
     expect(fromDateTimeLocalValue('2026-11-05')).toBeNull();
+  });
+});
+
+describe('formatRelativeTime', () => {
+  it('says "az önce" for the first 45 seconds, and for a clock that runs ahead', () => {
+    expect(formatRelativeTime(at(0), NOW)).toBe('az önce');
+    expect(formatRelativeTime(at(-44_000), NOW)).toBe('az önce');
+    expect(formatRelativeTime(at(60_000), NOW)).toBe('az önce');
+  });
+
+  it('counts minutes up to an hour', () => {
+    expect(formatRelativeTime(at(-45_000), NOW)).toBe('1 dakika önce');
+    expect(formatRelativeTime(at(-5 * 60_000), NOW)).toBe('5 dakika önce');
+    expect(formatRelativeTime(at(-59 * 60_000), NOW)).toBe('59 dakika önce');
+  });
+
+  it('counts hours up to a day', () => {
+    expect(formatRelativeTime(at(-60 * 60_000), NOW)).toBe('1 saat önce');
+    expect(formatRelativeTime(at(-23 * 60 * 60_000), NOW)).toBe('23 saat önce');
+  });
+
+  it('says "dün" and counts days up to a week', () => {
+    const day = 24 * 60 * 60_000;
+    expect(formatRelativeTime(at(-day), NOW)).toBe('dün');
+    expect(formatRelativeTime(at(-3 * day), NOW)).toBe('3 gün önce');
+    expect(formatRelativeTime(at(-6 * day), NOW)).toBe('6 gün önce');
+  });
+
+  it('writes the date and time from a week on, with the year only when it differs', () => {
+    const day = 24 * 60 * 60_000;
+    expect(formatRelativeTime(at(-7 * day), NOW)).toMatch(/^\d{1,2} \p{L}+\.? \d{2}:\d{2}$/u);
+    expect(formatRelativeTime(at(-400 * day), NOW)).toMatch(/^\d{1,2} \p{L}+\.? \d{4} \d{2}:\d{2}$/u);
   });
 });

@@ -1,4 +1,4 @@
-import { CARD_LIMITS, CHECKLIST_LIMITS } from '@trello/contracts';
+import { CARD_LIMITS, CHECKLIST_LIMITS, COMMENT_LIMITS } from '@trello/contracts';
 import { z } from 'zod';
 import { fromDateTimeLocalValue } from '../../../shared/lib/date';
 
@@ -46,3 +46,16 @@ export const checklistItemSchema = z.object({
 });
 
 export type ChecklistItemFormValues = z.input<typeof checklistItemSchema>;
+
+export const commentBodySchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, { error: 'Yorum boş olamaz.' })
+    .max(COMMENT_LIMITS.BODY_MAX, {
+      error: `Yorum en fazla ${COMMENT_LIMITS.BODY_MAX} karakter olabilir.`,
+    }),
+});
+
+export type CommentFormValues = z.input<typeof commentBodySchema>;
+export type CommentFormOutput = z.output<typeof commentBodySchema>;
