@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { CardSummaryDto, LabelDto } from '@trello/contracts';
+import type { CardSummaryDto, LabelDto, MemberDto } from '@trello/contracts';
 import { type KeyboardEvent, useCallback, useEffect, useId, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { MoreIcon } from '../../../shared/ui/icons';
@@ -21,14 +21,18 @@ const SURFACE = 'rounded-md bg-card px-3 py-2 text-sm text-fg shadow-card';
 export function CardDragPreview({
   card,
   labels,
+  members,
+  watched,
 }: {
   card: CardSummaryDto;
   labels: ReadonlyMap<string, LabelDto>;
+  members: ReadonlyMap<string, MemberDto>;
+  watched: ReadonlySet<string>;
 }) {
   return (
     <div>
       <div className={`${SURFACE} rotate-2 cursor-grabbing shadow-drag`}>
-        <CardTileBody card={card} labels={labels} />
+        <CardTileBody card={card} labels={labels} members={members} watched={watched} />
       </div>
     </div>
   );
@@ -38,6 +42,8 @@ interface CardTileProps {
   boardId: string;
   card: CardSummaryDto;
   labels: ReadonlyMap<string, LabelDto>;
+  members: ReadonlyMap<string, MemberDto>;
+  watched: ReadonlySet<string>;
   /** A list is being dragged, so cards do not take drops. */
   dropDisabled: boolean;
 }
@@ -46,7 +52,7 @@ interface CardTileProps {
  * A card in a list. The tile is the drag handle for pointer and keyboard
  * (Space picks it up, Enter opens it); the "…" button opens the card's actions.
  */
-export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps) {
+export function CardTile({ boardId, card, labels, members, watched, dropDisabled }: CardTileProps) {
   const openActions = useCardUiStore((state) => state.openActions);
   const shouldFocus = useCardUiStore((state) => isFocusTarget(state.focusTarget, card));
   const clearFocus = useCardUiStore((state) => state.clearFocus);
@@ -122,6 +128,8 @@ export function CardTile({ boardId, card, labels, dropDisabled }: CardTileProps)
         <CardTileBody
           card={card}
           labels={labels}
+          members={members}
+          watched={watched}
           titleId={titleId}
           labelsId={labelsId}
           badgesId={badgesId}

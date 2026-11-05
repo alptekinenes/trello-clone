@@ -1,7 +1,13 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type CardSummaryDto, LIST_LIMITS, type LabelDto, type ListDto } from '@trello/contracts';
+import {
+  type CardSummaryDto,
+  LIST_LIMITS,
+  type LabelDto,
+  type ListDto,
+  type MemberDto,
+} from '@trello/contracts';
 import { GripIcon, MoreIcon } from '../../../shared/ui/icons';
 import { InlineEdit } from '../../../shared/ui/inline-edit';
 import { Menu, MenuItem } from '../../../shared/ui/menu';
@@ -55,10 +61,12 @@ interface BoardListProps {
   list: ListDto;
   cards: CardSummaryDto[];
   labels: ReadonlyMap<string, LabelDto>;
+  members: ReadonlyMap<string, MemberDto>;
+  watched: ReadonlySet<string>;
   draggingType: DragType | null;
 }
 
-export function BoardList({ boardId, list, cards, labels, draggingType }: BoardListProps) {
+export function BoardList({ boardId, list, cards, labels, members, watched, draggingType }: BoardListProps) {
   const rename = useRenameList(boardId);
   const archive = useArchiveList(boardId);
   // Owned here so the list menu's "Kart ekle" can open the composer at the end of the column.
@@ -146,6 +154,8 @@ export function BoardList({ boardId, list, cards, labels, draggingType }: BoardL
                     boardId={boardId}
                     card={card}
                     labels={labels}
+                    members={members}
+                    watched={watched}
                     dropDisabled={draggingType === 'list'}
                   />
                 ))}

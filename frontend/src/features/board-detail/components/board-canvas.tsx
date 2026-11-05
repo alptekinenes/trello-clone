@@ -24,6 +24,8 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
     detail,
   );
   const labels = new Map(detail.labels.map((label) => [label.id, label]));
+  const members = new Map(detail.members.map((member) => [member.userId, member]));
+  const watched = new Set(detail.myWatchedCardIds);
   const reducedMotion = usePrefersReducedMotion();
   const actionsCardId = useCardUiStore((state) => state.actionsCardId);
   const resetCardUi = useCardUiStore((state) => state.reset);
@@ -64,6 +66,8 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
                 list={list}
                 cards={cardsOf(list.id)}
                 labels={labels}
+                members={members}
+                watched={watched}
                 draggingType={draggingType}
               />
             ))}
@@ -71,7 +75,12 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
         </SortableContext>
         <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
           {activeList && <ListDragPreview list={activeList} cards={cardsOf(activeList.id)} />}
-          {activeCard && <CardDragPreview card={activeCard} labels={labels} />}
+          {activeCard && <CardDragPreview
+              card={activeCard}
+              labels={labels}
+              members={members}
+              watched={watched}
+            />}
         </DragOverlay>
       </DndContext>
       <p role="status" className="sr-only">

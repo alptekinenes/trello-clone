@@ -197,7 +197,7 @@ describe('renaming from the dialog', () => {
     await rename(user, 'Yeni');
 
     // The tile sits behind the modal, so it is not in the accessibility tree: look it up by text.
-    expect(await screen.findByText('Yeni', { selector: 'p' })).toBeInTheDocument();
+    expect(await screen.findByText('Yeni', { selector: 'span' })).toBeInTheDocument();
     await waitFor(() => expect(sent).toEqual({ title: 'Yeni' }));
   });
 
