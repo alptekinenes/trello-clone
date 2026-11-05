@@ -6,5 +6,5 @@ export { BoardPage } from './components/board-page';
 export { LabelsManager } from './components/labels-manager';
 export { useArchiveCardWithFocus } from './hooks/use-archive-card-with-focus';
 export { useMoveCardToListEnd } from './hooks/use-move-card-to-list-end';
-export { patchCard } from './lib/board-cache';
+export { patchCard, setCardWatched } from './lib/board-cache';
 export { focusCardTile } from './store/card-ui-store';

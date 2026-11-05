@@ -173,3 +173,12 @@ export function CoverIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function EyeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M1.5 8s2.3-4.5 6.5-4.5S14.5 8 14.5 8 12.2 12.5 8 12.5 1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+    </Icon>
+  );
+}

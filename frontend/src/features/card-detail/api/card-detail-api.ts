@@ -21,6 +21,11 @@ export const cardDetailApi = {
   unassignLabel: (cardId: string, labelId: string) =>
     apiRequest<void>(labelPath(cardId, labelId), { method: 'DELETE' }),
 
+  watch: (cardId: string) => apiRequest<void>(`${cardPath(cardId)}/watch`, { method: 'PUT' }),
+
+  unwatch: (cardId: string) =>
+    apiRequest<void>(`${cardPath(cardId)}/watch`, { method: 'DELETE' }),
+
   assignMember: (cardId: string, userId: string) =>
     apiRequest<void>(memberPath(cardId, userId), { method: 'PUT' }),
 

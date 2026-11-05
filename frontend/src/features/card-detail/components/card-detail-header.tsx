@@ -1,7 +1,9 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
+import { Button } from '../../../shared/ui/button';
 import { buttonClassName } from '../../../shared/ui/button-styles';
-import { ArchiveIcon, ChevronDownIcon, MoreIcon } from '../../../shared/ui/icons';
+import { ArchiveIcon, ChevronDownIcon, EyeIcon, MoreIcon } from '../../../shared/ui/icons';
 import { Menu, MenuItem, MenuRadioItem } from '../../../shared/ui/menu';
+import { useCardWatch } from '../hooks/use-card-watch';
 import { useArchiveOpenCard } from '../hooks/use-archive-open-card';
 import { useMoveOpenCard } from '../hooks/use-move-open-card';
 import { CARD_MENU_BUTTON_ID } from '../lib/focus-ids';
@@ -22,6 +24,7 @@ export function CardDetailHeader({ board, card }: CardDetailHeaderProps) {
   const tile = board.cards.find((item) => item.id === card.id);
   const archiveCard = useArchiveOpenCard(board.board.id, tile);
   const moveToList = useMoveOpenCard(board, card.id);
+  const { watching, toggleWatch } = useCardWatch(board, card.id);
   // The board knows better than the cached card where it is (moved, archived) right now.
   const listId = tile?.listId ?? card.listId;
   const listTitle = board.lists.find((list) => list.id === listId)?.title;
@@ -55,20 +58,32 @@ export function CardDetailHeader({ board, card }: CardDetailHeaderProps) {
           ))}
         </Menu>
       )}
-      {tile && (
-        <Menu
-          label="Kart menüsü"
-          align="end"
-          triggerId={CARD_MENU_BUTTON_ID}
-          triggerClassName={buttonClassName('ghost', 'h-8 px-3')}
-          trigger={<MoreIcon />}
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <Button
+          variant="secondary"
+          className="h-8 px-3"
+          aria-pressed={watching}
+          aria-label="Kartı izle"
+          onClick={toggleWatch}
         >
-          <MenuItem onSelect={archiveCard}>
-            <ArchiveIcon />
-            Arşivle
-          </MenuItem>
-        </Menu>
-      )}
+          <EyeIcon />
+          İzle
+        </Button>
+        {tile && (
+          <Menu
+            label="Kart menüsü"
+            align="end"
+            triggerId={CARD_MENU_BUTTON_ID}
+            triggerClassName={buttonClassName('ghost', 'h-8 px-3')}
+            trigger={<MoreIcon />}
+          >
+            <MenuItem onSelect={archiveCard}>
+              <ArchiveIcon />
+              Arşivle
+            </MenuItem>
+          </Menu>
+        )}
+      </div>
     </div>
   );
 }

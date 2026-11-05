@@ -157,3 +157,14 @@ describe('card menu', () => {
     expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
   });
 });
+
+describe('watch button', () => {
+  it('sits left of the card menu', async () => {
+    openOnTwoLists();
+    const dialog = await cardDialog();
+
+    const watch = within(dialog).getByRole('button', { name: 'Kartı izle' });
+    const menu = within(dialog).getByRole('button', { name: 'Kart menüsü' });
+    expect(watch.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
