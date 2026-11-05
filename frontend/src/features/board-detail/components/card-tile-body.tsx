@@ -1,7 +1,7 @@
 import type { CardSummaryDto, LabelDto, MemberDto } from '@trello/contracts';
 import { LABEL_COLOR_CLASS } from '../../../shared/lib/label-color';
 import { AvatarStack } from '../../../shared/ui/avatar';
-import { CheckIcon, ChecklistIcon, DescriptionIcon, EyeIcon } from '../../../shared/ui/icons';
+import { CheckIcon, ChecklistIcon, CommentIcon, DescriptionIcon, EyeIcon } from '../../../shared/ui/icons';
 import { DueBadge } from '../../../shared/ui/due-badge';
 import { LabelChip } from '../../../shared/ui/label-chip';
 
@@ -58,6 +58,7 @@ export function CardTileBody({
   const hasBadges =
     card.dueDate !== null ||
     card.hasDescription ||
+    card.commentCount > 0 ||
     hasChecklist ||
     isWatched ||
     cardMembers.length > 0;
@@ -104,6 +105,13 @@ export function CardTileBody({
             <span className="inline-flex items-center">
               <DescriptionIcon className="size-3.5" />
               <span className="sr-only">Açıklaması var</span>
+            </span>
+          )}
+          {card.commentCount > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <CommentIcon className="size-3.5" />
+              <span aria-hidden="true">{card.commentCount}</span>
+              <span className="sr-only">{`${card.commentCount} yorum`}</span>
             </span>
           )}
           {hasChecklist && (

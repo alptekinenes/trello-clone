@@ -126,6 +126,32 @@ describe('card tile badges', () => {
     });
   });
 
+  it('shows the comment count with a spoken text', async () => {
+    const tile = await openBoardWith({ commentCount: 3 });
+
+    expect(within(tile).getByText('3 yorum')).toHaveClass('sr-only');
+    expect(within(tile).getByText('3', { selector: '[aria-hidden="true"]' })).toBeInTheDocument();
+    expect(tile).toHaveAccessibleName('Rapor');
+    expect(tile).toHaveAccessibleDescription(/3 yorum/);
+  });
+
+  it('shows no comment badge without comments', async () => {
+    const tile = await openBoardWith({ commentCount: 0, hasDescription: true });
+
+    expect(within(tile).queryByText(/yorum/)).not.toBeInTheDocument();
+  });
+
+  it('puts the comment badge after the description and before the checklist', async () => {
+    const tile = await openBoardWith({
+      hasDescription: true,
+      commentCount: 2,
+      checklistTotal: 2,
+      checklistDone: 1,
+    });
+
+    expect(tile).toHaveAccessibleDescription(/Açıklaması var.*2 yorum.*Checklist: 2 öğeden 1 tanesi/);
+  });
+
   it('keeps the card named by its title only', async () => {
     const tile = await openBoardWith({
       labelIds: ['label-red'],

@@ -87,6 +87,14 @@ export function DescriptionIcon(props: IconProps) {
   );
 }
 
+export function CommentIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" />
+    </Icon>
+  );
+}
+
 export function ChecklistIcon(props: IconProps) {
   return (
     <Icon {...props}>

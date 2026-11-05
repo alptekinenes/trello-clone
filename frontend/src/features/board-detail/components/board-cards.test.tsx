@@ -67,6 +67,14 @@ const cardTile = (title: string) =>
 const [TODO, DOING] = testLists('Yapılacaklar', 'Yapılıyor');
 
 describe('Cards on the board', () => {
+  it('tells how many comments a card has, as part of its description', async () => {
+    openBoard([TODO], [testCard({ id: 'c1', listId: TODO.id, title: 'Taslak', commentCount: 4 })]);
+
+    await screen.findByRole('list', { name: '“Yapılacaklar” kartları' });
+    expect(screen.getByText('4 yorum')).toBeInTheDocument();
+    expect(cardTile('Taslak')).toHaveAccessibleDescription(/4 yorum/);
+  });
+
   it('shows each list’s cards in order as keyboard-draggable tiles', async () => {
     openBoard(
       [TODO, DOING],
