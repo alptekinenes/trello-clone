@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { delay, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { COVER_SAVE_DELAY_MS } from '../hooks/use-card-cover';
 import { CARD_PATH, CARD_URL, cardDialog, openCard, recordPatches } from '../../../test/card-dialog';
 import { apiError } from '../../../test/fixtures';
 import { server } from '../../../test/msw-server';
@@ -34,8 +35,8 @@ describe('card cover', () => {
     expect(within(group).getByRole('radio', { name: 'Kapak yok' })).toBeChecked();
     await user.click(within(group).getByRole('radio', { name: 'Mavi' }));
 
-    expect(within(dialog).getByTestId('card-cover')).toBeInTheDocument();
     expect(within(group).getByRole('radio', { name: 'Mavi' })).toBeChecked();
+    expect(await within(dialog).findByTestId('card-cover')).toBeInTheDocument();
     await waitFor(() => expect(sent).toEqual([{ coverColor: 'BLUE' }]));
   });
 
@@ -50,8 +51,40 @@ describe('card cover', () => {
     expect(red).toHaveFocus();
     await user.click(within(dialog).getByRole('radio', { name: 'Kapak yok' }));
 
-    expect(within(dialog).queryByTestId('card-cover')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'Kapak yok' })).toBeChecked();
     await waitFor(() => expect(sent).toEqual([{ coverColor: null }]));
+    expect(within(dialog).queryByTestId('card-cover')).not.toBeInTheDocument();
+  });
+
+  it('sends one request for a run of arrow presses, with the color it ended on', async () => {
+    const { user, serverCard } = openCard(CARD_PATH);
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kapak' }));
+    within(dialog).getByRole('radio', { name: 'Kapak yok' }).focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+
+    expect(within(dialog).getByRole('radio', { name: 'Kapak yok' })).not.toBeChecked();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await delay(COVER_SAVE_DELAY_MS + 100);
+    expect(sent).toHaveLength(1);
+    const checked = within(dialog).getAllByRole('radio').find((radio) => (radio as HTMLInputElement).checked);
+    expect(checked).toBe(document.activeElement);
+    expect(sent[0].coverColor).not.toBe('GREEN');
+  });
+
+  it('saves a pick at once when the dialog closes before the delay ends', async () => {
+    const { user, serverCard } = openCard(CARD_PATH);
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kapak' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Mavi' }));
+    expect(sent).toEqual([]);
+    cleanup();
+
+    await waitFor(() => expect(sent).toEqual([{ coverColor: 'BLUE' }]));
   });
 
   it('moves between colors with the arrow keys', async () => {

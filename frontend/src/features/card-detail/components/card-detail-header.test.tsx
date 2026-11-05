@@ -167,4 +167,30 @@ describe('watch button', () => {
     const menu = within(dialog).getByRole('button', { name: 'Kart menüsü' });
     expect(watch.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('looks different while pressed: accent fill and a check, with the name unchanged', async () => {
+    openOnTwoLists();
+    server.use(
+      http.get(BOARD_URL, () =>
+        HttpResponse.json({
+          ...boardDetail('OWNER', 'Pano', [TODO], [testCard({ id: CARD_ID, listId: TODO.id, title: 'Rapor' })]),
+          myWatchedCardIds: [CARD_ID],
+        }),
+      ),
+    );
+    const dialog = await cardDialog();
+    const watch = within(dialog).getByRole('button', { name: 'Kartı izle' });
+
+    expect(watch).toHaveClass('aria-pressed:bg-primary', 'aria-pressed:text-on-primary');
+    expect(await within(watch).findByTestId('watching-icon')).toBeInTheDocument();
+    expect(watch).toHaveAttribute('aria-pressed', 'true');
+    expect(watch).toHaveAccessibleName('Kartı izle');
+  });
+
+  it('shows no check while not watching', async () => {
+    openOnTwoLists();
+    const dialog = await cardDialog();
+
+    expect(within(within(dialog).getByRole('button', { name: 'Kartı izle' })).queryByTestId('watching-icon')).not.toBeInTheDocument();
+  });
 });

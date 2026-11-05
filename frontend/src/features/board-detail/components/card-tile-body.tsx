@@ -17,6 +17,10 @@ interface CardTileBodyProps {
   titleId?: string;
   labelsId?: string;
   badgesId?: string;
+  /** Id of the "completed" note, for the tile's aria-describedby. */
+  completedId?: string;
+  /** Margins that stretch the cover strip over the tile's padding. */
+  coverClassName?: string;
 }
 
 /** Labels of the card, in board label order; ids of deleted labels are left out. */
@@ -42,6 +46,8 @@ export function CardTileBody({
   titleId,
   labelsId,
   badgesId,
+  completedId,
+  coverClassName = '-mx-3',
 }: CardTileBodyProps) {
   const cardLabels = labelsOf(card, labels);
   const cardMembers = membersOf(card, members);
@@ -61,7 +67,7 @@ export function CardTileBody({
       {card.coverColor !== null && (
         <div
           aria-hidden="true"
-          className={`-mx-3 -mt-2 mb-2 h-8 rounded-t-md ${LABEL_COLOR_CLASS[card.coverColor]}`}
+          className={`${coverClassName} -mt-2 mb-2 h-8 rounded-t-md ${LABEL_COLOR_CLASS[card.coverColor]}`}
         />
       )}
       {cardLabels.length > 0 && (
@@ -77,7 +83,9 @@ export function CardTileBody({
         {isCompleted && (
           <span className="mt-0.5 inline-flex shrink-0 items-center text-success">
             <CheckIcon className="size-4" />
-            <span className="sr-only">Kart tamamlandı</span>
+            <span id={completedId} className="sr-only">
+              Kart tamamlandı
+            </span>
           </span>
         )}
         <span id={titleId} className="min-w-0 break-words">

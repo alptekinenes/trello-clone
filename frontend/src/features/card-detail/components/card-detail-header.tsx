@@ -1,7 +1,7 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
 import { Button } from '../../../shared/ui/button';
 import { buttonClassName } from '../../../shared/ui/button-styles';
-import { ArchiveIcon, ChevronDownIcon, EyeIcon, MoreIcon } from '../../../shared/ui/icons';
+import { ArchiveIcon, CheckIcon, ChevronDownIcon, EyeIcon, MoreIcon } from '../../../shared/ui/icons';
 import { Menu, MenuItem, MenuRadioItem } from '../../../shared/ui/menu';
 import { useCardWatch } from '../hooks/use-card-watch';
 import { useArchiveOpenCard } from '../hooks/use-archive-open-card';
@@ -12,6 +12,10 @@ interface CardDetailHeaderProps {
   board: BoardDetailDto;
   card: CardDetailDto;
 }
+
+/** Pressed (watching) is filled with the accent, so it differs from the idle button by more than a check. */
+const WATCH_BUTTON_CLASS =
+  'h-8 px-3 aria-pressed:bg-primary aria-pressed:text-on-primary aria-pressed:hover:bg-primary-hover';
 
 const LIST_BUTTON_CLASS = buttonClassName('secondary', 'h-8 min-w-0 max-w-full px-3');
 
@@ -61,12 +65,13 @@ export function CardDetailHeader({ board, card }: CardDetailHeaderProps) {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <Button
           variant="secondary"
-          className="h-8 px-3"
+          className={WATCH_BUTTON_CLASS}
           aria-pressed={watching}
           onClick={toggleWatch}
         >
           <EyeIcon />
           Kartı izle
+          {watching && <CheckIcon data-testid="watching-icon" />}
         </Button>
         {tile && (
           <Menu

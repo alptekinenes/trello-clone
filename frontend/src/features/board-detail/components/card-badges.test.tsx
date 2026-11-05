@@ -143,6 +143,8 @@ describe('card tile badges', () => {
 
     const strip = tile.querySelector('[aria-hidden="true"].bg-label-blue');
     expect(strip).toBeInTheDocument();
+    // Reaches the right edge over the room the "…" button needs.
+    expect(strip).toHaveClass('-mr-9');
     expect(tile).toHaveAccessibleName('Rapor');
     expect(tile).toHaveTextContent(/^Rapor$/);
   });
@@ -152,6 +154,7 @@ describe('card tile badges', () => {
 
     expect(within(tile).getByText('Kart tamamlandı')).toBeInTheDocument();
     expect(tile).toHaveAccessibleName('Rapor');
+    expect(tile).toHaveAccessibleDescription(/Kart tamamlandı/);
   });
 
   it('shows the watch badge only for watched cards', async () => {

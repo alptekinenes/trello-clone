@@ -60,6 +60,7 @@ export function CardTile({ boardId, card, labels, members, watched, dropDisabled
   const titleId = useId();
   const labelsId = useId();
   const badgesId = useId();
+  const completedId = useId();
   const activatorRef = useRef<HTMLDivElement | null>(null);
   const {
     attributes,
@@ -77,7 +78,7 @@ export function CardTile({ boardId, card, labels, members, watched, dropDisabled
   });
 
   // Ids of parts that are not rendered are ignored by assistive technology.
-  const describedBy = [labelsId, badgesId, CARD_OPEN_HINT_ID, attributes['aria-describedby']].filter(Boolean).join(' ');
+  const describedBy = [completedId, labelsId, badgesId, CARD_OPEN_HINT_ID, attributes['aria-describedby']].filter(Boolean).join(' ');
 
   function open() {
     navigate(`/boards/${boardId}/c/${card.id}`, { state: { fromBoard: true } });
@@ -133,6 +134,8 @@ export function CardTile({ boardId, card, labels, members, watched, dropDisabled
           titleId={titleId}
           labelsId={labelsId}
           badgesId={badgesId}
+          completedId={completedId}
+          coverClassName="-ml-3 -mr-9 pointer-coarse:-mr-12"
         />
       </div>
       <button
