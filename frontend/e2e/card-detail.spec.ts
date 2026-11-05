@@ -1,7 +1,10 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import {
+  apiAddComment,
   apiAssignLabel,
+  apiAssignMember,
   apiInvite,
+  apiMoveCardToList,
   apiPatchCard,
   keyboardDragReady,
   localDateTime,
@@ -131,12 +134,12 @@ test('card tile shows label, due badge, description and checklist progress; ever
 
   await sideButton(dialog, 'Son tarih').click();
   await dueInput(dialog).fill(localDateTime(2 * HOUR));
-  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await dialog.locator('#card-panel-due-date').getByRole('button', { name: 'Kaydet' }).click();
   await expect(dialog.getByRole('checkbox', { name: 'Tamamlandı' })).toBeVisible();
 
   await dialog.getByRole('button', { name: 'Daha ayrıntılı bir açıklama ekle…' }).click();
   await dialog.getByRole('textbox', { name: 'Açıklama' }).fill('İlk satır\nİkinci satır');
-  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await dialog.locator('form').filter({ has: page.getByRole('textbox', { name: 'Açıklama' }) }).getByRole('button', { name: 'Kaydet' }).click();
   await expect(dialog.getByRole('button', { name: 'Açıklamayı düzenle' })).toBeVisible();
 
   await sideButton(dialog, 'Checklist').click();
@@ -381,7 +384,7 @@ test('a due date typed in local time comes back as the same local time after a r
   await sideButton(dialog, 'Son tarih').click();
   await expect(dueInput(dialog)).toBeFocused();
   await dueInput(dialog).fill(wanted);
-  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await dialog.locator('#card-panel-due-date').getByRole('button', { name: 'Kaydet' }).click();
   await expect(dueInput(dialog)).toHaveCount(0);
   await expect(sideButton(dialog, 'Son tarih')).toBeFocused();
   await expect
@@ -898,4 +901,221 @@ test('watching a card toggles "Kartı izle", shows the eye on the tile and survi
   await dialog.getByRole('button', { name: 'Kapat' }).click();
   await expect(tile(page, 'İzlenecek kart')).not.toContainText('İzliyorsun');
   await expect.poll(() => getWatchedIds(page, token, boardId)).toEqual([]);
+});
+
+const feedOf = (dialog: Locator) => dialog.getByRole('list', { name: 'Yorumlar ve etkinlik' });
+const feedItems = (dialog: Locator) => feedOf(dialog).getByRole('listitem');
+const commentField = (dialog: Locator) => dialog.getByRole('textbox', { name: 'Yorum yaz' });
+const feedItem = (dialog: Locator, text: string) => feedItems(dialog).filter({ hasText: text });
+const confirmDeleteComment = (page: Page) => page.getByRole('dialog', { name: 'Yorum silinsin mi?' });
+
+test('adding a comment shows it at once, fills the "2 yorum" badge and survives a reload', async ({
+  page,
+}) => {
+  test.slow(); // add, reload, reopen: three phases of a cold dev server under load
+  const { boardId, cardId } = await seedOneCard(page, 'Yorumlu kart');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Yorumlu kart');
+  await expect(dialog.getByText('Henüz yorum yok.')).toBeVisible();
+
+  await commentField(dialog).fill('İlk yorum');
+  await dialog
+    .locator('form')
+    .filter({ has: page.getByRole('textbox', { name: 'Yorum yaz' }) })
+    .getByRole('button', { name: 'Kaydet' })
+    .click();
+  await expect(feedItem(dialog, 'İlk yorum')).toBeVisible();
+  await expect(commentField(dialog)).toHaveValue('');
+
+  await commentField(dialog).fill('İkinci yorum');
+  await commentField(dialog).press('Control+Enter');
+  await expect(feedItems(dialog)).toHaveCount(2);
+  await expect(feedItems(dialog).first()).toContainText('İkinci yorum');
+
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Yorumlu kart')).toContainText('2 yorum');
+
+  await page.reload();
+  await expect(tile(page, 'Yorumlu kart')).toContainText('2 yorum');
+  await tile(page, 'Yorumlu kart').click();
+  await expect(feedItems(dialog)).toHaveCount(2);
+  await expect(feedItems(dialog).first()).toContainText('İkinci yorum');
+});
+
+test('editing a comment shows "(düzenlendi)" and keeps the new text after a reload', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Düzenleme');
+  await apiAddComment(page, token, cardId, 'Eski metin');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Düzenleme');
+  await expect(feedItem(dialog, 'Eski metin')).toBeVisible();
+  await expect(dialog.getByText('(düzenlendi)')).toHaveCount(0);
+
+  await dialog.getByRole('button', { name: 'Yorumu düzenle' }).click();
+  const editor = dialog.getByRole('textbox', { name: 'Yorumu düzenle' });
+  await expect(editor).toBeFocused();
+  await editor.fill('Yeni metin');
+  await editor.press('Control+Enter');
+
+  await expect(feedItem(dialog, 'Yeni metin')).toContainText('(düzenlendi)');
+  await expect(dialog.getByRole('button', { name: 'Yorumu düzenle' })).toBeFocused();
+
+  await page.reload();
+  await expect(feedItem(cardDialog(page, 'Düzenleme'), 'Yeni metin')).toContainText('(düzenlendi)');
+});
+
+test('Escape in the comment editor closes only the editor and keeps the text', async ({ page }) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Vazgeç');
+  await apiAddComment(page, token, cardId, 'Değişmeyen');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Vazgeç');
+  await dialog.getByRole('button', { name: 'Yorumu düzenle' }).click();
+  const editor = dialog.getByRole('textbox', { name: 'Yorumu düzenle' });
+  await editor.fill('Yarım kalan');
+  await editor.press('Escape');
+
+  await expect(editor).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(feedItem(dialog, 'Değişmeyen')).toBeVisible();
+  await expect(dialog.getByText('(düzenlendi)')).toHaveCount(0);
+});
+
+test('deleting a comment asks first, drops the badge and keeps the focus inside the dialog', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Silinen yorum');
+  await apiAddComment(page, token, cardId, 'Eski yorum');
+  await apiAddComment(page, token, cardId, 'Yeni yorum');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Silinen yorum');
+  await expect(feedItems(dialog)).toHaveCount(2);
+
+  // Backing out keeps the comment.
+  await feedItem(dialog, 'Yeni yorum').getByRole('button', { name: 'Yorumu sil' }).click();
+  await expect(confirmDeleteComment(page)).toBeVisible();
+  await confirmDeleteComment(page).getByRole('button', { name: 'Vazgeç' }).click();
+  await expect(confirmDeleteComment(page)).toBeHidden();
+  await expect(feedItems(dialog)).toHaveCount(2);
+
+  // The newest comment goes; focus moves on to the buttons of the next one.
+  await feedItem(dialog, 'Yeni yorum').getByRole('button', { name: 'Yorumu sil' }).click();
+  await confirmDeleteComment(page).getByRole('button', { name: 'Sil' }).click();
+  await expect(feedItems(dialog)).toHaveCount(1);
+  await expect(feedItem(dialog, 'Eski yorum').getByRole('button', { name: 'Yorumu düzenle' })).toBeFocused();
+
+  // The last one goes; focus lands in the comment form, not on the page.
+  await dialog.getByRole('button', { name: 'Yorumu sil' }).click();
+  await confirmDeleteComment(page).getByRole('button', { name: 'Sil' }).click();
+  await expect(dialog.getByText('Henüz yorum yok.')).toBeVisible();
+  await expect(commentField(dialog)).toBeFocused();
+
+  await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(tile(page, 'Silinen yorum')).not.toContainText(/\d+ yorum/);
+  await page.reload();
+  await expect(tile(page, 'Silinen yorum')).not.toContainText(/\d+ yorum/);
+});
+
+test('"Daha fazla göster" loads the next page and moves focus to its first comment', async ({
+  page,
+}) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Çok yorum');
+  for (let index = 1; index <= 25; index++) await apiAddComment(page, token, cardId, `Yorum ${index}`);
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Çok yorum');
+  await expect(feedItems(dialog)).toHaveCount(20);
+  await expect(feedItems(dialog).first()).toContainText('Yorum 25');
+
+  await dialog.getByRole('button', { name: 'Daha fazla göster' }).click();
+
+  await expect(feedItems(dialog)).toHaveCount(25);
+  await expect(feedItems(dialog).nth(20)).toBeFocused();
+  await expect(feedItems(dialog).last()).toContainText('Yorum 1');
+  await expect(dialog.getByRole('button', { name: 'Daha fazla göster' })).toHaveCount(0);
+});
+
+test('"Ayrıntıları göster" adds moves, completion and member changes to the feed; "Ayrıntıları gizle" removes them', async ({
+  page,
+  request,
+}) => {
+  const token = await signUp(page);
+  const boardId = await seedBoard(page, token, 'Etkinlik', ['Yapılacaklar', 'Bitti']);
+  const cardId = await seedCard(page, token, boardId, 'Yapılacaklar', 'Hareketli kart');
+  const second = await registerUser(request, MEMBER_NAME);
+  await apiInvite(page, token, boardId, second.email);
+  await apiMoveCardToList(page, token, boardId, cardId, 'Bitti');
+  await apiPatchCard(page, token, cardId, { isCompleted: true });
+  await apiAssignMember(page, token, cardId, second.userId);
+  await apiAddComment(page, token, cardId, 'Sadece yorum');
+
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Hareketli kart');
+  await expect(feedItems(dialog)).toHaveCount(1);
+  await expect(feedItems(dialog)).toContainText('Sadece yorum');
+
+  await dialog.getByRole('button', { name: 'Ayrıntıları göster' }).click();
+
+  await expect(feedItem(dialog, 'listesinden Bitti listesine taşıdı')).toContainText(
+    'E2E Kullanıcı bu kartı Yapılacaklar listesinden Bitti listesine taşıdı',
+  );
+  await expect(feedItem(dialog, 'tamamlandı olarak işaretledi')).toContainText('E2E Kullanıcı');
+  await expect(feedItem(dialog, 'kişisini bu karta ekledi')).toContainText(
+    `E2E Kullanıcı ${MEMBER_NAME} kişisini bu karta ekledi`,
+  );
+  await expect(feedItem(dialog, 'listesine ekledi')).toBeVisible();
+  await expect(feedItem(dialog, 'Sadece yorum')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Ayrıntıları gizle' }).click();
+  await expect(feedItems(dialog)).toHaveCount(1);
+  await expect(dialog.getByRole('button', { name: 'Ayrıntıları göster' })).toBeVisible();
+});
+
+test('a comment is shown as plain text, never as HTML', async ({ page }) => {
+  const { boardId, cardId } = await seedOneCard(page, 'Düz metin');
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Düz metin');
+  const alerts: string[] = [];
+  page.on('dialog', (alert) => {
+    alerts.push(alert.message());
+    void alert.dismiss();
+  });
+
+  const markup = '<b>kalın</b> <img src="x" onerror="alert(1)">';
+  await commentField(dialog).fill(markup);
+  await commentField(dialog).press('Control+Enter');
+
+  await expect(feedItems(dialog).first()).toContainText(markup);
+  await expect(feedOf(dialog).locator('b, img')).toHaveCount(0);
+
+  await page.reload();
+  await expect(feedItems(cardDialog(page, 'Düz metin')).first()).toContainText(markup);
+  await expect(feedOf(cardDialog(page, 'Düz metin')).locator('b, img')).toHaveCount(0);
+  expect(alerts).toEqual([]);
+});
+
+test('at 320 px the comment panel is one column that fits the screen', async ({ page }) => {
+  const { token, boardId, cardId } = await seedOneCard(page, 'Dar ekran');
+  await apiAddComment(page, token, cardId, 'Çok uzun bir yorum '.repeat(12) + 'u'.repeat(60));
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`/boards/${boardId}/c/${cardId}`);
+  const dialog = cardDialog(page, 'Dar ekran');
+  const section = dialog.getByRole('region', { name: 'Yorumlar ve etkinlik' });
+  await expect(feedItems(dialog)).toHaveCount(1);
+
+  const sectionBox = await section.boundingBox();
+  const actionsBox = await dialog.getByRole('group', { name: 'Kart işlemleri' }).boundingBox();
+  expect(sectionBox && actionsBox).toBeTruthy();
+  if (sectionBox && actionsBox) {
+    // Stacked, not side by side: the boxes do not overlap vertically.
+    const overlapsVertically =
+      sectionBox.y < actionsBox.y + actionsBox.height && actionsBox.y < sectionBox.y + sectionBox.height;
+    expect(overlapsVertically).toBe(false);
+    expect(sectionBox.x).toBeGreaterThanOrEqual(0);
+    expect(sectionBox.x + sectionBox.width).toBeLessThanOrEqual(320);
+  }
+  const overflow = await page.evaluate<number>(
+    'document.documentElement.scrollWidth - document.documentElement.clientWidth',
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(commentField(dialog)).toBeVisible();
 });

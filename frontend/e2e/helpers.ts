@@ -310,6 +310,43 @@ export async function apiSetWatching(
   expect(res.status()).toBe(204);
 }
 
+/** Adds a comment to a card through the API, as the owner of the token, and returns its id. */
+export async function apiAddComment(
+  page: Page,
+  token: string,
+  cardId: string,
+  body: string,
+): Promise<string> {
+  const res = await page.request.post(`/api/v1/cards/${cardId}/comments`, {
+    headers: authHeaders(token),
+    data: { body },
+  });
+  expect(res.status()).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/** Changes the text of a comment through the API. */
+export async function apiEditComment(
+  page: Page,
+  token: string,
+  commentId: string,
+  body: string,
+): Promise<void> {
+  const res = await page.request.patch(`/api/v1/comments/${commentId}`, {
+    headers: authHeaders(token),
+    data: { body },
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/** Deletes a comment through the API. */
+export async function apiDeleteComment(page: Page, token: string, commentId: string): Promise<void> {
+  const res = await page.request.delete(`/api/v1/comments/${commentId}`, {
+    headers: authHeaders(token),
+  });
+  expect(res.status()).toBe(204);
+}
+
 /** Removes a member from a board through the API. */
 export async function apiRemoveBoardMember(
   page: Page,

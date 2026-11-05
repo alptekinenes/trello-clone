@@ -1,5 +1,7 @@
-import { expect, request as playwrightRequest, type Page, test } from '@playwright/test';
+import { expect, request as playwrightRequest, type Locator, type Page, test } from '@playwright/test';
 import {
+  apiAddComment,
+  apiMoveCardToList,
   apiAssignLabel,
   apiAssignMember,
   apiInvite,
@@ -211,6 +213,41 @@ function defineScreens(mode: Mode): void {
       await page.goto(`/boards/${boardId}/c/${cardId}`);
       await expect(page.getByRole('dialog', { name: CARD_TITLE })).toBeVisible();
       await expect(page.getByText('Verileri topla')).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    async function openCommentedCard(page: Page): Promise<Locator> {
+      // Lean seeding: the full suite shares one 1000 requests per minute limit.
+      const token = await signUp(page, 'Ayşe Erişilebilir');
+      const boardId = await seedBoard(page, token, BOARD_TITLE, ['Yapılacaklar', 'Bitti']);
+      const cardId = await seedCard(page, token, boardId, 'Yapılacaklar', CARD_TITLE);
+      await apiMoveCardToList(page, token, boardId, cardId, 'Bitti');
+      await apiAddComment(page, token, cardId, 'Verileri topladım, taslak yarın hazır.');
+      await apiAddComment(page, token, cardId, 'Rakamları ekiple paylaştım.');
+      await page.goto(`/boards/${boardId}/c/${cardId}`);
+      const dialog = page.getByRole('dialog', { name: CARD_TITLE });
+      await expect(dialog.getByText('Rakamları ekiple paylaştım.')).toBeVisible();
+      return dialog;
+    }
+
+    test('card dialog with comments and activity', async ({ page }) => {
+      const dialog = await openCommentedCard(page);
+      await dialog.getByRole('button', { name: 'Ayrıntıları göster' }).click();
+      await expect(dialog.getByText('listesine taşıdı')).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test('comment being edited', async ({ page }) => {
+      const dialog = await openCommentedCard(page);
+      await dialog.getByRole('button', { name: 'Yorumu düzenle' }).first().click();
+      await expect(dialog.getByRole('textbox', { name: 'Yorumu düzenle' })).toBeFocused();
+      await expectNoA11yViolations(page);
+    });
+
+    test('comment delete confirmation dialog', async ({ page }) => {
+      const dialog = await openCommentedCard(page);
+      await dialog.getByRole('button', { name: 'Yorumu sil' }).first().click();
+      await expect(page.getByRole('dialog', { name: 'Yorum silinsin mi?' })).toBeVisible();
       await expectNoA11yViolations(page);
     });
 

@@ -21,11 +21,12 @@ export default defineConfig({
       cwd: '..',
       url: 'http://localhost:3000/api/v1/health',
       // Many sign-ups, invitations and requests per run; the production limits (10/min,
-      // 30/min and 300/min) would block repeated runs.
+      // 30/min and 300/min) would block repeated runs, and a full run with all workers busy goes past 1000
+      // API requests a minute.
       env: {
         AUTH_RATE_LIMIT_PER_MINUTE: '1000',
         INVITATION_RATE_LIMIT_PER_MINUTE: '1000',
-        API_RATE_LIMIT_PER_MINUTE: '1000',
+        API_RATE_LIMIT_PER_MINUTE: '5000',
       },
       reuseExistingServer: !process.env.CI,
     },

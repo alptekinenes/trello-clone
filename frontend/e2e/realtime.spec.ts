@@ -1,6 +1,9 @@
 import { type BrowserContext, expect, type Locator, type Page, test as base } from '@playwright/test';
 import {
   apiAddChecklistItem,
+  apiAddComment,
+  apiDeleteComment,
+  apiEditComment,
   apiAssignMember,
   apiMoveCardToList,
   apiInvite,
@@ -498,4 +501,116 @@ test('when A removes a member from the board, that person\'s avatar leaves the c
   await a.reload();
   await expect(tile(a, 'Plan')).toBeVisible();
   await expect(cardMembers(a, 'Plan')).toHaveCount(0);
+});
+
+const feedOf = (dialog: Locator) => dialog.getByRole('list', { name: 'Yorumlar ve etkinlik' });
+const feedItems = (dialog: Locator) => feedOf(dialog).getByRole('listitem');
+
+/** B has the card open and its feed loaded; returns the dialog and the card id. */
+async function bOpensCard(b: Page, title: string): Promise<{ dialog: Locator; cardId: string }> {
+  const dialog = await openCard(b, title);
+  await expect(dialog.getByRole('textbox', { name: 'Yorum yaz' })).toBeVisible();
+  await expect(dialog.getByText('Yorumlar yükleniyor…')).toHaveCount(0);
+  return { dialog, cardId: b.url().split('/').pop() ?? '' };
+}
+
+test('A\'s comment, edit and deletion show in B\'s open card and on its tile without a reload', async ({
+  page,
+  newPage,
+}) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(b, boardId, title);
+  const { dialog, cardId } = await bOpensCard(b, 'Rapor');
+  let reloadsOfB = 0;
+  b.on('load', () => reloadsOfB++);
+
+  const commentId = await apiAddComment(a, tokenA, cardId, 'Ayşe yazdı');
+  await expect(feedItems(dialog)).toHaveCount(1);
+  await expect(feedItems(dialog).first()).toContainText(`${A_NAME}`);
+  await expect(feedItems(dialog).first()).toContainText('Ayşe yazdı');
+  await expect(tile(b, 'Rapor')).toContainText('1 yorum');
+
+  await apiEditComment(a, tokenA, commentId, 'Ayşe düzeltti');
+  await expect(feedItems(dialog).first()).toContainText('Ayşe düzeltti');
+  await expect(feedItems(dialog).first()).toContainText('(düzenlendi)');
+  await expect(dialog.getByText('Ayşe yazdı')).toHaveCount(0);
+
+  await apiDeleteComment(a, tokenA, commentId);
+  await expect(dialog.getByText('Henüz yorum yok.')).toBeVisible();
+  await expect(tile(b, 'Rapor')).not.toContainText(/\d+ yorum/);
+  expect(reloadsOfB).toBe(0);
+});
+
+test('A\'s comment on a card B has not opened raises the badge on B\'s tile only for that card', async ({
+  page,
+  newPage,
+}) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Birinci', 'İkinci'] },
+  });
+  const firstId = await seedCard(a, tokenA, boardId, 'Yapılacaklar', 'Üçüncü');
+  await openBoardAs(b, boardId, title);
+
+  await apiAddComment(a, tokenA, firstId, 'Sadece üçüncüye');
+
+  await expect(tile(b, 'Üçüncü')).toContainText('1 yorum');
+  await expect(tile(b, 'Birinci')).not.toContainText(/\d+ yorum/);
+  await expect(tile(b, 'İkinci')).not.toContainText(/\d+ yorum/);
+});
+
+test('A moving the card adds a "taşıdı" entry to B\'s activity feed', async ({ page, newPage }) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar', 'Bitti'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(b, boardId, title);
+  const { dialog, cardId } = await bOpensCard(b, 'Rapor');
+  await dialog.getByRole('button', { name: 'Ayrıntıları göster' }).click();
+  await expect(feedItems(dialog).filter({ hasText: 'listesine ekledi' })).toBeVisible();
+
+  await apiMoveCardToList(a, tokenA, boardId, cardId, 'Bitti');
+
+  await expect(feedItems(dialog).first()).toContainText(
+    `${A_NAME} bu kartı Yapılacaklar listesinden Bitti listesine taşıdı`,
+  );
+});
+
+test('a MEMBER sees no "Düzenle" or "Sil" on someone else\'s comment', async ({ page, newPage }) => {
+  const { a, b, tokenA, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+  });
+  await openBoardAs(b, boardId, title);
+  const { dialog, cardId } = await bOpensCard(b, 'Rapor');
+
+  await apiAddComment(a, tokenA, cardId, 'Ayşe\'nin yorumu');
+
+  const item = feedItems(dialog).filter({ hasText: 'Ayşe\'nin yorumu' });
+  await expect(item).toBeVisible();
+  await expect(item.getByRole('button')).toHaveCount(0);
+});
+
+test('an ADMIN can delete but not edit someone else\'s comment', async ({ page, newPage }) => {
+  const { a, b, tokenA, emailB, boardId, title } = await collaborate(page, newPage, {
+    lists: ['Yapılacaklar'],
+    cards: { Yapılacaklar: ['Rapor'] },
+    member: false,
+  });
+  await apiInvite(a, tokenA, boardId, emailB, 'ADMIN');
+  await openBoardAs(b, boardId, title);
+  const { dialog, cardId } = await bOpensCard(b, 'Rapor');
+
+  await apiAddComment(a, tokenA, cardId, 'Ayşe\'nin yorumu');
+
+  const item = feedItems(dialog).filter({ hasText: 'Ayşe\'nin yorumu' });
+  await expect(item.getByRole('button', { name: 'Yorumu sil' })).toBeVisible();
+  await expect(item.getByRole('button', { name: 'Yorumu düzenle' })).toHaveCount(0);
+
+  await item.getByRole('button', { name: 'Yorumu sil' }).click();
+  await b.getByRole('dialog', { name: 'Yorum silinsin mi?' }).getByRole('button', { name: 'Sil' }).click();
+  await expect(dialog.getByText('Henüz yorum yok.')).toBeVisible();
 });
