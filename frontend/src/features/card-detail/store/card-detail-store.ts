@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { showToast } from '../../../shared/store/toast-store';
 
 /** Sections of the card dialog that open and close in place. */
-export type CardPanel = 'labels' | 'members' | 'due-date' | 'checklist';
+export type CardPanel = 'labels' | 'members' | 'cover' | 'due-date' | 'checklist';
 
 interface CardDetailState {
   /** The card whose dialog is open, if any. */

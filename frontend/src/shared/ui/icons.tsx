@@ -164,3 +164,12 @@ export function MembersIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function CoverIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <path d="M2 6.5h12" />
+    </Icon>
+  );
+}

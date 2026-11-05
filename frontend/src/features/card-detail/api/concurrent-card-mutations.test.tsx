@@ -184,6 +184,39 @@ describe('overlapping changes to one card', () => {
     expect(card()?.title).toBe('B');
   });
 
+  it('keeps the newest cover color when two changes to it overlap', async () => {
+    serverBoard();
+    const arrived = { RED: gate(), BLUE: gate() };
+    const answer = { RED: gate(), BLUE: gate() };
+    server.use(
+      http.patch(`*/api/v1/cards/${CARD.id}`, async ({ request }) => {
+        const body = (await request.json()) as { coverColor: 'RED' | 'BLUE' };
+        serverCard = { ...serverCard, coverColor: body.coverColor };
+        arrived[body.coverColor].release();
+        await answer[body.coverColor].opened;
+        return HttpResponse.json(testCard({ ...CARD, coverColor: body.coverColor }));
+      }),
+    );
+    const { result, card, queryClient } = await setup();
+
+    act(() => {
+      result.current.updateCard.mutate({ coverColor: 'RED' });
+      result.current.updateCard.mutate({ coverColor: 'BLUE' });
+    });
+    await arrived.RED.opened;
+    await arrived.BLUE.opened;
+    answer.BLUE.release();
+    await waitForMutationSuccess(
+      queryClient,
+      (variables) => (variables as { coverColor?: string }).coverColor === 'BLUE',
+    );
+    expect(card()?.coverColor).toBe('BLUE');
+
+    answer.RED.release();
+    await waitFor(() => expect(requests.card).toBeGreaterThan(0));
+    expect(card()?.coverColor).toBe('BLUE');
+  });
+
   it('rolls back only the failed change, not one that succeeded meanwhile', async () => {
     serverBoard();
     const itemAnswer = gate();

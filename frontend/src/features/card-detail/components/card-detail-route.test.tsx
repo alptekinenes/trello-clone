@@ -54,6 +54,7 @@ describe('card dialog route', () => {
     expect(within(row).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Üyeler',
       'Etiketler',
+      'Kapak',
       'Son tarih',
       'Checklist',
     ]);

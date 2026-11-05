@@ -73,6 +73,13 @@ export function recordPatches(state: { card: CardDetailDto }) {
           edit.description === undefined ? state.card.description : edit.description?.trim() || null,
         dueDate,
         dueComplete: dueDate === null ? false : (edit.dueComplete ?? state.card.dueComplete),
+        completedAt:
+          edit.isCompleted === undefined
+            ? state.card.completedAt
+            : edit.isCompleted
+              ? (state.card.completedAt ?? new Date().toISOString())
+              : null,
+        coverColor: edit.coverColor === undefined ? state.card.coverColor : edit.coverColor,
       };
       return HttpResponse.json(summaryOf(state.card));
     }),

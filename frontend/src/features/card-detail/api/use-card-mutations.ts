@@ -12,7 +12,10 @@ import { cardDetailApi } from './card-detail-api';
 import { useCardMutation } from './use-card-mutation';
 
 /** Title is checked before this: the server rejects an empty one. */
-export type CardEdit = Pick<UpdateCardRequest, 'title' | 'description' | 'dueDate' | 'dueComplete'>;
+export type CardEdit = Pick<
+  UpdateCardRequest,
+  'title' | 'description' | 'dueDate' | 'dueComplete' | 'isCompleted' | 'coverColor'
+>;
 
 /** Parts of the card an edit sets; setting a date also settles its completion. */
 function editParts(edit: CardEdit): string[] {
@@ -21,6 +24,8 @@ function editParts(edit: CardEdit): string[] {
     ...(edit.description !== undefined ? ['description'] : []),
     ...(edit.dueDate !== undefined ? ['dueDate', 'dueComplete'] : []),
     ...(edit.dueComplete !== undefined ? ['dueComplete'] : []),
+    ...(edit.isCompleted !== undefined ? ['completedAt'] : []),
+    ...(edit.coverColor !== undefined ? ['coverColor'] : []),
   ];
 }
 
@@ -35,6 +40,8 @@ function revertEdit(card: CardDetailDto, previous: CardDetailDto, edit: CardEdit
       dueComplete: previous.dueComplete,
     }),
     ...(edit.dueComplete !== undefined && { dueComplete: previous.dueComplete }),
+    ...(edit.isCompleted !== undefined && { completedAt: previous.completedAt }),
+    ...(edit.coverColor !== undefined && { coverColor: previous.coverColor }),
   };
 }
 
@@ -45,10 +52,12 @@ function applyAnswer(card: CardDetailDto, answer: CardSummaryDto, edit: CardEdit
     ...(edit.title !== undefined && { title: answer.title }),
     ...(edit.dueDate !== undefined && { dueDate: answer.dueDate, dueComplete: answer.dueComplete }),
     ...(edit.dueComplete !== undefined && { dueComplete: answer.dueComplete }),
+    ...(edit.isCompleted !== undefined && { completedAt: answer.completedAt }),
+    ...(edit.coverColor !== undefined && { coverColor: answer.coverColor }),
   };
 }
 
-/** Edits the card's title, description or due date. */
+/** Edits the card's title, description, due date, completion or cover color. */
 export function useUpdateCard(boardId: string, cardId: string) {
   return useCardMutation({
     boardId,
