@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
+  BoardRole,
   CardDetailDto,
   FeedItemDto,
   LabelDto,
@@ -67,6 +68,8 @@ export function openCard(
   members: MemberDto[] = [],
   /** The card's comments and activity, newest first. */
   feedItems: FeedItemDto[] = [],
+  /** The test user's role on the board. */
+  role: BoardRole = 'OWNER',
 ) {
   useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
   /** The card as the server has it; PATCH handlers change it. */
@@ -78,13 +81,13 @@ export function openCard(
     http.get(BOARD_URL, () => {
       requests.board += 1;
       const base = boardDetail(
-        'OWNER',
+        role,
         'Pano',
         [LIST],
         serverState.card.archivedAt ? [] : [summaryOf(serverState.card)],
         labels,
       );
-      return HttpResponse.json({ ...base, members: boardWithMembers('OWNER', members).members });
+      return HttpResponse.json({ ...base, members: boardWithMembers(role, members).members });
     }),
     http.get(CARD_URL, () => HttpResponse.json(serverState.card)),
   );

@@ -1,4 +1,4 @@
-import type { CardFeedPageDto, FeedItemDto } from '@trello/contracts';
+import type { CardFeedPageDto, CommentDto, FeedItemDto } from '@trello/contracts';
 import type { InfiniteData } from '@tanstack/react-query';
 
 /** The cached feed of a card: pages of items, newest first, as the infinite query holds them. */
@@ -24,6 +24,16 @@ function isNewer(a: FeedItemDto, b: FeedItemDto): boolean {
 
 export function hasItem(data: FeedData, id: string): boolean {
   return data.pages.some((page) => page.items.some((item) => item.id === id));
+}
+
+/** The comment with this id, if the feed holds it. */
+export function findComment(data: FeedData, id: string): CommentDto | undefined {
+  for (const page of data.pages) {
+    for (const item of page.items) {
+      if (item.id === id && item.kind === 'comment') return item;
+    }
+  }
+  return undefined;
 }
 
 function mapPages(data: FeedData, change: (items: FeedItemDto[]) => FeedItemDto[]): FeedData {

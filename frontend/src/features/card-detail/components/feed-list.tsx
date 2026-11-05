@@ -1,10 +1,13 @@
-import type { FeedItemDto } from '@trello/contracts';
+import type { FeedItemDto, MemberRef } from '@trello/contracts';
 import { Button } from '../../../shared/ui/button';
 import { useFeedLoadMore } from '../hooks/use-feed-load-more';
 import { ActivityItem } from './activity-item';
 import { CommentItem } from './comment-item';
 
 interface FeedListProps {
+  boardId: string;
+  cardId: string;
+  viewer: MemberRef | null;
   items: FeedItemDto[];
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
@@ -12,7 +15,15 @@ interface FeedListProps {
 }
 
 /** Comments (and activity) of the card, newest first, with a button for the next page. */
-export function FeedList({ items, hasNextPage, isFetchingNextPage, fetchNextPage }: FeedListProps) {
+export function FeedList({
+  boardId,
+  cardId,
+  viewer,
+  items,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: FeedListProps) {
   const loadMore = useFeedLoadMore(items, fetchNextPage);
 
   if (items.length === 0) return <p className="text-sm text-fg-muted">Henüz yorum yok.</p>;
@@ -22,7 +33,13 @@ export function FeedList({ items, hasNextPage, isFetchingNextPage, fetchNextPage
       <ol aria-label="Yorumlar ve etkinlik" className="m-0 flex list-none flex-col gap-4 p-0">
         {items.map((item) =>
           item.kind === 'comment' ? (
-            <CommentItem key={item.id} comment={item} />
+            <CommentItem
+              key={item.id}
+              boardId={boardId}
+              cardId={cardId}
+              comment={item}
+              viewer={viewer}
+            />
           ) : (
             <ActivityItem key={item.id} activity={item} />
           ),

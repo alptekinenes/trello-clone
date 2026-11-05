@@ -83,7 +83,7 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           {announcement}
         </div>
       </div>
-      <CardActivityPanel boardId={boardId} cardId={card.id} />
+      <CardActivityPanel board={board} cardId={card.id} />
     </div>
   );
 }

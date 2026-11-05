@@ -1,18 +1,22 @@
+import type { BoardDetailDto } from '@trello/contracts';
 import { apiErrorMessage } from '../../../shared/lib/api-error-message';
 import { Button } from '../../../shared/ui/button';
 import { FormAlert } from '../../../shared/ui/form-alert';
 import { useCardFeed } from '../api/use-card-feed';
+import { useCommentViewer } from '../hooks/use-comment-viewer';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { CommentComposer } from './comment-composer';
 import { FeedList } from './feed-list';
 
 interface CardActivityPanelProps {
-  boardId: string;
+  board: BoardDetailDto;
   cardId: string;
 }
 
 /** "Yorumlar ve etkinlik": the comment form and the card's feed. */
-export function CardActivityPanel({ boardId, cardId }: CardActivityPanelProps) {
+export function CardActivityPanel({ board, cardId }: CardActivityPanelProps) {
+  const boardId = board.board.id;
+  const viewer = useCommentViewer(board);
   const showDetails = useCardDetailStore((state) => state.showFeedDetails);
   const toggleDetails = useCardDetailStore((state) => state.toggleFeedDetails);
   const feed = useCardFeed(boardId, cardId, showDetails);
@@ -43,6 +47,9 @@ export function CardActivityPanel({ boardId, cardId }: CardActivityPanelProps) {
       )}
       {feed.data && (
         <FeedList
+          boardId={boardId}
+          cardId={cardId}
+          viewer={viewer}
           items={feed.items}
           hasNextPage={feed.hasNextPage}
           isFetchingNextPage={feed.isFetchingNextPage}
