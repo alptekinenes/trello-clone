@@ -202,7 +202,8 @@ npm run test:e2e -w backend                  # Supertest (trello_test DB'sini he
 npm run test:e2e -w frontend                 # Playwright (backend + frontend'i kendisi açar; dev DB'yi kullanır)
 # Not: Playwright çok sayıda kayıt yapar. Çalışan bir dev backend'i yeniden kullanıyorsa
 # backend/.env'de AUTH_RATE_LIMIT_PER_MINUTE, INVITATION_RATE_LIMIT_PER_MINUTE ve API_RATE_LIMIT_PER_MINUTE yüksek olmalı (ör. 1000);
-# aksi halde auth 10/dk, genel 300/dk sınırına takılır. Playwright kendi backend'ini açarsa bunları kendisi 1000 yapar.
+# aksi halde auth 10/dk, genel 300/dk sınırına takılır. Playwright kendi backend'ini açarsa auth ve davet limitini 1000,
+# genel limiti 5000 yapar (tam süit varsayılan worker sayısında dakikada 1000 isteği aşıyor).
 # Dev backend .env değişikliklerini izlemez; .env değişince yeniden başlat.
 npm run typecheck -w backend
 npm run typecheck -w frontend
