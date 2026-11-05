@@ -3,6 +3,7 @@ import { ErrorCode } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import type { RealtimeService } from '../realtime/realtime.service.js';
+import { ActivityService } from '../activity/activity.service.js';
 import { CardMembersService } from './card-members.service.js';
 
 const BOARD = 'board-1';
@@ -11,20 +12,42 @@ const USER = 'user-2';
 const ORIGIN: EventOrigin = { actorId: 'user-1', socketId: 'socket-1' };
 
 function setup({ cardFound = true, memberFound = true, created = 1, deleted = 1 } = {}) {
-  const card = { findFirst: vi.fn().mockResolvedValue(cardFound ? { id: CARD } : null) };
+  const card = {
+    findFirst: vi.fn().mockResolvedValue(cardFound ? { id: CARD, title: 'Kart' } : null),
+  };
   const boardMember = {
-    findUnique: vi.fn().mockResolvedValue(memberFound ? { userId: USER } : null),
+    findUnique: vi.fn().mockResolvedValue(memberFound ? { user: { name: 'Burak' } } : null),
   };
   const cardMember = {
     createMany: vi.fn().mockResolvedValue({ count: created }),
     deleteMany: vi.fn().mockResolvedValue({ count: deleted }),
   };
+  const activity = {
+    create: vi.fn(({ data }: { data: { cardId: string; actorId: string; type: string; data: unknown } }) =>
+      Promise.resolve({
+        id: 'activity-1',
+        cardId: data.cardId,
+        type: data.type,
+        data: data.data,
+        createdAt: new Date('2026-11-05T10:00:00.000Z'),
+        actor: { id: data.actorId, name: 'Ayşe', avatarUrl: null },
+      }),
+    ),
+  };
+  const tx = { cardMember, activity };
   const realtime = { toBoard: vi.fn() };
+  const prisma = {
+    card,
+    boardMember,
+    cardMember,
+    $transaction: vi.fn((fn: (client: typeof tx) => unknown) => Promise.resolve(fn(tx))),
+  };
   const service = new CardMembersService(
-    { card, boardMember, cardMember } as unknown as PrismaService,
+    prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
+    new ActivityService(),
   );
-  return { service, realtime, card, boardMember, cardMember };
+  return { service, realtime, card, boardMember, cardMember, activity, prisma };
 }
 
 describe('CardMembersService', () => {
@@ -42,7 +65,27 @@ describe('CardMembersService', () => {
     });
     expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
       { type: 'card:member-added', data: { cardId: CARD, userId: USER } },
+      expect.objectContaining({ type: 'activity:created' }),
     ]);
+  });
+
+  it('records CARD_MEMBER_ADDED in the same transaction, with copied names', async () => {
+    const { service, activity, prisma } = setup();
+
+    await service.assign(BOARD, CARD, USER, ORIGIN);
+
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(activity.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          boardId: BOARD,
+          cardId: CARD,
+          actorId: ORIGIN.actorId,
+          type: 'CARD_MEMBER_ADDED',
+          data: { cardTitle: 'Kart', member: { id: USER, name: 'Burak' } },
+        },
+      }),
+    );
   });
 
   it('rejects a user who is not on the board with NOT_BOARD_MEMBER', async () => {
@@ -66,11 +109,12 @@ describe('CardMembersService', () => {
     );
   });
 
-  it('does not broadcast when the member was already assigned', async () => {
-    const { service, realtime } = setup({ created: 0 });
+  it('neither records nor broadcasts when the member was already assigned', async () => {
+    const { service, realtime, activity } = setup({ created: 0 });
 
     await service.assign(BOARD, CARD, USER, ORIGIN);
 
+    expect(activity.create).not.toHaveBeenCalled();
     expect(realtime.toBoard).not.toHaveBeenCalled();
   });
 
@@ -84,14 +128,32 @@ describe('CardMembersService', () => {
     });
     expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
       { type: 'card:member-removed', data: { cardId: CARD, userId: USER } },
+      expect.objectContaining({ type: 'activity:created' }),
     ]);
   });
 
-  it('does not broadcast when the member was not assigned', async () => {
-    const { service, realtime } = setup({ deleted: 0 });
+  it('records CARD_MEMBER_REMOVED in the same transaction, with copied names', async () => {
+    const { service, activity, prisma } = setup();
 
     await service.unassign(BOARD, CARD, USER, ORIGIN);
 
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(activity.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'CARD_MEMBER_REMOVED',
+          data: { cardTitle: 'Kart', member: { id: USER, name: 'Burak' } },
+        }),
+      }),
+    );
+  });
+
+  it('neither records nor broadcasts when the member was not assigned', async () => {
+    const { service, realtime, activity } = setup({ deleted: 0 });
+
+    await service.unassign(BOARD, CARD, USER, ORIGIN);
+
+    expect(activity.create).not.toHaveBeenCalled();
     expect(realtime.toBoard).not.toHaveBeenCalled();
   });
 });

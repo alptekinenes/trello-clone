@@ -131,6 +131,9 @@ export function applyBoardEvent(
     // The tile shows only the count.
     case 'comment:updated':
       return done(detail);
+    // Log entries are shown in the card dialog only.
+    case 'activity:created':
+      return done(detail);
 
     case 'label:created':
     case 'label:updated':

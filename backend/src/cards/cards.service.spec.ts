@@ -3,6 +3,7 @@ import { ErrorCode, POSITION_GAP } from '@trello/contracts';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { EventOrigin } from '../realtime/event-origin.js';
 import type { RealtimeService } from '../realtime/realtime.service.js';
+import { ActivityService } from '../activity/activity.service.js';
 import { CardsService } from './cards.service.js';
 
 const BOARD = 'board-1';
@@ -44,17 +45,18 @@ function row(id: string, listId: string, position: number, archivedAt: Date | nu
 function setup({
   reads = [{ listId: LIST, archivedAt: null }] as (Current | null)[],
   locked = [
-    { id: LIST, archivedAt: null },
-    { id: OTHER_LIST, archivedAt: null },
-  ] as { id: string; archivedAt: Date | null }[],
+    { id: LIST, title: 'Yapılacak', archivedAt: null },
+    { id: OTHER_LIST, title: 'Bitti', archivedAt: null },
+  ] as { id: string; title: string; archivedAt: Date | null }[],
   siblings = [
     { id: 'a', position: 1024 },
     { id: 'b', position: 2048 },
   ],
 } = {}) {
   const findFirst = vi.fn();
-  for (const read of reads) findFirst.mockResolvedValueOnce(read);
-  findFirst.mockResolvedValue(reads.at(-1));
+  const withTitle = (read: Current | null) => (read ? { title: 'Kart', ...read } : read);
+  for (const read of reads) findFirst.mockResolvedValueOnce(withTitle(read));
+  findFirst.mockResolvedValue(withTitle(reads.at(-1) ?? null));
 
   const card = {
     findFirst,
@@ -70,7 +72,19 @@ function setup({
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     delete: vi.fn().mockResolvedValue({ listId: LIST }),
   };
-  const tx = { card, $queryRaw: vi.fn().mockResolvedValue(locked) };
+  const activity = {
+    create: vi.fn(({ data }: { data: { cardId: string; actorId: string; type: string; data: unknown } }) =>
+      Promise.resolve({
+        id: `activity-${activity.create.mock.calls.length}`,
+        cardId: data.cardId,
+        type: data.type,
+        data: data.data,
+        createdAt: new Date('2026-11-05T10:00:00.000Z'),
+        actor: { id: data.actorId, name: 'Ayşe', avatarUrl: null },
+      }),
+    ),
+  };
+  const tx = { card, activity, $queryRaw: vi.fn().mockResolvedValue(locked) };
   const realtime = { toBoard: vi.fn() };
   // How many broadcasts had been made when the transaction callback returned.
   const inTransaction = { broadcasts: -1 };
@@ -85,8 +99,9 @@ function setup({
   const service = new CardsService(
     prisma as unknown as PrismaService,
     realtime as unknown as RealtimeService,
+    new ActivityService(),
   );
-  return { service, realtime, inTransaction, card, tx, prisma };
+  return { service, realtime, inTransaction, card, tx, prisma, activity };
 }
 
 function codeOf(error: unknown): unknown {
@@ -99,10 +114,16 @@ function lockedIds(queryRaw: ReturnType<typeof vi.fn>): unknown[] {
   return [boardId, ...rest.flatMap((part) => (part as { values: unknown[] }).values)];
 }
 
+/** Values bound to the card row lock: the uuid casts are nested Sql fragments. */
+function lockedCardRow(queryRaw: ReturnType<typeof vi.fn>): unknown[] {
+  const [, ...parts] = queryRaw.mock.calls[0] as [unknown, ...unknown[]];
+  return parts.flatMap((part) => (part as { values?: unknown[] }).values ?? [part]);
+}
+
 describe('CardsService', () => {
   describe('create', () => {
     it('locks the list and appends after the last card', async () => {
-      const { service, card, tx } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+      const { service, card, tx } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }] });
 
       const result = await service.create(BOARD, LIST, { title: 'Yeni' }, ORIGIN);
 
@@ -118,7 +139,7 @@ describe('CardsService', () => {
     });
 
     it('inserts before an anchor', async () => {
-      const { service, card } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+      const { service, card } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }] });
 
       await service.create(BOARD, LIST, { title: 'İlk', beforeCardId: 'a' }, ORIGIN);
 
@@ -126,7 +147,7 @@ describe('CardsService', () => {
     });
 
     it('refuses an archived list with 400 INVALID_TARGET', async () => {
-      const { service, card } = setup({ locked: [{ id: LIST, archivedAt: ARCHIVED_AT }] });
+      const { service, card } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: ARCHIVED_AT }] });
 
       const error = await service.create(BOARD, LIST, { title: 'X' }, ORIGIN).catch((e: unknown) => e);
 
@@ -143,7 +164,7 @@ describe('CardsService', () => {
     });
 
     it('turns a stale anchor into 409 POSITION_CONFLICT', async () => {
-      const { service, card } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+      const { service, card } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }] });
 
       const error = await service
         .create(BOARD, LIST, { title: 'X', afterCardId: 'gone' }, ORIGIN)
@@ -175,7 +196,7 @@ describe('CardsService', () => {
     });
 
     it('locks one list for a move inside it', async () => {
-      const { service, tx } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+      const { service, tx } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }] });
 
       await service.move(BOARD, 'c', { listId: LIST }, ORIGIN);
 
@@ -183,12 +204,12 @@ describe('CardsService', () => {
     });
 
     it.each([
-      ['on another board (not locked)', [{ id: LIST, archivedAt: null }]],
+      ['on another board (not locked)', [{ id: LIST, title: 'Yapılacak', archivedAt: null }]],
       [
         'archived',
         [
-          { id: LIST, archivedAt: null },
-          { id: OTHER_LIST, archivedAt: ARCHIVED_AT },
+          { id: LIST, title: 'Yapılacak', archivedAt: null },
+          { id: OTHER_LIST, title: 'Bitti', archivedAt: ARCHIVED_AT },
         ],
       ],
     ])('refuses a target list that is %s with 400 INVALID_TARGET', async (_, locked) => {
@@ -283,13 +304,15 @@ describe('CardsService', () => {
   });
 
   describe('update', () => {
-    it('renames and archives without taking a list lock', async () => {
+    it('renames without a lock and archives under the card lock only, never a list lock', async () => {
       const { service, card, tx } = setup();
 
       await service.update(BOARD, 'c', { title: 'Yeni ad' }, ORIGIN);
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
       await service.update(BOARD, 'c', { archived: true }, ORIGIN);
 
-      expect(tx.$queryRaw).not.toHaveBeenCalled();
+      expect(tx.$queryRaw).toHaveBeenCalledOnce();
+      expect(lockedCardRow(tx.$queryRaw)).toEqual(['c', BOARD]);
       expect(card.update.mock.calls[0][0].data).toEqual({ title: 'Yeni ad' });
       expect(card.update.mock.calls[1][0].data.archivedAt).toBeInstanceOf(Date);
     });
@@ -364,7 +387,7 @@ describe('CardsService', () => {
     it('refuses to restore a card whose list is archived', async () => {
       const { service, card } = setup({
         reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }],
-        locked: [{ id: LIST, archivedAt: ARCHIVED_AT }],
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: ARCHIVED_AT }],
       });
 
       const error = await service.update(BOARD, 'c', { archived: false }, ORIGIN).catch((e: unknown) => e);
@@ -513,6 +536,170 @@ describe('CardsService', () => {
     });
   });
 
+  describe('activity', () => {
+    interface Written {
+      type: string;
+      data: unknown;
+      actorId: string;
+      cardId: string;
+    }
+    const recorded = (activity: { create: ReturnType<typeof vi.fn> }): Written[] =>
+      (activity.create.mock.calls as [{ data: Written }][]).map(([arg]) => arg.data);
+
+    function types(realtime: { toBoard: ReturnType<typeof vi.fn> }, call = 0): string[] {
+      return realtime.toBoard.mock.calls[call][2].map((event: { type: string }) => event.type);
+    }
+
+    it('records CARD_CREATED with copies of the card title and list name', async () => {
+      const { service, activity } = setup({
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }],
+      });
+
+      await service.create(BOARD, LIST, { title: 'Yeni' }, ORIGIN);
+
+      expect(recorded(activity)).toEqual([
+        {
+          boardId: BOARD,
+          cardId: 'new',
+          actorId: ORIGIN.actorId,
+          type: 'CARD_CREATED',
+          data: { cardTitle: 'NEW', list: { id: LIST, title: 'Yapılacak' } },
+        },
+      ]);
+    });
+
+    it('records CARD_MOVED with both list names when the card changes list', async () => {
+      const { service, activity } = setup();
+
+      await service.move(BOARD, 'c', { listId: OTHER_LIST }, ORIGIN);
+
+      expect(recorded(activity)).toEqual([
+        expect.objectContaining({
+          type: 'CARD_MOVED',
+          cardId: 'c',
+          data: {
+            cardTitle: 'Kart',
+            fromList: { id: LIST, title: 'Yapılacak' },
+            toList: { id: OTHER_LIST, title: 'Bitti' },
+          },
+        }),
+      ]);
+    });
+
+    it('records nothing for a move inside one list, and broadcasts only card:moved', async () => {
+      const { service, activity, realtime } = setup({
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }],
+      });
+
+      await service.move(BOARD, 'c', { listId: LIST, afterCardId: 'a' }, ORIGIN);
+
+      expect(activity.create).not.toHaveBeenCalled();
+      expect(types(realtime)).toEqual(['card:moved']);
+    });
+
+    it.each([
+      ['archives', { archived: true }, { listId: LIST, archivedAt: null }, ['CARD_ARCHIVED']],
+      [
+        'restores',
+        { archived: false },
+        { listId: LIST, archivedAt: ARCHIVED_AT },
+        ['CARD_RESTORED'],
+      ],
+      [
+        'completes',
+        { isCompleted: true },
+        { listId: LIST, archivedAt: null, completedAt: null },
+        ['CARD_COMPLETED'],
+      ],
+      [
+        'uncompletes',
+        { isCompleted: false },
+        { listId: LIST, archivedAt: null, completedAt: ARCHIVED_AT },
+        ['CARD_UNCOMPLETED'],
+      ],
+      [
+        'restores and completes in one request',
+        { archived: false, isCompleted: true },
+        { listId: LIST, archivedAt: ARCHIVED_AT, completedAt: null },
+        ['CARD_RESTORED', 'CARD_COMPLETED'],
+      ],
+    ])('%s: one entry per state change', async (_name, input, current, expected) => {
+      const { service, activity } = setup({ reads: [current] });
+
+      await service.update(BOARD, 'c', input, ORIGIN);
+
+      expect(recorded(activity).map((entry) => entry.type)).toEqual(expected);
+      expect(recorded(activity)[0].data).toEqual({ cardTitle: 'C' });
+    });
+
+    it.each([
+      ['archiving an archived card', { archived: true }, { listId: LIST, archivedAt: ARCHIVED_AT }],
+      [
+        'completing a completed card',
+        { isCompleted: true },
+        { listId: LIST, archivedAt: null, completedAt: ARCHIVED_AT },
+      ],
+      [
+        'uncompleting an open card',
+        { isCompleted: false },
+        { listId: LIST, archivedAt: null, completedAt: null },
+      ],
+      ['restoring an active card', { archived: false }, { listId: LIST, archivedAt: null }],
+    ])('records nothing for %s, and broadcasts only card:updated', async (_name, input, current) => {
+      const { service, activity, realtime } = setup({ reads: [current] });
+
+      await service.update(BOARD, 'c', input, ORIGIN);
+
+      expect(activity.create).not.toHaveBeenCalled();
+      expect(types(realtime)).toEqual(['card:updated']);
+    });
+
+    it('records nothing for edits that are not state changes', async () => {
+      const { service, activity, tx } = setup();
+
+      await service.update(BOARD, 'c', { title: 'Y', description: 'D', coverColor: 'BLUE' }, ORIGIN);
+
+      expect(activity.create).not.toHaveBeenCalled();
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('reads the state under the card lock', async () => {
+      const { service, tx, card } = setup();
+      const order: string[] = [];
+      tx.$queryRaw.mockImplementation(() => {
+        order.push('lock');
+        return Promise.resolve([{ id: 'c' }]);
+      });
+      card.findFirst.mockReset();
+      card.findFirst.mockImplementation(() => {
+        order.push('read');
+        return Promise.resolve({ listId: LIST, title: 'Kart', archivedAt: null, completedAt: null });
+      });
+
+      await service.update(BOARD, 'c', { isCompleted: true }, ORIGIN);
+
+      expect(order).toEqual(['lock', 'read']);
+    });
+
+    it('answers 404 when the card row is gone at the lock', async () => {
+      const { service, tx, activity } = setup();
+      tx.$queryRaw.mockResolvedValue([]);
+
+      await expect(service.update(BOARD, 'c', { isCompleted: true }, ORIGIN)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(activity.create).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts nothing when the transaction fails', async () => {
+      const { service, realtime, card } = setup();
+      card.update.mockRejectedValueOnce(new Error('boom'));
+
+      await expect(service.update(BOARD, 'c', { archived: true }, ORIGIN)).rejects.toThrow('boom');
+      expect(realtime.toBoard).not.toHaveBeenCalled();
+    });
+  });
+
   describe('realtime', () => {
     function types(realtime: { toBoard: ReturnType<typeof vi.fn> }, call = 0): string[] {
       return realtime.toBoard.mock.calls[call][2].map((event: { type: string }) => event.type);
@@ -520,7 +707,7 @@ describe('CardsService', () => {
 
     it('broadcasts card:created once, after the transaction', async () => {
       const { service, realtime, inTransaction } = setup({
-        locked: [{ id: LIST, archivedAt: null }],
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }],
       });
 
       const created = await service.create(BOARD, LIST, { title: 'Yeni' }, ORIGIN);
@@ -529,12 +716,13 @@ describe('CardsService', () => {
       expect(realtime.toBoard).toHaveBeenCalledOnce();
       expect(realtime.toBoard).toHaveBeenCalledWith(BOARD, ORIGIN, [
         { type: 'card:created', data: created },
+        expect.objectContaining({ type: 'activity:created' }),
       ]);
     });
 
     it('puts position:rebalanced of the list in front of card:created', async () => {
       const { service, realtime } = setup({
-        locked: [{ id: LIST, archivedAt: null }],
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }],
         siblings: [
           { id: 'a', position: 1 },
           { id: 'b', position: 1 + 1e-7 },
@@ -543,7 +731,7 @@ describe('CardsService', () => {
 
       await service.create(BOARD, LIST, { title: 'Yeni', afterCardId: 'a' }, ORIGIN);
 
-      expect(types(realtime)).toEqual(['position:rebalanced', 'card:created']);
+      expect(types(realtime)).toEqual(['position:rebalanced', 'card:created', 'activity:created']);
       expect(realtime.toBoard.mock.calls[0][2][0].data).toEqual({
         entity: 'card',
         listId: LIST,
@@ -575,11 +763,12 @@ describe('CardsService', () => {
           type: 'card:moved',
           data: { id: 'c', fromListId: LIST, toListId: OTHER_LIST, position: 1536 },
         },
+        expect.objectContaining({ type: 'activity:created' }),
       ]);
     });
 
     it('names the same list twice for a move inside a list', async () => {
-      const { service, realtime } = setup({ locked: [{ id: LIST, archivedAt: null }] });
+      const { service, realtime } = setup({ locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }] });
 
       await service.move(BOARD, 'c', { listId: LIST }, ORIGIN);
 
@@ -604,7 +793,7 @@ describe('CardsService', () => {
         ORIGIN,
       );
 
-      expect(types(realtime)).toEqual(['position:rebalanced', 'card:moved']);
+      expect(types(realtime)).toEqual(['position:rebalanced', 'card:moved', 'activity:created']);
       expect(realtime.toBoard.mock.calls[0][2][0].data).toMatchObject({
         entity: 'card',
         listId: OTHER_LIST,
@@ -658,18 +847,18 @@ describe('CardsService', () => {
       });
     });
 
-    it('broadcasts card:updated alone for an archive and for a restore (restore goes to the end)', async () => {
+    it('broadcasts card:updated followed by its activity for an archive and for a restore', async () => {
       const archive = setup();
       const archived = await archive.service.update(BOARD, 'c', { archived: true }, ORIGIN);
       expect(archived.archivedAt).not.toBeNull();
-      expect(types(archive.realtime)).toEqual(['card:updated']);
+      expect(types(archive.realtime)).toEqual(['card:updated', 'activity:created']);
 
       const restore = setup({
         reads: [{ listId: LIST, archivedAt: ARCHIVED_AT }],
-        locked: [{ id: LIST, archivedAt: null }],
+        locked: [{ id: LIST, title: 'Yapılacak', archivedAt: null }],
       });
       await restore.service.update(BOARD, 'c', { archived: false }, ORIGIN);
-      expect(types(restore.realtime)).toEqual(['card:updated']);
+      expect(types(restore.realtime)).toEqual(['card:updated', 'activity:created']);
     });
 
     it('broadcasts card:deleted with the list the card was on', async () => {

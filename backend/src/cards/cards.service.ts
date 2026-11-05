@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  ActivityDto,
   CardDetailDto,
   CardSummaryDto,
   CreateCardRequest,
@@ -8,8 +9,13 @@ import type {
   UpdateCardRequest,
 } from '@trello/contracts';
 import { cardNotFound, listNotFound } from '../access/access.errors.js';
+import {
+  type ActivityEntry,
+  activityEvents,
+  ActivityService,
+} from '../activity/activity.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { lockLists } from '../ordering/locks.js';
+import { type LockedList, lockCardRow, lockLists } from '../ordering/locks.js';
 import { invalidTarget, positionConflict } from '../ordering/ordering.errors.js';
 import { placeAndRebalance } from '../ordering/place-and-rebalance.js';
 import type { Anchors, Placement, Sibling } from '../ordering/placement.js';
@@ -30,14 +36,41 @@ type Tx = Prisma.TransactionClient;
 
 interface CurrentCard {
   listId: string;
+  title: string;
   archivedAt: Date | null;
   completedAt: Date | null;
 }
 
-/** What a card write returns from its transaction: the result and the siblings that were respread. */
+/** What a card write returns from its transaction: the result, the siblings that were respread and the activity it recorded. */
 interface Written<T> {
   result: T;
   rebalanced: Sibling[] | null;
+  activities: ActivityDto[];
+}
+
+/**
+ * The log entries for the state changes a PATCH really made. A request that asks for
+ * the state the card is already in (archived again, completed again) records nothing.
+ */
+function stateChanges(
+  input: UpdateCardRequest,
+  current: CurrentCard,
+  cardTitle: string,
+): ActivityEntry[] {
+  const entries: ActivityEntry[] = [];
+  if (input.archived === true && !current.archivedAt) {
+    entries.push({ type: 'CARD_ARCHIVED', data: { cardTitle } });
+  }
+  if (input.archived === false && current.archivedAt) {
+    entries.push({ type: 'CARD_RESTORED', data: { cardTitle } });
+  }
+  if (input.isCompleted === true && !current.completedAt) {
+    entries.push({ type: 'CARD_COMPLETED', data: { cardTitle } });
+  }
+  if (input.isCompleted === false && current.completedAt) {
+    entries.push({ type: 'CARD_UNCOMPLETED', data: { cardTitle } });
+  }
+  return entries;
 }
 
 /**
@@ -51,6 +84,7 @@ export class CardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly activity: ActivityService,
   ) {}
 
   /** Active cards on active lists, or every archived card of the board (newest first). */
@@ -80,7 +114,11 @@ export class CardsService {
     input: CreateCardRequest,
     origin: EventOrigin,
   ): Promise<CardSummaryDto> {
-    const { result: card, rebalanced } = await this.prisma.$transaction(
+    const {
+      result: card,
+      rebalanced,
+      activities,
+    } = await this.prisma.$transaction(
       async (tx): Promise<Written<CardSummaryDto>> => {
         const [list] = await lockLists(tx, boardId, [listId]);
         if (!list) throw listNotFound();
@@ -94,12 +132,27 @@ export class CardsService {
           data: { boardId, listId, title: input.title, position: placement.position },
           select: CARD_SELECT,
         });
-        return { result: toCardSummary(created, false), rebalanced: placement.rebalanced };
+        const recorded = await this.activity.record(
+          tx,
+          { boardId, cardId: created.id, actorId: origin.actorId },
+          [
+            {
+              type: 'CARD_CREATED',
+              data: { cardTitle: created.title, list: { id: list.id, title: list.title } },
+            },
+          ],
+        );
+        return {
+          result: toCardSummary(created, false),
+          rebalanced: placement.rebalanced,
+          activities: recorded,
+        };
       },
     );
     this.realtime.toBoard(boardId, origin, [
       ...rebalanceEvents({ entity: 'card', listId }, rebalanced),
       { type: 'card:created', data: card },
+      ...activityEvents(activities),
     ]);
     return card;
   }
@@ -114,13 +167,24 @@ export class CardsService {
     input: UpdateCardRequest,
     origin: EventOrigin,
   ): Promise<CardSummaryDto> {
-    const { result: card, rebalanced } = await this.prisma.$transaction(
+    const {
+      result: card,
+      rebalanced,
+      activities,
+    } = await this.prisma.$transaction(
       async (tx): Promise<Written<CardSummaryDto>> => {
         // Only a restore changes positions, so only a restore takes the list lock.
         const restoring = input.archived === false;
-        const { card: current, activeListIds } = restoring
-          ? await this.lockCard(tx, boardId, cardId)
-          : { card: await this.findOnBoard(tx, boardId, cardId), activeListIds: null };
+        const activeListIds = restoring
+          ? (await this.lockCard(tx, boardId, cardId)).activeListIds
+          : null;
+        // A state change is logged once: the card row is locked and `current` read under it,
+        // so two requests making the same change cannot both see the old state.
+        // Lock order stays Board, List, Card (a restore took its list lock above).
+        if (input.archived !== undefined || input.isCompleted !== undefined) {
+          if (!(await lockCardRow(tx, boardId, cardId))) throw cardNotFound();
+        }
+        const current = await this.findOnBoard(tx, boardId, cardId);
 
         // Completing without sending a date relies on the stored one; it may have
         // been cleared by someone else meanwhile, so that write is conditional.
@@ -164,7 +228,16 @@ export class CardsService {
           data,
           select: { ...CARD_SELECT, description: true },
         });
-        return { result: toCardSummary(updated, description !== null), rebalanced: respread };
+        const recorded = await this.activity.record(
+          tx,
+          { boardId, cardId, actorId: origin.actorId },
+          stateChanges(input, current, updated.title),
+        );
+        return {
+          result: toCardSummary(updated, description !== null),
+          rebalanced: respread,
+          activities: recorded,
+        };
       },
     );
     // The description text itself is never broadcast; an open card reloads it when told to.
@@ -174,6 +247,7 @@ export class CardsService {
         type: 'card:updated',
         data: { card, descriptionChanged: input.description !== undefined },
       },
+      ...activityEvents(activities),
     ]);
     return card;
   }
@@ -185,8 +259,8 @@ export class CardsService {
     input: MoveCardRequest,
     origin: EventOrigin,
   ): Promise<MoveCardResponse> {
-    const { fromListId, moved, rebalanced } = await this.prisma.$transaction(async (tx) => {
-      const { card, activeListIds } = await this.lockCard(tx, boardId, cardId, input.listId);
+    const { fromListId, moved, rebalanced, activities } = await this.prisma.$transaction(async (tx) => {
+      const { card, activeListIds, lists } = await this.lockCard(tx, boardId, cardId, input.listId);
       if (!activeListIds.has(input.listId)) {
         throw invalidTarget('The target list is not an active list on this board');
       }
@@ -198,7 +272,28 @@ export class CardsService {
       });
       await tx.card.update({ where: { id: cardId }, data: { listId: input.listId, position } });
       const result = { id: cardId, listId: input.listId, position };
-      return { fromListId: card.listId, moved: result, rebalanced: respread };
+      // A change of order inside one list is not worth a log entry.
+      const from = lists.find((list) => list.id === card.listId);
+      const to = lists.find((list) => list.id === input.listId);
+      const entries: ActivityEntry[] =
+        from && to && from.id !== to.id
+          ? [
+              {
+                type: 'CARD_MOVED',
+                data: {
+                  cardTitle: card.title,
+                  fromList: { id: from.id, title: from.title },
+                  toList: { id: to.id, title: to.title },
+                },
+              },
+            ]
+          : [];
+      const recorded = await this.activity.record(
+        tx,
+        { boardId, cardId, actorId: origin.actorId },
+        entries,
+      );
+      return { fromListId: card.listId, moved: result, rebalanced: respread, activities: recorded };
     });
     const target = { entity: 'card', listId: moved.listId } as const;
     this.realtime.toBoard(boardId, origin, [
@@ -212,6 +307,7 @@ export class CardsService {
           position: moved.position,
         },
       },
+      ...activityEvents(activities),
     ]);
     return { ...moved, rebalanced: rebalancedData(target, rebalanced) };
   }
@@ -235,7 +331,7 @@ export class CardsService {
     boardId: string,
     cardId: string,
     targetListId?: string,
-  ): Promise<{ card: CurrentCard; activeListIds: Set<string> }> {
+  ): Promise<{ card: CurrentCard; activeListIds: Set<string>; lists: LockedList[] }> {
     const before = await this.findOnBoard(tx, boardId, cardId);
     const listIds = targetListId ? [before.listId, targetListId] : [before.listId];
     const locked = await lockLists(tx, boardId, listIds);
@@ -244,13 +340,13 @@ export class CardsService {
     // Someone moved the card to another list before we got the lock.
     if (card.listId !== before.listId) throw positionConflict();
     const active = locked.filter((list) => !list.archivedAt).map((list) => list.id);
-    return { card, activeListIds: new Set(active) };
+    return { card, activeListIds: new Set(active), lists: locked };
   }
 
   private async findOnBoard(tx: Tx, boardId: string, cardId: string): Promise<CurrentCard> {
     const card = await tx.card.findFirst({
       where: { id: cardId, boardId },
-      select: { listId: true, archivedAt: true, completedAt: true },
+      select: { listId: true, title: true, archivedAt: true, completedAt: true },
     });
     if (!card) throw cardNotFound();
     return card;

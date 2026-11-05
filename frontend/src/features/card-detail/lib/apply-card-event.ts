@@ -168,6 +168,7 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
 
     // Only the feed of the dialog changes, and it is kept apart from the card.
     case 'comment:updated':
+    case 'activity:created':
       return done(card);
 
     default: {

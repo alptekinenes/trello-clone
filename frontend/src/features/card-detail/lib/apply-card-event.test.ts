@@ -337,6 +337,20 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
     },
     ignored('ignores another card', event('comment:deleted', { id: 'cm1', cardId: OTHER, commentCount: 1 })),
   ],
+  'activity:created': [
+    ignored(
+      'leaves the card to the feed',
+      event('activity:created', {
+        kind: 'activity',
+        id: 'ac1',
+        cardId: CARD,
+        actor: { id: 'u-1', name: 'Ayşe', avatarUrl: null },
+        createdAt: '2026-11-05T10:00:00.000Z',
+        type: 'CARD_COMPLETED',
+        data: { cardTitle: 'Rapor' },
+      }),
+    ),
+  ],
   'board:updated': [
     ignored('is the board’s business', event('board:updated', { id: BOARD_ID, title: 'X', background: 'green', updatedAt: '' })),
   ],

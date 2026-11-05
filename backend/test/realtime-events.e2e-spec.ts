@@ -5,6 +5,7 @@ import type {
   BoardInfoDto,
   BoardSummaryDto,
   CardChecklistCounts,
+  ActivityType,
   CardSummaryDto,
   ChecklistDto,
   CommentDto,
@@ -16,6 +17,7 @@ import type {
   PositionRebalancedData,
 } from '@trello/contracts';
 import type { Response, Test } from 'supertest';
+import { ACTIVITY_SELECT, toActivityDto } from '../src/activity/activity.mapper.js';
 import { hashToken, newOpaqueToken } from '../src/common/crypto/opaque-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createTestApp } from './utils/create-test-app.js';
@@ -157,6 +159,15 @@ describe('Realtime events (e2e, socket.io)', () => {
   });
 
   describe('mutation table (plan 5.5)', () => {
+    /** The activity:created event of the entry of this type that the request just recorded. */
+    async function activityEvent(cardId: string, type: ActivityType): Promise<ExpectedEvent> {
+      const row = await prisma.activity.findFirstOrThrow({
+        where: { cardId, type },
+        select: ACTIVITY_SELECT,
+      });
+      return event('activity:created', toActivityDto(row));
+    }
+
     const listAndCardRows: BoardRow[] = [
       // Lists
       {
@@ -201,7 +212,10 @@ describe('Realtime events (e2e, socket.io)', () => {
         endpoint: 'POST /lists/:listId/cards',
         act: (as, w) => as.post(`/lists/${w.list1.id}/cards`).send({ title: 'Yeni kart' }),
         status: 201,
-        events: (_w, res) => [event('card:created', res.body as CardSummaryDto)],
+        events: async (_w, res) => {
+          const created = res.body as CardSummaryDto;
+          return [event('card:created', created), await activityEvent(created.id, 'CARD_CREATED')];
+        },
       },
       {
         endpoint: 'PATCH /cards/:cardId (title)',
@@ -242,8 +256,9 @@ describe('Realtime events (e2e, socket.io)', () => {
       {
         endpoint: 'PATCH /cards/:cardId (isCompleted)',
         act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ isCompleted: true }),
-        events: (_w, res) => [
+        events: async (w, res) => [
           event('card:updated', { card: res.body as CardSummaryDto, descriptionChanged: false }),
+          await activityEvent(w.card1.id, 'CARD_COMPLETED'),
         ],
       },
       {
@@ -256,8 +271,9 @@ describe('Realtime events (e2e, socket.io)', () => {
       {
         endpoint: 'PATCH /cards/:cardId (archive)',
         act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ archived: true }),
-        events: (_w, res) => [
+        events: async (w, res) => [
           event('card:updated', { card: res.body as CardSummaryDto, descriptionChanged: false }),
+          await activityEvent(w.card1.id, 'CARD_ARCHIVED'),
         ],
       },
       {
@@ -266,20 +282,22 @@ describe('Realtime events (e2e, socket.io)', () => {
           await prisma.card.update({ where: { id: w.card1.id }, data: { archivedAt: new Date() } });
         },
         act: (as, w) => as.patch(`/cards/${w.card1.id}`).send({ archived: false }),
-        events: (_w, res) => [
+        events: async (w, res) => [
           event('card:updated', { card: res.body as CardSummaryDto, descriptionChanged: false }),
+          await activityEvent(w.card1.id, 'CARD_RESTORED'),
         ],
       },
       {
         endpoint: 'POST /cards/:cardId/move (to another list)',
         act: (as, w) => as.post(`/cards/${w.card1.id}/move`).send({ listId: w.list2.id }),
-        events: (w, res) => [
+        events: async (w, res) => [
           event('card:moved', {
             id: w.card1.id,
             fromListId: w.list1.id,
             toListId: w.list2.id,
             position: (res.body as { position: number }).position,
           }),
+          await activityEvent(w.card1.id, 'CARD_MOVED'),
         ],
       },
       {
@@ -370,7 +388,10 @@ describe('Realtime events (e2e, socket.io)', () => {
         endpoint: 'PUT /cards/:cardId/members/:userId (new assignment)',
         act: (as, w) => as.put(`/cards/${w.card1.id}/members/${w.b.user.id}`),
         status: 204,
-        events: (w) => [event('card:member-added', { cardId: w.card1.id, userId: w.b.user.id })],
+        events: async (w) => [
+          event('card:member-added', { cardId: w.card1.id, userId: w.b.user.id }),
+          await activityEvent(w.card1.id, 'CARD_MEMBER_ADDED'),
+        ],
       },
       {
         endpoint: 'PUT /cards/:cardId/members/:userId (already assigned)',
@@ -392,7 +413,10 @@ describe('Realtime events (e2e, socket.io)', () => {
         },
         act: (as, w) => as.delete(`/cards/${w.card1.id}/members/${w.b.user.id}`),
         status: 204,
-        events: (w) => [event('card:member-removed', { cardId: w.card1.id, userId: w.b.user.id })],
+        events: async (w) => [
+          event('card:member-removed', { cardId: w.card1.id, userId: w.b.user.id }),
+          await activityEvent(w.card1.id, 'CARD_MEMBER_REMOVED'),
+        ],
       },
       {
         endpoint: 'DELETE /cards/:cardId/members/:userId (not assigned)',
@@ -1001,6 +1025,7 @@ describe('Realtime events (e2e, socket.io)', () => {
 
       const moved = await expectNext(world.b1.events, 'card:moved');
       expect(moved.data.toListId).toBe(world.list2.id);
+      await expectNext(world.b1.events, 'activity:created');
       await expectNothing(world.b1);
     });
   });

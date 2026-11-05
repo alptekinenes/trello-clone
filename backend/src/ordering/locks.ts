@@ -20,6 +20,7 @@ export async function lockBoard(tx: Prisma.TransactionClient, boardId: string): 
 
 export interface LockedList {
   id: string;
+  title: string;
   archivedAt: Date | null;
 }
 
@@ -36,7 +37,7 @@ export async function lockLists(
 ): Promise<LockedList[]> {
   const ids = [...new Set(listIds)];
   return tx.$queryRaw<LockedList[]>`
-    SELECT id, "archivedAt" FROM "List"
+    SELECT id, title, "archivedAt" FROM "List"
     WHERE "boardId" = ${boardId}::uuid
       AND id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
     ORDER BY id

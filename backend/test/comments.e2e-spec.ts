@@ -332,7 +332,9 @@ describe('Card comments and feed (e2e, database)', () => {
       expect(detailed.items.map((item: FeedItemDto) => [item.kind, item.id])).toEqual([
         ['activity', activity.id],
         ['comment', comment.id],
+        ['activity', expect.any(String)],
       ]);
+      expect(detailed.items[2]).toMatchObject({ type: 'CARD_CREATED' });
       expect(detailed.items[0]).toMatchObject({
         type: 'CARD_ARCHIVED',
         data: { cardTitle: 'Kart' },

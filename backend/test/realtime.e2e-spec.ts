@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ErrorCode, REALTIME_UNAUTHORIZED, SOCKET_ID_HEADER } from '@trello/contracts';
+import { ACTIVITY_SELECT, toActivityDto } from '../src/activity/activity.mapper.js';
 import { hashToken, newOpaqueToken } from '../src/common/crypto/opaque-token.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard.js';
@@ -309,15 +310,20 @@ describe('Realtime (e2e, socket.io)', () => {
   });
 
   describe('broadcast and exclusion', () => {
-    /** The three watchers that must all see a card:moved of `card`, in the order of the sockets given. */
+    /** The watchers that must all see a card:moved followed by its activity:created, in the order of the sockets given. */
     async function expectMoved(
       world: World,
       watchers: readonly Watcher[],
       moved: ExpectedEvent<'card:moved'>,
     ): Promise<void> {
+      const row = await app.get(PrismaService).activity.findFirstOrThrow({
+        where: { cardId: moved.data.id, type: 'CARD_MOVED' },
+        select: ACTIVITY_SELECT,
+      });
+      const activity = event('activity:created', toActivityDto(row));
       sendSentinels(app, [world.a, world.b, world.c]);
       for (const watcher of watchers) {
-        await expectReceived(watcher, [moved], {
+        await expectReceived(watcher, [moved, activity], {
           boardId: world.boardId,
           actorId: world.a.user.id,
         });

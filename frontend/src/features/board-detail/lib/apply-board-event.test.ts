@@ -511,6 +511,24 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
       check: ({ detail }, before) => expect(detail).toBe(before),
     },
   ],
+  'activity:created': [
+    {
+      name: 'leaves the board alone',
+      event: event('activity:created', {
+        kind: 'activity',
+        id: 'ac1',
+        cardId: 'list-1-card-1',
+        actor: COMMENTER,
+        createdAt: '2026-11-05T10:00:00.000Z',
+        type: 'CARD_ARCHIVED',
+        data: { cardTitle: 'Bir' },
+      }),
+      check: ({ detail, refetch }, before) => {
+        expect(detail).toBe(before);
+        expect(refetch).toBe(false);
+      },
+    },
+  ],
   'position:rebalanced': [
     {
       name: 'rewrites list positions',
