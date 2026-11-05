@@ -9,7 +9,12 @@ interface AvatarPerson {
   avatarUrl: string | null;
 }
 
-const SIZE = 'size-8 rounded-full text-xs';
+export type AvatarSize = 'sm' | 'md';
+
+const SIZE: Record<AvatarSize, string> = {
+  sm: 'size-6 rounded-full text-xs',
+  md: 'size-8 rounded-full text-xs',
+};
 
 function colorOf(person: AvatarPerson): string {
   return avatarColorClass(person.id ?? person.name);
@@ -27,17 +32,19 @@ export function Avatar({
   person,
   className = '',
   decorative = false,
+  size = 'md',
 }: {
   person: AvatarPerson;
   className?: string;
   decorative?: boolean;
+  size?: AvatarSize;
 }) {
   const { src, onError } = useAvatarSrc(person.avatarUrl);
   if (decorative) {
     return (
       <span
         aria-hidden="true"
-        className={`${SIZE} inline-flex shrink-0 items-center justify-center overflow-hidden font-semibold ${colorOf(person)} ${className}`}
+        className={`${SIZE[size]} inline-flex shrink-0 items-center justify-center overflow-hidden font-semibold ${colorOf(person)} ${className}`}
       >
         {src ? (
           <img
@@ -61,14 +68,14 @@ export function Avatar({
         onError={onError}
         alt={person.name}
         title={person.name}
-        className={`${SIZE} object-cover ${className}`}
+        className={`${SIZE[size]} object-cover ${className}`}
       />
     );
   }
   return (
     <span
       title={person.name}
-      className={`${SIZE} inline-flex items-center justify-center font-semibold ${colorOf(person)} ${className}`}
+      className={`${SIZE[size]} inline-flex items-center justify-center font-semibold ${colorOf(person)} ${className}`}
     >
       <span aria-hidden="true">{initialsOf(person.name)}</span>
       <span className="sr-only">{person.name}</span>
@@ -81,11 +88,13 @@ export function AvatarStack({
   people,
   max = 5,
   label,
+  size = 'md',
 }: {
   people: (AvatarPerson & { id: string })[];
   max?: number;
   /** Accessible name of the group, e.g. "Pano üyeleri". */
   label: string;
+  size?: AvatarSize;
 }) {
   const shown = people.slice(0, max);
   const hidden = people.length - shown.length;
@@ -94,13 +103,13 @@ export function AvatarStack({
     <ul aria-label={label} className="flex -space-x-2">
       {shown.map((person) => (
         <li key={person.id}>
-          <Avatar person={person} className="ring-2 ring-surface" />
+          <Avatar person={person} size={size} className="ring-2 ring-surface" />
         </li>
       ))}
       {hidden > 0 && (
         <li
           aria-label={`${hidden} üye daha`}
-          className={`${SIZE} inline-flex items-center justify-center bg-surface-sunken font-semibold text-fg-muted ring-2 ring-surface`}
+          className={`${SIZE[size]} inline-flex items-center justify-center bg-surface-sunken font-semibold text-fg-muted ring-2 ring-surface`}
         >
           +{hidden}
         </li>

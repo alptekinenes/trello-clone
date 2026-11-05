@@ -1,9 +1,9 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CardDetailDto, LabelDto, UpdateCardRequest } from '@trello/contracts';
+import type { CardDetailDto, LabelDto, MemberDto, UpdateCardRequest } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { useAuthStore } from '../features/auth/store/auth-store';
-import { BOARD_ID, boardDetail, testCard, testCardDetail, testLists, testUser } from './fixtures';
+import { BOARD_ID, boardDetail, boardWithMembers, testCard, testCardDetail, testLists, testUser } from './fixtures';
 import { server } from './msw-server';
 import { renderApp } from './render';
 
@@ -32,6 +32,8 @@ export function openCard(
   path: string,
   detail: Partial<CardDetailDto> = {},
   labels: LabelDto[] = [],
+  /** Board members besides the test user. */
+  members: MemberDto[] = [],
 ) {
   useAuthStore.getState().setSession({ accessToken: 'token', user: testUser });
   /** The card as the server has it; PATCH handlers change it. */
@@ -40,9 +42,14 @@ export function openCard(
   server.use(
     http.get(BOARD_URL, () => {
       requests.board += 1;
-      return HttpResponse.json(
-        boardDetail('OWNER', 'Pano', [LIST], serverState.card.archivedAt ? [] : [summaryOf(serverState.card)], labels),
+      const base = boardDetail(
+        'OWNER',
+        'Pano',
+        [LIST],
+        serverState.card.archivedAt ? [] : [summaryOf(serverState.card)],
+        labels,
       );
+      return HttpResponse.json({ ...base, members: boardWithMembers('OWNER', members).members });
     }),
     http.get(CARD_URL, () => HttpResponse.json(serverState.card)),
   );

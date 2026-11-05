@@ -6,7 +6,7 @@ import {
 } from '@trello/contracts';
 import { ApiError } from '../../../shared/lib/http';
 import { useRestoreCard } from '../../board-detail';
-import { applyCardUpdate, setLabelAssigned } from '../lib/card-detail-cache';
+import { applyCardUpdate, setLabelAssigned, setMemberAssigned } from '../lib/card-detail-cache';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { cardDetailApi } from './card-detail-api';
 import { useCardMutation } from './use-card-mutation';
@@ -96,5 +96,30 @@ export function useToggleCardLabel(boardId: string, cardId: string) {
       error instanceof ApiError && error.code === ErrorCode.LABEL_NOT_IN_BOARD
         ? 'Etiket bulunamadı, silinmiş olabilir.'
         : 'Etiket değişikliği kaydedilemedi. Tekrar dene.',
+  });
+}
+
+export interface ToggleMemberVariables {
+  userId: string;
+  assigned: boolean;
+}
+
+/** Assigns the board member to the card or takes them off. The avatars change at once. */
+export function useToggleCardMember(boardId: string, cardId: string) {
+  return useCardMutation({
+    boardId,
+    cardId,
+    mutationFn: ({ userId, assigned }: ToggleMemberVariables) =>
+      assigned
+        ? cardDetailApi.assignMember(cardId, userId)
+        : cardDetailApi.unassignMember(cardId, userId),
+    optimistic: (card, { userId, assigned }) => setMemberAssigned(card, userId, assigned),
+    touches: ({ userId }) => [`member:${userId}`],
+    revert: (card, previous, { userId }) =>
+      setMemberAssigned(card, userId, previous.memberIds.includes(userId)),
+    errorMessage: (error) =>
+      error instanceof ApiError && error.code === ErrorCode.NOT_BOARD_MEMBER
+        ? 'Bu kişi artık panonun üyesi değil.'
+        : 'Üye değişikliği kaydedilemedi. Tekrar dene.',
   });
 }

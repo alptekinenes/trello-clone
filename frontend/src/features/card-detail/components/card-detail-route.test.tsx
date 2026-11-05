@@ -52,6 +52,7 @@ describe('card dialog route', () => {
     const dialog = await cardDialog();
     const row = within(dialog).getByRole('group', { name: 'Kart işlemleri' });
     expect(within(row).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Üyeler',
       'Etiketler',
       'Son tarih',
       'Checklist',

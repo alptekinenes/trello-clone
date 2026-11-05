@@ -6,6 +6,9 @@ const cardPath = (cardId: string) => `/cards/${encodeURIComponent(cardId)}`;
 const labelPath = (cardId: string, labelId: string) =>
   `${cardPath(cardId)}/labels/${encodeURIComponent(labelId)}`;
 
+const memberPath = (cardId: string, userId: string) =>
+  `${cardPath(cardId)}/members/${encodeURIComponent(userId)}`;
+
 export const cardDetailApi = {
   get: (cardId: string) => apiRequest<CardDetailDto>(cardPath(cardId)),
 
@@ -17,4 +20,10 @@ export const cardDetailApi = {
 
   unassignLabel: (cardId: string, labelId: string) =>
     apiRequest<void>(labelPath(cardId, labelId), { method: 'DELETE' }),
+
+  assignMember: (cardId: string, userId: string) =>
+    apiRequest<void>(memberPath(cardId, userId), { method: 'PUT' }),
+
+  unassignMember: (cardId: string, userId: string) =>
+    apiRequest<void>(memberPath(cardId, userId), { method: 'DELETE' }),
 };

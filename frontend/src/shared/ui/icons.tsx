@@ -154,3 +154,13 @@ export function LockIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function MembersIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="5.5" r="2.5" />
+      <path d="M1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" />
+      <path d="M10.5 3.2a2.5 2.5 0 0 1 0 4.6M12 9.8c1.5.5 2.5 1.8 2.5 3.7" />
+    </Icon>
+  );
+}

@@ -1,11 +1,12 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
-import { ChecklistIcon, ClockIcon, LabelIcon } from '../../../shared/ui/icons';
+import { ChecklistIcon, ClockIcon, LabelIcon, MembersIcon } from '../../../shared/ui/icons';
 import { useFocusArchiveAfterRestore } from '../hooks/use-focus-archive-after-restore';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
 import { CardDescription } from './card-description';
 import { CardDetailAlert } from './card-detail-alert';
 import { CardLabelsSection } from './card-labels-section';
+import { CardMembersSection } from './card-members-section';
 import { CardTitleEditor } from './card-title-editor';
 import { ChecklistsSection } from './checklists-section';
 import { DueDateSection } from './due-date-section';
@@ -36,6 +37,9 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           aria-label="Kart işlemleri"
           className="m-0 flex min-w-0 flex-row flex-wrap gap-2 border-0 p-0"
         >
+          <PanelButton panel="members" icon={<MembersIcon />}>
+            Üyeler
+          </PanelButton>
           <PanelButton panel="labels" icon={<LabelIcon />}>
             Etiketler
           </PanelButton>
@@ -48,6 +52,7 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
         </fieldset>
       )}
       <div className="flex min-w-0 flex-col gap-6">
+        <CardMembersSection board={board} card={card} />
         <CardLabelsSection board={board} card={card} />
         <DueDateSection boardId={boardId} card={card} />
         <CardDescription boardId={boardId} cardId={card.id} description={card.description} />
