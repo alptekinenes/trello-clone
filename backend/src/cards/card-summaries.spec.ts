@@ -13,6 +13,7 @@ function cardRow(id: string) {
     coverColor: null,
     members: [],
     archivedAt: null,
+    commentCount: 0,
     labels: [],
     checklists: [],
   };

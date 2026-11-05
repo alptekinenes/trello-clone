@@ -41,7 +41,12 @@ const itemIds = (card: CardDetailDto, checklistId: string) =>
 
 describe('summaryOf', () => {
   it('copies the content fields of the card, with the counters and no place', () => {
-    const summary = summaryOf({ ...CARD, description: 'Metin', dueDate: '2026-11-05T10:00:00.000Z' });
+    const summary = summaryOf({
+      ...CARD,
+      commentCount: 2,
+      description: 'Metin',
+      dueDate: '2026-11-05T10:00:00.000Z',
+    });
 
     expect(summary).toEqual({
       title: 'Kart',
@@ -51,6 +56,7 @@ describe('summaryOf', () => {
       hasDescription: true,
       checklistTotal: 3,
       checklistDone: 1,
+      commentCount: 2,
       completedAt: null,
       coverColor: null,
       memberIds: [],

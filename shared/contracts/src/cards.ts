@@ -20,6 +20,8 @@ export interface CardSummaryDto {
   hasDescription: boolean;
   checklistTotal: number;
   checklistDone: number;
+  /** Number of comments on the card. */
+  commentCount: number;
   completedAt: string | null;
   coverColor: LabelColor | null;
   /** Board members on the card, in assignment order. */

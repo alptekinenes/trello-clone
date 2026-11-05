@@ -142,6 +142,15 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
     case 'checklist-item:deleted':
       return event.data.cardId === card.id ? done(removeItem(card, event.data.id)) : done(card);
 
+    case 'comment:created': {
+      const { comment, commentCount } = event.data;
+      return comment.cardId === card.id ? done({ ...card, commentCount }) : done(card);
+    }
+    case 'comment:deleted': {
+      const { cardId, commentCount } = event.data;
+      return cardId === card.id ? done({ ...card, commentCount }) : done(card);
+    }
+
     case 'position:rebalanced':
       return rebalance(card, event.data);
 
@@ -155,6 +164,10 @@ export function applyCardEvent(card: CardDetailDto, event: BoardEvent): AppliedC
     case 'card:created':
     case 'label:created':
     case 'label:updated':
+      return done(card);
+
+    // Only the feed of the dialog changes, and it is kept apart from the card.
+    case 'comment:updated':
       return done(card);
 
     default: {

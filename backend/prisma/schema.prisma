@@ -48,6 +48,8 @@ model User {
   refreshTokens   RefreshToken[]
   memberships     BoardMember[]
   sentInvitations Invitation[]   @relation("InvitationInvitedBy")
+  comments        Comment[]
+  activities      Activity[]
 }
 
 model RefreshToken {
@@ -82,6 +84,8 @@ model Board {
   lists       List[]
   cards       Card[]
   labels      Label[]
+  comments    Comment[]
+  activities  Activity[]
 }
 
 model BoardMember {
@@ -137,21 +141,23 @@ model List {
 }
 
 model Card {
-  id          String      @id @default(uuid()) @db.Uuid
+  id           String      @id @default(uuid()) @db.Uuid
   /// Denormalized from List for single-query access checks and room lookup.
-  boardId     String      @db.Uuid
-  listId      String      @db.Uuid
-  title       String      @db.VarChar(512)
-  description String?     @db.Text
-  dueDate     DateTime?
-  dueComplete Boolean     @default(false)
+  boardId      String      @db.Uuid
+  listId       String      @db.Uuid
+  title        String      @db.VarChar(512)
+  description  String?     @db.Text
+  dueDate      DateTime?
+  dueComplete  Boolean     @default(false)
   /// Set when the card was marked complete; null means not complete.
-  completedAt DateTime?
-  coverColor  LabelColor?
-  position    Float
-  archivedAt  DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  completedAt  DateTime?
+  coverColor   LabelColor?
+  position     Float
+  archivedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  /// Number of comments; changed in the comment's own transaction.
+  commentCount Int         @default(0)
 
   board      Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
   list       List         @relation(fields: [listId], references: [id], onDelete: Cascade)
@@ -159,6 +165,8 @@ model Card {
   checklists Checklist[]
   members    CardMember[]
   watchers   CardWatch[]
+  comments   Comment[]
+  activities Activity[]
 
   @@index([listId, position])
   @@index([boardId])
@@ -245,4 +253,53 @@ model ChecklistItem {
   checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
 
   @@index([checklistId, position])
+}
+
+enum ActivityType {
+  CARD_CREATED
+  CARD_MOVED
+  CARD_ARCHIVED
+  CARD_RESTORED
+  CARD_COMPLETED
+  CARD_UNCOMPLETED
+  CARD_MEMBER_ADDED
+  CARD_MEMBER_REMOVED
+}
+
+model Comment {
+  id        String    @id @default(uuid()) @db.Uuid
+  cardId    String    @db.Uuid
+  /// Same as the card's boardId; single-query access checks and the board cascade.
+  boardId   String    @db.Uuid
+  authorId  String    @db.Uuid
+  /// Plain text, stored trimmed. Never rendered as HTML.
+  body      String    @db.VarChar(5000)
+  createdAt DateTime  @default(now())
+  /// Set on every edit; null means never edited.
+  editedAt  DateTime?
+
+  card   Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  board  Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt, id])
+  @@index([boardId, createdAt])
+}
+
+/// Append-only log. `data` holds copies of names from that moment (ActivityDataMap in contracts).
+model Activity {
+  id        String       @id @default(uuid()) @db.Uuid
+  boardId   String       @db.Uuid
+  cardId    String       @db.Uuid
+  actorId   String       @db.Uuid
+  type      ActivityType
+  data      Json
+  createdAt DateTime     @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  actor User  @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt, id])
+  @@index([boardId, createdAt])
 }

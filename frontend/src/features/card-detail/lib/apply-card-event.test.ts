@@ -15,6 +15,18 @@ const CARD = 'card-1';
 const OTHER = 'card-2';
 const COUNTS = { checklistTotal: 0, checklistDone: 0 };
 
+function comment(cardId: string) {
+  return {
+    kind: 'comment',
+    id: 'cm1',
+    cardId,
+    author: { id: 'u-1', name: 'Ayşe', avatarUrl: null },
+    body: 'Merhaba',
+    createdAt: '2026-11-05T10:00:00.000Z',
+    editedAt: null,
+  } as const;
+}
+
 function item(id: string, checklistId: string, content: string, position: number, isCompleted = false) {
   return { id, checklistId, content, isCompleted, position } satisfies ChecklistItemDto;
 }
@@ -301,6 +313,29 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
     ignored('ignores the checklists of another card', event('position:rebalanced', { entity: 'checklist', cardId: OTHER, positions: [{ id: 'cl-1', position: 5 }] })),
     ignored('ignores board-level rebalances', event('position:rebalanced', { entity: 'card', listId: 'list-1', positions: [{ id: CARD, position: 5 }] })),
     ignored('ignores list rebalances', event('position:rebalanced', { entity: 'list', positions: [{ id: 'list-1', position: 5 }] })),
+  ],
+  'comment:created': [
+    {
+      name: 'sets the comment count from the event',
+      event: event('comment:created', { comment: comment(CARD), commentCount: 3 }),
+      check: ({ card, gone, refetch }) => {
+        expect(card.commentCount).toBe(3);
+        expect(gone).toBe(false);
+        expect(refetch).toBe(false);
+      },
+    },
+    ignored('ignores another card', event('comment:created', { comment: comment(OTHER), commentCount: 3 })),
+  ],
+  'comment:updated': [
+    ignored('leaves the card to the feed', event('comment:updated', comment(CARD))),
+  ],
+  'comment:deleted': [
+    {
+      name: 'sets the comment count from the event',
+      event: event('comment:deleted', { id: 'cm1', cardId: CARD, commentCount: 1 }),
+      check: ({ card }) => expect(card.commentCount).toBe(1),
+    },
+    ignored('ignores another card', event('comment:deleted', { id: 'cm1', cardId: OTHER, commentCount: 1 })),
   ],
   'board:updated': [
     ignored('is the board’s business', event('board:updated', { id: BOARD_ID, title: 'X', background: 'green', updatedAt: '' })),

@@ -51,6 +51,16 @@ export class BoardAccessService {
     return label?.boardId ?? null;
   }
 
+  /** Board of a comment, or null when the comment does not exist. */
+  async boardIdOfComment(commentId: string): Promise<string | null> {
+    if (!isUUID(commentId)) return null;
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { boardId: true },
+    });
+    return comment?.boardId ?? null;
+  }
+
   /** Board of a checklist, or null when the checklist does not exist. */
   async boardIdOfChecklist(checklistId: string): Promise<string | null> {
     if (!isUUID(checklistId)) return null;

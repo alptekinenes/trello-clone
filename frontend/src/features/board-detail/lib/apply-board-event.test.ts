@@ -25,6 +25,19 @@ const BLUE: LabelDto = { id: 'label-blue', boardId: BOARD_ID, name: 'Plan', colo
 const HELPER: MemberDto = testMember({ userId: 'u-helper', name: 'Yardımcı' });
 const ITEM = { id: 'i1', checklistId: 'k1', content: 'Madde', isCompleted: true, position: 1 };
 const COUNTS = { checklistTotal: 3, checklistDone: 2 };
+const COMMENTER = { id: 'u-helper', name: 'Yardımcı', avatarUrl: null };
+
+function comment(cardId: string) {
+  return {
+    kind: 'comment',
+    id: 'cm1',
+    cardId,
+    author: COMMENTER,
+    body: 'Merhaba',
+    createdAt: '2026-11-05T10:00:00.000Z',
+    editedAt: null,
+  } as const;
+}
 
 /** Lists list-1 and list-2; list-1 holds two cards, list-2 one. */
 function base(): BoardDetailDto {
@@ -441,6 +454,61 @@ const scenarios: Record<BoardEventName, Scenario[]> = {
       }),
       check: ({ detail }) =>
         expect(detail.cards.find((c) => c.id === 'list-1-card-1')).toMatchObject(COUNTS),
+    },
+  ],
+  'comment:created': [
+    {
+      name: 'sets the card comment count from the event',
+      event: event('comment:created', { comment: comment('list-1-card-1'), commentCount: 4 }),
+      check: ({ detail, refetch }) => {
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')?.commentCount).toBe(4);
+        expect(refetch).toBe(false);
+      },
+    },
+    {
+      name: 'is idempotent: the same count twice gives the same count',
+      event: event('comment:created', { comment: comment('list-1-card-1'), commentCount: 4 }),
+      check: (_result, before) => {
+        const once = applyBoardEvent(
+          before,
+          event('comment:created', { comment: comment('list-1-card-1'), commentCount: 4 }),
+          ME,
+        );
+        const twice = applyBoardEvent(
+          once.detail,
+          event('comment:created', { comment: comment('list-1-card-1'), commentCount: 4 }),
+          ME,
+        );
+        expect(twice.detail.cards.find((c) => c.id === 'list-1-card-1')?.commentCount).toBe(4);
+      },
+    },
+    {
+      name: 'ignores a card that is not on the board',
+      event: event('comment:created', { comment: comment('elsewhere'), commentCount: 1 }),
+      check: ({ detail, refetch }, before) => {
+        expect(detail).toBe(before);
+        expect(refetch).toBe(false);
+      },
+    },
+  ],
+  'comment:updated': [
+    {
+      name: 'leaves the board alone',
+      event: event('comment:updated', comment('list-1-card-1')),
+      check: ({ detail }, before) => expect(detail).toBe(before),
+    },
+  ],
+  'comment:deleted': [
+    {
+      name: 'sets the card comment count from the event',
+      event: event('comment:deleted', { id: 'cm1', cardId: 'list-1-card-1', commentCount: 0 }),
+      check: ({ detail }) =>
+        expect(detail.cards.find((c) => c.id === 'list-1-card-1')?.commentCount).toBe(0),
+    },
+    {
+      name: 'ignores a card that is not on the board',
+      event: event('comment:deleted', { id: 'cm1', cardId: 'elsewhere', commentCount: 0 }),
+      check: ({ detail }, before) => expect(detail).toBe(before),
     },
   ],
   'position:rebalanced': [

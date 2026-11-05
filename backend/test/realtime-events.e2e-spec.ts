@@ -7,6 +7,7 @@ import type {
   CardChecklistCounts,
   CardSummaryDto,
   ChecklistDto,
+  CommentDto,
   ChecklistItemDto,
   CreateInvitationResponse,
   LabelDto,
@@ -136,12 +137,15 @@ describe('Realtime events (e2e, socket.io)', () => {
   let prisma: PrismaService;
 
   beforeAll(async () => {
+    // The table sends several hundred requests from one address within a minute.
+    vi.stubEnv('API_RATE_LIMIT_PER_MINUTE', '100000');
     app = await createTestApp({ listen: true });
     prisma = app.get(PrismaService);
   });
 
   afterAll(async () => {
     await app.close();
+    vi.unstubAllEnvs();
   });
 
   beforeEach(async () => {
@@ -395,6 +399,45 @@ describe('Realtime events (e2e, socket.io)', () => {
         act: (as, w) => as.delete(`/cards/${w.card1.id}/members/${w.b.user.id}`),
         status: 204,
         events: () => [],
+      },
+    ];
+
+    /** Writes a comment straight to the database (no broadcast) and counts it on the card. */
+    let seededCommentId = '';
+    async function seedComment(w: World, authorId: string): Promise<void> {
+      const [, created] = await prisma.$transaction([
+        prisma.card.update({ where: { id: w.card1.id }, data: { commentCount: { increment: 1 } } }),
+        prisma.comment.create({
+          data: { cardId: w.card1.id, boardId: w.boardId, authorId, body: 'Hazır yorum' },
+          select: { id: true },
+        }),
+      ]);
+      seededCommentId = created.id;
+    }
+
+    const commentRows: BoardRow[] = [
+      {
+        endpoint: 'POST /cards/:cardId/comments',
+        act: (as, w) => as.post(`/cards/${w.card1.id}/comments`).send({ body: 'Yeni yorum' }),
+        status: 201,
+        events: (_w, res) => [
+          event('comment:created', { comment: res.body as CommentDto, commentCount: 1 }),
+        ],
+      },
+      {
+        endpoint: 'PATCH /comments/:commentId',
+        arrange: (w) => seedComment(w, w.a.user.id),
+        act: (as) => as.patch(`/comments/${seededCommentId}`).send({ body: 'Düzeltilmiş yorum' }),
+        events: (_w, res) => [event('comment:updated', res.body as CommentDto)],
+      },
+      {
+        endpoint: 'DELETE /comments/:commentId (by an admin, not the author)',
+        arrange: (w) => seedComment(w, w.b.user.id),
+        act: (as) => as.delete(`/comments/${seededCommentId}`),
+        status: 204,
+        events: (w) => [
+          event('comment:deleted', { id: seededCommentId, cardId: w.card1.id, commentCount: 0 }),
+        ],
       },
     ];
 
@@ -753,7 +796,7 @@ describe('Realtime events (e2e, socket.io)', () => {
     ];
 
     const ROWS: Row[] = [
-      ...[...listAndCardRows, ...labelRows, ...memberRows, ...checklistRows].map(viaBoardRoom),
+      ...[...listAndCardRows, ...labelRows, ...memberRows, ...commentRows, ...checklistRows].map(viaBoardRoom),
       ...watchRows,
       ...boardRows,
     ];

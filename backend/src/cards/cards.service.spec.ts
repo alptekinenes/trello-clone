@@ -28,6 +28,7 @@ function row(id: string, listId: string, position: number, archivedAt: Date | nu
     completedAt: null,
     coverColor: null,
     archivedAt,
+    commentCount: 0,
     description: null,
     labels: [],
     members: [],

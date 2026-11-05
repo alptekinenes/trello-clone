@@ -17,6 +17,7 @@ export type CardSummaryContent = Pick<
   | 'hasDescription'
   | 'checklistTotal'
   | 'checklistDone'
+  | 'commentCount'
   | 'completedAt'
   | 'coverColor'
   | 'memberIds'
@@ -35,6 +36,7 @@ export function summaryOf(card: CardDetailDto): CardSummaryContent {
     hasDescription: card.description !== null,
     checklistTotal: card.checklistTotal,
     checklistDone: card.checklistDone,
+    commentCount: card.commentCount,
     completedAt: card.completedAt,
     coverColor: card.coverColor,
     memberIds: card.memberIds,

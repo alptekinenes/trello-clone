@@ -18,6 +18,7 @@ const CARD_ROW = {
   completedAt: null,
   coverColor: null,
   archivedAt: null,
+  commentCount: 0,
   labels: [],
   members: [],
   checklists: [],

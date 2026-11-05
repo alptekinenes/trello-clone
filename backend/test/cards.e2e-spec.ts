@@ -121,6 +121,7 @@ describe('Cards (e2e, database)', () => {
         hasDescription: false,
         checklistTotal: 0,
         checklistDone: 0,
+        commentCount: 0,
         completedAt: null,
         coverColor: null,
         memberIds: [],

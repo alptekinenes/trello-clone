@@ -27,6 +27,7 @@ export const CARD_SELECT = {
   completedAt: true,
   coverColor: true,
   archivedAt: true,
+  commentCount: true,
   labels: { select: { labelId: true }, orderBy: { assignedAt: 'asc' } },
   members: { select: { userId: true }, orderBy: CARD_MEMBER_ORDER },
   checklists: { select: { items: { select: { isCompleted: true } } } },
@@ -53,6 +54,7 @@ export interface CardRow {
   completedAt: Date | null;
   coverColor: LabelColor | null;
   archivedAt: Date | null;
+  commentCount: number;
   labels: { labelId: string }[];
   members: { userId: string }[];
   checklists: { items: { isCompleted: boolean }[] }[];
@@ -75,6 +77,7 @@ export function toCardSummary(card: CardRow, hasDescription: boolean): CardSumma
     hasDescription,
     checklistTotal: items.length,
     checklistDone: items.filter((item) => item.isCompleted).length,
+    commentCount: card.commentCount,
   };
 }
 

@@ -31,6 +31,14 @@ function dropList(detail: BoardDetailDto, listId: string): BoardDetailDto {
   return { ...rest, cards: cards.filter((card) => card.listId !== listId) };
 }
 
+function patchCardIfPresent(
+  detail: BoardDetailDto,
+  cardId: string,
+  commentCount: number,
+): BoardDetailDto {
+  return hasCard(detail, cardId) ? patchCard(detail, cardId, { commentCount }) : detail;
+}
+
 function withLabelIds(
   detail: BoardDetailDto,
   cardId: string,
@@ -114,6 +122,15 @@ export function applyBoardEvent(
       return done(setCardMember(detail, event.data.cardId, event.data.userId, true));
     case 'card:member-removed':
       return done(setCardMember(detail, event.data.cardId, event.data.userId, false));
+
+    // The counter arrives with the event, so the same event twice gives the same board.
+    case 'comment:created':
+      return done(patchCardIfPresent(detail, event.data.comment.cardId, event.data.commentCount));
+    case 'comment:deleted':
+      return done(patchCardIfPresent(detail, event.data.cardId, event.data.commentCount));
+    // The tile shows only the count.
+    case 'comment:updated':
+      return done(detail);
 
     case 'label:created':
     case 'label:updated':

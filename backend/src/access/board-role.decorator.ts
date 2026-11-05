@@ -16,8 +16,8 @@ import {
 /**
  * Requires the current user to have at least `min` role on the board named
  * by the `:boardId` route param, or on the board of the list, card, checklist,
- * checklist item or label named by the first of `:listId`, `:cardId`, `:checklistId`,
- * `:itemId`, `:labelId` that the route has.
+ * checklist item, label or comment named by the first of `:listId`, `:cardId`, `:checklistId`,
+ * `:itemId`, `:labelId`, `:commentId` that the route has.
  */
 export const BoardRole = (min: BoardRoleName) =>
   applyDecorators(SetMetadata(BOARD_ROLE_KEY, min), UseGuards(BoardAccessGuard));

@@ -79,6 +79,23 @@ describe('BoardAccessService lists', () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { id: BOARD_ID }, select: { boardId: true } });
   });
 
+  it('finds the board of a comment', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ boardId: BOARD_ID });
+    const service = new BoardAccessService({ comment: { findUnique } } as unknown as PrismaService);
+
+    await expect(service.boardIdOfComment(BOARD_ID)).resolves.toBe(BOARD_ID);
+    await expect(service.boardIdOfComment('not-a-uuid')).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledOnce();
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: BOARD_ID }, select: { boardId: true } });
+  });
+
+  it('returns null for a comment that does not exist', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const service = new BoardAccessService({ comment: { findUnique } } as unknown as PrismaService);
+
+    await expect(service.boardIdOfComment(BOARD_ID)).resolves.toBeNull();
+  });
+
   it('finds the board of a checklist through its card', async () => {
     const findUnique = vi.fn().mockResolvedValue({ card: { boardId: BOARD_ID } });
     const service = new BoardAccessService({

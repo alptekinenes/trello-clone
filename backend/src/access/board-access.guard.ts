@@ -8,6 +8,7 @@ import {
   cardNotFound,
   checklistItemNotFound,
   checklistNotFound,
+  commentNotFound,
   labelNotFound,
   listNotFound,
 } from './access.errors.js';
@@ -36,7 +37,7 @@ interface Target {
  * Checks board membership for routes marked with @BoardRole(). Runs after JwtAuthGuard.
  * The board comes from the first of these params that the route has, in this
  * fixed order (not the order in the path): `:boardId`, `:listId`, `:cardId`,
- * `:checklistId`, `:itemId`, `:labelId`. A route with two of them, such as
+ * `:checklistId`, `:itemId`, `:labelId`, `:commentId`. A route with two of them, such as
  * `/cards/:cardId/labels/:labelId`, is authorized through the first one; the
  * service has to check the second against that board.
  */
@@ -92,6 +93,12 @@ export class BoardAccessGuard implements CanActivate {
     }
     if (params.labelId !== undefined) {
       return { boardId: await this.access.boardIdOfLabel(params.labelId), notFound: labelNotFound };
+    }
+    if (params.commentId !== undefined) {
+      return {
+        boardId: await this.access.boardIdOfComment(params.commentId),
+        notFound: commentNotFound,
+      };
     }
     return null;
   }

@@ -30,3 +30,7 @@ export const checklistNotFound = () =>
 /** Same for checklist items on boards the user cannot see. */
 export const checklistItemNotFound = () =>
   new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Checklist item not found' });
+
+/** Same for comments on boards the user cannot see. */
+export const commentNotFound = () =>
+  new NotFoundException({ code: ErrorCode.NOT_FOUND, message: 'Comment not found' });

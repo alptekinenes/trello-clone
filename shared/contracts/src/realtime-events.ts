@@ -1,5 +1,6 @@
 import type { BoardSummaryDto, MemberDto } from './boards.js';
 import type { CardMemberChange, CardSummaryDto } from './cards.js';
+import type { CommentDto } from './comments.js';
 import type { ChecklistDto, ChecklistItemDto } from './checklists.js';
 import type { ErrorCode } from './errors.js';
 import type { LabelDto } from './labels.js';
@@ -65,6 +66,9 @@ export interface BoardEventMap {
     cardId: string;
     counts: CardChecklistCounts;
   };
+  'comment:created': { comment: CommentDto; commentCount: number };
+  'comment:updated': CommentDto;
+  'comment:deleted': { id: string; cardId: string; commentCount: number };
   'position:rebalanced': PositionRebalancedData;
 }
 
@@ -133,6 +137,9 @@ const BOARD_EVENTS: Record<BoardEventName, true> = {
   'checklist-item:updated': true,
   'checklist-item:moved': true,
   'checklist-item:deleted': true,
+  'comment:created': true,
+  'comment:updated': true,
+  'comment:deleted': true,
   'position:rebalanced': true,
 };
 const USER_EVENTS: Record<UserEventName, true> = {
