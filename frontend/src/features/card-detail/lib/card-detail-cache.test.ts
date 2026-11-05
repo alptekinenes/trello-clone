@@ -10,6 +10,7 @@ import {
   removeAttachment,
   removeChecklist,
   removeItem,
+  restoreAttachment,
   setLabelAssigned,
   setMemberAssigned,
   summaryOf,
@@ -221,5 +222,26 @@ describe('attachment helpers', () => {
     expect(removed.attachmentCount).toBe(0);
     expect(removed.coverAttachmentId).toBeNull();
     expect(removeAttachment(withCover, 'other', 1).coverAttachmentId).toBe('a');
+  });
+
+  it('restoreAttachment puts a deleted file back in its place, with counter and cover', () => {
+    const old = { ...file('a'), createdAt: '2026-11-05T09:00:00.000Z' };
+    const base = insertAttachment(insertAttachment(CARD, old, 1), file('b'), 2);
+    const deleted = removeAttachment({ ...base, coverAttachmentId: 'a' }, 'a', 1);
+
+    const back = restoreAttachment(deleted, old, true);
+    expect(back.attachments.map((a) => a.id)).toEqual(['b', 'a']);
+    expect(back.attachmentCount).toBe(2);
+    expect(back.coverAttachmentId).toBe('a');
+    expect(restoreAttachment(back, old, true)).toBe(back);
+  });
+
+  it('restoreAttachment keeps a cover someone set meanwhile', () => {
+    const deleted = {
+      ...removeAttachment(insertAttachment(CARD, file('a'), 1), 'a', 0),
+      coverColor: 'RED' as const,
+    };
+
+    expect(restoreAttachment(deleted, file('a'), true).coverAttachmentId).toBeNull();
   });
 });

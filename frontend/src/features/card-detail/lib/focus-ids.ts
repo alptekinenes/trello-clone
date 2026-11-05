@@ -7,3 +7,9 @@ export const COMMENT_COMPOSER_ID = 'card-detail-comment-composer';
 
 /** DOM id of an item of the comments and activity feed. */
 export const feedItemDomId = (itemId: string): string => `feed-item-${itemId}`;
+
+/** DOM id of the "Ek" button in the action row. */
+export const ATTACHMENT_BUTTON_ID = 'card-detail-attachment-button';
+
+/** DOM id of the heading of the attachments section. */
+export const ATTACHMENTS_HEADING_ID = 'card-detail-attachments-heading';

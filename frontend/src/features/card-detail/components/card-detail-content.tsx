@@ -1,11 +1,24 @@
 import type { BoardDetailDto, CardDetailDto } from '@trello/contracts';
 import { LABEL_COLOR_CLASS } from '../../../shared/lib/label-color';
-import { ChecklistIcon, ClockIcon, CoverIcon, LabelIcon, MembersIcon } from '../../../shared/ui/icons';
+import { Button } from '../../../shared/ui/button';
+import {
+  ChecklistIcon,
+  ClockIcon,
+  CoverIcon,
+  LabelIcon,
+  MembersIcon,
+  PaperclipIcon,
+} from '../../../shared/ui/icons';
+import { useAttachmentPicker } from '../hooks/use-attachment-picker';
+import { useAttachmentUploads } from '../hooks/use-attachment-uploads';
+import { useFileDrop } from '../hooks/use-file-drop';
+import { ATTACHMENT_BUTTON_ID } from '../lib/focus-ids';
 import { useFocusArchiveAfterRestore } from '../hooks/use-focus-archive-after-restore';
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
 import { CardCompleteToggle } from './card-complete-toggle';
 import { CardCoverSection } from './card-cover-section';
+import { CardAttachmentsSection } from './card-attachments-section';
 import { CardActivityPanel } from './card-activity-panel';
 import { CardDescription } from './card-description';
 import { CardDetailAlert } from './card-detail-alert';
@@ -28,9 +41,20 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
   // The board knows better than the cached card where it is (moved, archived) right now.
   const archived = !board.cards.some((item) => item.id === card.id);
   useFocusArchiveAfterRestore(archived);
+  const uploads = useAttachmentUploads(boardId, card.id);
+  const picker = useAttachmentPicker(uploads.addFiles);
+  const drop = useFileDrop(uploads.addFiles, !archived);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]" {...drop.dropProps}>
+      {drop.isDragging && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-surface/80 p-4 text-center text-sm font-medium pointer-coarse:hidden"
+        >
+          Dosyaları karta eklemek için bırak
+        </div>
+      )}
       <div className="flex min-w-0 flex-col gap-4">
         {card.coverColor !== null && (
           <div
@@ -69,6 +93,10 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
             <PanelButton panel="checklist" icon={<ChecklistIcon />}>
               Checklist
             </PanelButton>
+            <Button id={ATTACHMENT_BUTTON_ID} variant="secondary" onClick={picker.open}>
+              <PaperclipIcon />
+              Ek
+            </Button>
           </fieldset>
         )}
         <div className="flex min-w-0 flex-col gap-6">
@@ -77,8 +105,15 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
           <CardLabelsSection board={board} card={card} />
           <DueDateSection boardId={boardId} card={card} />
           <CardDescription boardId={boardId} cardId={card.id} description={card.description} />
+          <CardAttachmentsSection
+            board={board}
+            card={card}
+            uploads={uploads}
+            onAdd={archived ? null : picker.open}
+          />
           <ChecklistsSection boardId={boardId} card={card} />
         </div>
+        <input {...picker.inputProps} />
         <div role="status" className="sr-only">
           {announcement}
         </div>

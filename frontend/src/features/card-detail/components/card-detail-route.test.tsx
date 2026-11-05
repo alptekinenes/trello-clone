@@ -70,6 +70,7 @@ describe('card dialog route', () => {
       'Kapak',
       'Son tarih',
       'Checklist',
+      'Ek',
     ]);
     const title = within(dialog).getByRole('button', { name: 'Rapor' });
     expect(title.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -17,6 +17,12 @@ const longFormat = new Intl.DateTimeFormat(LOCALE, {
   hour: '2-digit',
   minute: '2-digit',
 });
+const shortDateTimeFormat = new Intl.DateTimeFormat(LOCALE, {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 const DATE_TIME_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 /** Status of a due date at `now`, or null when the card has none. Completed wins over late. */
@@ -37,6 +43,11 @@ export function formatDueShort(iso: string, now = Date.now()): string {
   const date = new Date(iso);
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
   return (sameYear ? shortFormat : shortWithYearFormat).format(date);
+}
+
+/** "5 Kas 14:30" in local time. */
+export function formatShortDateTime(iso: string): string {
+  return shortDateTimeFormat.format(new Date(iso));
 }
 
 /** "5 Kasım 2026 14:30" in local time. */

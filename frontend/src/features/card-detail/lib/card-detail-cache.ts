@@ -239,3 +239,25 @@ export function removeAttachment(
     coverAttachmentId: card.coverAttachmentId === attachmentId ? null : card.coverAttachmentId,
   };
 }
+
+/**
+ * Puts back an attachment whose deletion failed: newest first as before, the counter up
+ * again, and the cover too when it was the cover (unless another cover was set meanwhile).
+ */
+export function restoreAttachment(
+  card: CardDetailDto,
+  attachment: AttachmentDto,
+  wasCover: boolean,
+): CardDetailDto {
+  if (card.attachments.some((existing) => existing.id === attachment.id)) return card;
+  const attachments = [...card.attachments, attachment].sort((a, b) =>
+    a.createdAt === b.createdAt ? (a.id < b.id ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1,
+  );
+  const restoresCover = wasCover && card.coverAttachmentId === null && card.coverColor === null;
+  return {
+    ...card,
+    attachments,
+    attachmentCount: card.attachmentCount + 1,
+    coverAttachmentId: restoresCover ? attachment.id : card.coverAttachmentId,
+  };
+}

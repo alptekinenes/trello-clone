@@ -190,3 +190,20 @@ export function EyeIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function PaperclipIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M13 7.5l-4.9 4.9a3 3 0 0 1-4.2-4.2l5.2-5.2a2 2 0 0 1 2.8 2.8L6.7 11a1 1 0 0 1-1.4-1.4l4.6-4.6" />
+    </Icon>
+  );
+}
+
+export function FileIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 1.5h5l3.5 3.5v9a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 4 1.5z" />
+      <path d="M9 1.5V5h3.5" />
+    </Icon>
+  );
+}

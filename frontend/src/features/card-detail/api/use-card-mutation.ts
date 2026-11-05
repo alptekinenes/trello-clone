@@ -24,8 +24,13 @@ interface CardMutationOptions<TVariables, TData> {
    * Observers hear about it a tick later, so React state set here renders first.
    */
   onOptimistic?: (variables: TVariables, card: CardDetailDto | undefined) => void;
-  /** Puts back what `optimistic` changed, taking it from the card as it was before. */
-  revert?: (card: CardDetailDto, previous: CardDetailDto, variables: TVariables) => CardDetailDto;
+  /** Puts back what `optimistic` changed, taking it from the card as it was before. Gets the error too: some (a 404) mean the change should stand. */
+  revert?: (
+    card: CardDetailDto,
+    previous: CardDetailDto,
+    variables: TVariables,
+    error: Error,
+  ) => CardDetailDto;
   /** Applied with the server's answer. Write only what this request changed. */
   onSuccessCard?: (card: CardDetailDto, data: TData, variables: TVariables) => CardDetailDto;
   /** Runs right after the cache was written with the answer, before the board refetches. */
@@ -123,7 +128,7 @@ export function useCardMutation<TVariables, TData>({
     onError: (error, variables, context) => {
       const { previous, claims } = context ?? {};
       if (revert && previous && holdsAll(claims ?? [])) {
-        updateCard((card) => revert(card, previous, variables));
+        updateCard((card) => revert(card, previous, variables, error));
       }
       onRollback?.(variables);
       useCardDetailStore

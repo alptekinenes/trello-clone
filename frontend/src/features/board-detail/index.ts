@@ -8,3 +8,5 @@ export { useArchiveCardWithFocus } from './hooks/use-archive-card-with-focus';
 export { useMoveCardToListEnd } from './hooks/use-move-card-to-list-end';
 export { patchCard, setCardWatched } from './lib/board-cache';
 export { focusCardTile } from './store/card-ui-store';
+export { AttachmentImage } from './components/attachment-image';
+export { useFileUrl } from './hooks/use-file-url';

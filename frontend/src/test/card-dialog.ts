@@ -18,6 +18,8 @@ export const [LIST] = testLists('Yapılacaklar');
 export const CARD_ID = 'card-1';
 export const BOARD_URL = `*/api/v1/boards/${BOARD_ID}`;
 export const CARD_URL = `*/api/v1/cards/${CARD_ID}`;
+export const FILE_TOKEN = 'file-key-1';
+export const FILE_TOKEN_URL = `*/api/v1/boards/${BOARD_ID}/file-token`;
 export const FEED_URL = `${CARD_URL}/feed`;
 export const CARD_PATH = `/boards/${BOARD_ID}/c/${CARD_ID}`;
 
@@ -78,6 +80,9 @@ export function openCard(
   const feed: FeedState = { items: feedItems, pageSize: 20, requests: [] };
   server.use(
     feedHandler(feed),
+    http.get(FILE_TOKEN_URL, () =>
+      HttpResponse.json({ token: FILE_TOKEN, expiresAt: '2099-01-01T00:00:00.000Z' }),
+    ),
     http.get(BOARD_URL, () => {
       requests.board += 1;
       const base = boardDetail(

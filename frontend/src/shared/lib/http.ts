@@ -51,12 +51,17 @@ export function setSocketIdSource(source: () => string | null): void {
   socketIdSource = source;
 }
 
+/** The id of the live socket, for requests made outside `apiRequest` (uploads). */
+export function getSocketId(): string | null {
+  return socketIdSource();
+}
+
 export interface RequestOptions {
   /** No Bearer token and no refresh-and-retry. Used by the auth endpoints themselves. */
   skipAuth?: boolean;
 }
 
-function isApiErrorBody(value: unknown): value is ApiErrorBody {
+export function isApiErrorBody(value: unknown): value is ApiErrorBody {
   return (
     typeof value === 'object' &&
     value !== null &&
