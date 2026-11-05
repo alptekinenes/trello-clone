@@ -80,4 +80,10 @@ describe('describeActivity', () => {
   it.each(CASES)('describes %s', (_, activity, sentence) => {
     expect(describeActivity(activity)).toBe(sentence);
   });
+
+  it('falls back to a general sentence for a type it does not know', () => {
+    const unknown = testActivity({ id: '1', type: 'CARD_TELEPORTED' as never });
+
+    expect(describeActivity(unknown)).toBe('Kartta bir değişiklik yaptı');
+  });
 });

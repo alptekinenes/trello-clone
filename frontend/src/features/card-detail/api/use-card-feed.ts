@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { flattenFeed } from '../lib/feed-cache';
 import { commentsApi } from './comments-api';
 import { cardKeys } from './card-keys';
@@ -10,6 +10,7 @@ export function useCardFeed(boardId: string, cardId: string, details: boolean) {
     queryFn: ({ pageParam }) => commentsApi.feed(cardId, { details, cursor: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     refetchOnMount: 'always',
   });

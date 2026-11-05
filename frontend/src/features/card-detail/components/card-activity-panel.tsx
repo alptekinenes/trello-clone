@@ -53,6 +53,7 @@ export function CardActivityPanel({ board, cardId }: CardActivityPanelProps) {
           items={feed.items}
           hasNextPage={feed.hasNextPage}
           isFetchingNextPage={feed.isFetchingNextPage}
+          nextPageError={feed.isFetchNextPageError ? feed.error : null}
           fetchNextPage={feed.fetchNextPage}
         />
       )}

@@ -131,7 +131,6 @@ export interface EditCommentVariables {
  */
 export function useEditComment(boardId: string, cardId: string) {
   const feeds = useFeedCache(boardId, cardId);
-  const countComment = useCommentCount(boardId, cardId);
   const settle = useSettle(boardId);
 
   return useMutation({
@@ -149,7 +148,6 @@ export function useEditComment(boardId: string, cardId: string) {
     onError: (error, { id }, context) => {
       if (isNotFound(error)) {
         feeds.update((data) => removeItem(data, id));
-        countComment(-1);
         useCardDetailStore.getState().showError(cardId, COMMENT_GONE_MESSAGE);
         return;
       }

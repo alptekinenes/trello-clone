@@ -1,5 +1,7 @@
 import type { FeedItemDto, MemberRef } from '@trello/contracts';
+import { apiErrorMessage } from '../../../shared/lib/api-error-message';
 import { Button } from '../../../shared/ui/button';
+import { FormAlert } from '../../../shared/ui/form-alert';
 import { useFeedLoadMore } from '../hooks/use-feed-load-more';
 import { ActivityItem } from './activity-item';
 import { CommentItem } from './comment-item';
@@ -11,7 +13,9 @@ interface FeedListProps {
   items: FeedItemDto[];
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
-  fetchNextPage: () => Promise<unknown>;
+  /** Why the last request for the next page failed, if it did. */
+  nextPageError: Error | null;
+  fetchNextPage: () => Promise<{ isError: boolean }>;
 }
 
 /** Comments (and activity) of the card, newest first, with a button for the next page. */
@@ -22,6 +26,7 @@ export function FeedList({
   items,
   hasNextPage,
   isFetchingNextPage,
+  nextPageError,
   fetchNextPage,
 }: FeedListProps) {
   const loadMore = useFeedLoadMore(items, fetchNextPage);
@@ -45,14 +50,19 @@ export function FeedList({
           ),
         )}
       </ol>
+      {nextPageError && <FormAlert>{apiErrorMessage(nextPageError)}</FormAlert>}
       {hasNextPage && (
+        // aria-disabled, not disabled: a disabled button drops the focus the click gave it.
         <Button
           variant="secondary"
-          className="h-8 self-start px-3"
-          onClick={loadMore}
-          loading={isFetchingNextPage}
+          className="h-8 self-start px-3 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+          onClick={() => {
+            if (!isFetchingNextPage) loadMore();
+          }}
+          aria-disabled={isFetchingNextPage || undefined}
+          aria-busy={isFetchingNextPage || undefined}
         >
-          Daha fazla göster
+          {nextPageError ? 'Tekrar dene' : 'Daha fazla göster'}
         </Button>
       )}
     </>

@@ -23,9 +23,12 @@ export function describeActivity(activity: ActivityDto): string {
       return activity.data.member.id === activity.actor.id
         ? 'bu karttan ayrıldı'
         : `${activity.data.member.name} kişisini bu karttan çıkardı`;
-    default: {
-      const unhandled: never = activity;
-      return unhandled;
-    }
+    default:
+      return assertUnhandled(activity);
   }
+}
+
+/** Compile-time exhaustiveness check; a type this client does not know yet still reads fine. */
+function assertUnhandled(_activity: never): string {
+  return 'Kartta bir değişiklik yaptı';
 }

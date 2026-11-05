@@ -25,6 +25,8 @@ export function useCardRealtime(boardId: string, cardId: string): void {
     const cardKey = cardKeys.detail(boardId, cardId);
     // A request already on its way may have read the card before this change.
     const fetching = queryClient.isFetching({ queryKey: cardKey, exact: true }) > 0;
+    const feedsKey = cardKeys.feeds(boardId, cardId);
+    const feedFetching = queryClient.isFetching({ queryKey: feedsKey }) > 0;
     const applied: { value: AppliedCardEvent | null } = { value: null };
     queryClient.setQueryData<CardDetailDto>(cardKey, (card) => {
       if (!card) return card;
@@ -39,6 +41,7 @@ export function useCardRealtime(boardId: string, cardId: string): void {
       );
     }
 
+    if (feedFetching) refreshUnlessMutating(queryClient, boardId, feedsKey);
     if (applied.value?.gone) markGone(cardId);
     if (applied.value?.refetch || fetching) {
       refreshUnlessMutating(queryClient, boardId, cardKey, { exact: true });

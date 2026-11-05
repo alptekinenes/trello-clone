@@ -1,9 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { CARD_PATH, cardDialog, openCard, type FeedState } from '../../../test/card-dialog';
-import { apiError, testComment } from '../../../test/fixtures';
+import { CARD_PATH, CARD_URL, CARD_ID, cardDialog, openCard, type FeedState } from '../../../test/card-dialog';
+import { BOARD_ID, apiError, testComment } from '../../../test/fixtures';
 import { gate } from '../../../test/gate';
+import { cardKeys } from '../api/card-keys';
 import { server } from '../../../test/msw-server';
 
 const COMMENT_URL = '*/api/v1/comments/:commentId';
@@ -177,8 +178,8 @@ describe('editing a comment', () => {
     expect(within(dialog).queryByText('(düzenlendi)')).not.toBeInTheDocument();
   });
 
-  it('removes a comment that is gone and says so', async () => {
-    const { user, feed } = openCard(CARD_PATH, {}, [], [], [MINE]);
+  it('removes a comment that is gone and says so, leaving the counter to the refetch', async () => {
+    const { user, feed, queryClient } = openCard(CARD_PATH, { commentCount: 3 }, [], [], [MINE]);
     server.use(
       http.patch(COMMENT_URL, () => {
         feed.items = [];
@@ -189,9 +190,18 @@ describe('editing a comment', () => {
     await within(dialog).findByText('Benim yorumum');
 
     await user.click(item(dialog, 'Benim yorumum').getByRole('button', { name: 'Yorumu düzenle' }));
+    const refetch = gate();
+    server.use(
+      http.get(CARD_URL, async () => {
+        await refetch.opened;
+        return HttpResponse.json({});
+      }),
+    );
     await user.type(within(dialog).getByRole('textbox', { name: 'Yorumu düzenle' }), ' x{Control>}{Enter}{/Control}');
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Yorum bulunamadı. Silinmiş olabilir.');
+    expect(queryClient.getQueryData<{ commentCount: number }>(cardKeys.detail(BOARD_ID, CARD_ID))?.commentCount).toBe(3);
+    refetch.release();
     await waitFor(() => expect(within(dialog).queryByText(/Benim yorumum/)).not.toBeInTheDocument());
   });
 });

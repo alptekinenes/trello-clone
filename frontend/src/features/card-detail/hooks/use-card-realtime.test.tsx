@@ -12,7 +12,17 @@ import {
   testComment,
   testLists,
 } from '../../../test/fixtures';
-import { BOARD_URL, CARD_ID, CARD_PATH, CARD_URL, LIST, cardDialog, openCard } from '../../../test/card-dialog';
+import {
+  BOARD_URL,
+  CARD_ID,
+  CARD_PATH,
+  CARD_URL,
+  FEED_URL,
+  LIST,
+  cardDialog,
+  openCard,
+} from '../../../test/card-dialog';
+import { gate } from '../../../test/gate';
 import { server } from '../../../test/msw-server';
 import { cardKeys } from '../api/card-keys';
 
@@ -262,6 +272,31 @@ describe('useCardRealtime: comments and activity', () => {
     // The same event again changes nothing.
     fakeRealtime.serverEmit('comment:created', { comment: created, commentCount: 2 }, here);
     expect(list(dialog).getAllByText('Canlı yorum')).toHaveLength(1);
+  });
+
+  it('keeps an event that arrives while a feed request is in flight', async () => {
+    const { dialog, queryClient, feed } = await openLiveCard({}, [testComment({ id: 'c1', body: 'Eski' })]);
+    await list(dialog).findByText('Eski');
+    const created = testComment({ id: 'c2', body: 'Canlı yorum', createdAt: '2026-11-05T11:00:00.000Z' });
+    const stale = [...feed.items];
+    const request = gate();
+    let calls = 0;
+    server.use(
+      http.get(FEED_URL, async () => {
+        calls += 1;
+        if (calls > 1) return HttpResponse.json({ items: [created, ...stale], nextCursor: null });
+        await request.opened;
+        return HttpResponse.json({ items: stale, nextCursor: null });
+      }),
+    );
+
+    const refetch = queryClient.refetchQueries({ queryKey: cardKeys.feeds(BOARD_ID, CARD_ID) });
+    await waitFor(() => expect(calls).toBe(1));
+    fakeRealtime.serverEmit('comment:created', { comment: created, commentCount: 2 }, here);
+    request.release();
+    await refetch;
+
+    expect(await list(dialog).findByText('Canlı yorum')).toBeInTheDocument();
   });
 
   it('follows an edit and a delete', async () => {

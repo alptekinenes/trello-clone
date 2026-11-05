@@ -1,8 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { CARD_PATH, FEED_URL, cardDialog, openCard } from '../../../test/card-dialog';
-import { apiError, testActivity, testComment } from '../../../test/fixtures';
+import { CARD_ID, CARD_PATH, FEED_URL, cardDialog, openCard } from '../../../test/card-dialog';
+import { fakeRealtime } from '../../../test/fake-realtime';
+import { BOARD_ID, apiError, testActivity, testComment } from '../../../test/fixtures';
+import { gate } from '../../../test/gate';
 import { server } from '../../../test/msw-server';
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
@@ -125,6 +127,86 @@ describe('comments and activity panel', () => {
     await user.click(panel(dialog).getByRole('button', { name: 'Tekrar dene' }));
 
     expect(await panel(dialog).findByText('Geldi')).toBeInTheDocument();
+  });
+
+
+  describe('when the next page cannot be loaded', () => {
+    const FOUR = ['c4', 'c3', 'c2', 'c1'].map((id, i) =>
+      testComment({ id, body: `Yorum ${id}`, createdAt: minutesAgo(i + 1) }),
+    );
+
+    it('keeps the loaded comments, says so and retries from the same button', async () => {
+      const { user, feed } = openCard(CARD_PATH, {}, [], [], FOUR);
+      feed.pageSize = 2;
+      const dialog = await cardDialog();
+      await panel(dialog).findByText('Yorum c3');
+      let failing = true;
+      server.use(
+        http.get(FEED_URL, ({ request }) => {
+          if (failing && new URL(request.url).searchParams.get('cursor') !== null) {
+            return apiError(500, 'INTERNAL_ERROR');
+          }
+          return HttpResponse.json({ items: FOUR.slice(2), nextCursor: null });
+        }),
+      );
+
+      await user.click(panel(dialog).getByRole('button', { name: 'Daha fazla göster' }));
+
+      expect(await panel(dialog).findByRole('alert')).toHaveTextContent('Sunucuya şu an ulaşılamıyor');
+      expect(panel(dialog).getByText('Yorum c3')).toBeInTheDocument();
+      failing = false;
+      await user.click(panel(dialog).getByRole('button', { name: 'Tekrar dene' }));
+
+      expect((await panel(dialog).findByText('Yorum c2')).closest('li')).toHaveFocus();
+      expect(panel(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('keeps the focus on the button while the page loads', async () => {
+      const { user, feed } = openCard(CARD_PATH, {}, [], [], FOUR);
+      feed.pageSize = 2;
+      const dialog = await cardDialog();
+      await panel(dialog).findByText('Yorum c3');
+      const request = gate();
+      server.use(
+        http.get(FEED_URL, async () => {
+          await request.opened;
+          return HttpResponse.json({ items: FOUR.slice(2), nextCursor: null });
+        }),
+      );
+
+      await user.click(panel(dialog).getByRole('button', { name: 'Daha fazla göster' }));
+
+      const button = panel(dialog).getByRole('button', { name: 'Daha fazla göster' });
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).toHaveFocus();
+      request.release();
+      await panel(dialog).findByText('Yorum c2');
+    });
+
+    it('leaves the focus alone when the comment it would follow is deleted meanwhile', async () => {
+      const { user, feed } = openCard(CARD_PATH, {}, [], [], FOUR);
+      feed.pageSize = 2;
+      const dialog = await cardDialog();
+      await panel(dialog).findByText('Yorum c3');
+      fakeRealtime.connect();
+      await waitFor(() => expect(fakeRealtime.joins).toEqual([BOARD_ID]));
+      const request = gate();
+      server.use(
+        http.get(FEED_URL, async () => {
+          await request.opened;
+          return HttpResponse.json({ items: FOUR.slice(2), nextCursor: null });
+        }),
+      );
+
+      await user.click(panel(dialog).getByRole('button', { name: 'Daha fazla göster' }));
+      await user.click(within(dialog).getByRole('textbox', { name: 'Yorum yaz' }));
+      fakeRealtime.serverEmit('comment:deleted', { id: 'c3', cardId: CARD_ID, commentCount: 3 }, { boardId: BOARD_ID });
+      await waitFor(() => expect(panel(dialog).queryByText('Yorum c3')).not.toBeInTheDocument());
+      request.release();
+      await panel(dialog).findByText('Yorum c2');
+
+      expect(within(dialog).getByRole('textbox', { name: 'Yorum yaz' })).toHaveFocus();
+    });
   });
 
   it('keeps the "Ayrıntıları göster" choice for the session', async () => {
