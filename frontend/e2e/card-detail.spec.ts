@@ -933,6 +933,9 @@ test('adding a comment shows it at once, fills the "2 yorum" badge and survives 
   await expect(feedItems(dialog).first()).toContainText('İkinci yorum');
 
   await dialog.getByRole('button', { name: 'Kapat' }).click();
+  // Wait for the board URL: reloading before the dialog's close lands reopens the card.
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/boards/${boardId}$`));
   await expect(tile(page, 'Yorumlu kart')).toContainText('2 yorum');
 
   await page.reload();
@@ -1011,6 +1014,7 @@ test('deleting a comment asks first, drops the badge and keeps the focus inside 
   await expect(commentField(dialog)).toBeFocused();
 
   await dialog.getByRole('button', { name: 'Kapat' }).click();
+  await expect(page).toHaveURL(new RegExp(`/boards/${boardId}$`));
   await expect(tile(page, 'Silinen yorum')).not.toContainText(/\d+ yorum/);
   await page.reload();
   await expect(tile(page, 'Silinen yorum')).not.toContainText(/\d+ yorum/);
