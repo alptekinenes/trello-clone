@@ -11,9 +11,9 @@ interface CardCoverSectionProps {
   card: CardDetailDto;
 }
 
-/** The section that opens to pick the card's cover color; the cover itself shows on top. */
+/** The section that opens to pick the card's cover (a color, or none); the cover itself shows on top. */
 export function CardCoverSection({ boardId, card }: CardCoverSectionProps) {
-  const { panel, coverColor, select } = useCardCover(boardId, card);
+  const { panel, coverColor, hasImageCover, select } = useCardCover(boardId, card);
   if (!panel.isOpen) return null;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -36,7 +36,7 @@ export function CardCoverSection({ boardId, card }: CardCoverSectionProps) {
         onKeyDown={onKeyDown}
         className="flex flex-col gap-3 rounded-md bg-surface-sunken p-3"
       >
-        <CoverPicker value={coverColor} onChange={select} />
+        <CoverPicker value={coverColor} hasImageCover={hasImageCover} onChange={select} />
         <div>
           <Button variant="ghost" className="h-8 px-3" onClick={panel.close}>
             Tamam

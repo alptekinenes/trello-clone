@@ -14,6 +14,8 @@ interface AttachmentItemProps {
   /** The signed-in user as a member of the board; decides whether "Sil" shows. */
   viewer: MemberRef | null;
   hasUploads: boolean;
+  /** Whether this file is the card's image cover. */
+  isCover: boolean;
 }
 
 /** "PDF" for "rapor.pdf"; at most 4 letters, empty when the name has no extension. */
@@ -40,8 +42,8 @@ function Thumbnail({ boardId, attachment }: { boardId: string; attachment: Attac
 }
 
 /** One file of the card: thumbnail or icon, name (opens or downloads it), details and buttons. */
-export function AttachmentItem({ boardId, cardId, attachment, viewer, hasUploads }: AttachmentItemProps) {
-  const actions = useAttachmentActions(boardId, cardId, attachment, viewer, hasUploads);
+export function AttachmentItem({ boardId, cardId, attachment, viewer, hasUploads, isCover }: AttachmentItemProps) {
+  const actions = useAttachmentActions(boardId, cardId, attachment, viewer, hasUploads, isCover);
   const fileUrl = useFileUrl(boardId);
   const image = isInlineImage(attachment.mimeType);
   // Images open in a new tab, other files download.
@@ -77,6 +79,16 @@ export function AttachmentItem({ boardId, cardId, attachment, viewer, hasUploads
             >
               İndir
             </a>
+          )}
+          {image && (
+            <Button
+              variant="ghost"
+              aria-label={isCover ? `Kapağı kaldır: “${name}”` : `“${name}” görselini kapak yap`}
+              className="h-8 px-2 text-xs text-fg-muted"
+              onClick={actions.toggleCover}
+            >
+              {isCover ? 'Kapağı kaldır' : 'Kapak yap'}
+            </Button>
           )}
           {actions.canDelete && (
             <Button

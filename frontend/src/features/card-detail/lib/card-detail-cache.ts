@@ -66,7 +66,15 @@ export function applyCardUpdate(card: CardDetailDto, changes: UpdateCardRequest)
     // Completing again keeps the first completion time, like the server.
     next.completedAt = changes.isCompleted ? (card.completedAt ?? new Date().toISOString()) : null;
   }
-  if (changes.coverColor !== undefined) next.coverColor = changes.coverColor;
+  // A color and an image cover exclude each other: setting one clears the other.
+  if (changes.coverColor !== undefined) {
+    next.coverColor = changes.coverColor;
+    if (changes.coverColor !== null) next.coverAttachmentId = null;
+  }
+  if (changes.coverAttachmentId !== undefined) {
+    next.coverAttachmentId = changes.coverAttachmentId;
+    if (changes.coverAttachmentId !== null) next.coverColor = null;
+  }
   return next;
 }
 

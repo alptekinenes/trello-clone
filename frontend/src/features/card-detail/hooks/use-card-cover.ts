@@ -10,7 +10,7 @@ interface Pick {
   color: LabelColor | null;
 }
 
-/** The cover color of the open card and the section that changes it. */
+/** The cover of the open card (a color or an image) and the section that changes it. */
 export function useCardCover(boardId: string, card: CardDetailDto) {
   const panel = useCardPanel('cover');
   const { mutate } = useUpdateCard(boardId, card.id);
@@ -24,7 +24,8 @@ export function useCardCover(boardId: string, card: CardDetailDto) {
     const pick = pending.current;
     if (pick === null) return;
     pending.current = null;
-    mutate({ coverColor: pick.color });
+    // "Kapak yok" clears the image cover too; a color replaces it on its own.
+    mutate(pick.color === null ? { coverColor: null, coverAttachmentId: null } : { coverColor: pick.color });
     setDraft(null);
   }, [mutate]);
 
@@ -41,6 +42,8 @@ export function useCardCover(boardId: string, card: CardDetailDto) {
   return {
     panel,
     coverColor: draft === null ? card.coverColor : draft.color,
+    /** An image is the cover and the user has not picked anything else. */
+    hasImageCover: draft === null && card.coverAttachmentId !== null,
     select,
   };
 }

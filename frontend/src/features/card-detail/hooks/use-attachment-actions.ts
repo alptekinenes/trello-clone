@@ -1,7 +1,9 @@
 import { type AttachmentDto, canDeleteAttachment, type MemberRef } from '@trello/contracts';
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { useUpdateCard } from '../api/use-card-mutations';
 import { useDeleteAttachment } from '../api/use-delete-attachment';
+import { useCardDetailStore } from '../store/card-detail-store';
 import { ATTACHMENTS_HEADING_ID, ATTACHMENT_BUTTON_ID, CARD_TITLE_BUTTON_ID } from '../lib/focus-ids';
 
 /**
@@ -35,10 +37,13 @@ export function useAttachmentActions(
   viewer: MemberRef | null,
   /** Whether uploads keep the section on screen after the last attachment is gone. */
   hasUploads: boolean,
+  /** Whether this attachment is the card's image cover. */
+  isCover: boolean,
 ) {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const itemRef = useRef<HTMLLIElement>(null);
   const deleteAttachment = useDeleteAttachment(boardId, cardId);
+  const updateCard = useUpdateCard(boardId, cardId);
   const canDelete = viewer !== null && canDeleteAttachment(viewer, attachment.uploader.id);
 
   function confirmDelete() {
@@ -47,8 +52,14 @@ export function useAttachmentActions(
     deleteAttachment.mutate(attachment.id);
   }
 
+  function toggleCover() {
+    updateCard.mutate({ coverAttachmentId: isCover ? null : attachment.id });
+    useCardDetailStore.getState().announce(isCover ? 'Kapak kaldırıldı.' : 'Kapak olarak ayarlandı.');
+  }
+
   return {
     itemRef,
+    toggleCover,
     canDelete,
     isConfirmingDelete,
     askToDelete: () => setIsConfirmingDelete(true),

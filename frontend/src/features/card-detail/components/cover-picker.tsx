@@ -5,6 +5,8 @@ import { CheckIcon, CloseIcon } from '../../../shared/ui/icons';
 
 interface CoverPickerProps {
   value: LabelColor | null;
+  /** An image attachment is the cover: no option is checked and a note says so. */
+  hasImageCover?: boolean;
   onChange: (color: LabelColor | null) => void;
 }
 
@@ -20,25 +22,28 @@ const SWATCH =
  * Radio group of cover colors, "Kapak yok" first. The chosen one is marked with a ring and
  * a check mark, so the state does not rest on color alone. Arrow keys move between them.
  */
-export function CoverPicker({ value, onChange }: CoverPickerProps) {
+export function CoverPicker({ value, hasImageCover = false, onChange }: CoverPickerProps) {
   const name = useId();
 
   return (
     <fieldset>
       <legend className="mb-2 text-sm font-medium">Kapak rengi</legend>
+      {hasImageCover && (
+        <p className="mb-2 text-sm text-fg-muted">Kapak olarak bir görsel kullanılıyor.</p>
+      )}
       <div className="flex flex-wrap gap-2">
         <label title="Kapak yok">
           <input
             ref={focusIfChecked}
             type="radio"
             name={name}
-            checked={value === null}
+            checked={value === null && !hasImageCover}
             onChange={() => onChange(null)}
             className="peer sr-only"
           />
           <span className="sr-only">Kapak yok</span>
           <span aria-hidden="true" className={`${SWATCH} border border-line bg-surface text-fg-muted`}>
-            {value === null ? <CheckIcon /> : <CloseIcon />}
+            {value === null && !hasImageCover ? <CheckIcon /> : <CloseIcon />}
           </span>
         </label>
         {LABEL_COLORS.map((color) => (

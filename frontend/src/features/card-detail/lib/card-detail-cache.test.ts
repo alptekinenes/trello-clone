@@ -115,6 +115,30 @@ describe('applyCardUpdate: completion and cover', () => {
   });
 });
 
+describe('applyCardUpdate: image cover', () => {
+  it('an image cover replaces the color cover, and a color replaces the image', () => {
+    const colored = { ...CARD, coverColor: 'RED' as const };
+    const withImage = applyCardUpdate(colored, { coverAttachmentId: 'att-1' });
+    expect(withImage).toMatchObject({ coverColor: null, coverAttachmentId: 'att-1' });
+
+    expect(applyCardUpdate(withImage, { coverColor: 'BLUE' })).toMatchObject({
+      coverColor: 'BLUE',
+      coverAttachmentId: null,
+    });
+  });
+
+  it('null clears only its own field, and both nulls clear both', () => {
+    const withImage = { ...CARD, coverAttachmentId: 'att-1' };
+
+    expect(applyCardUpdate(withImage, { coverColor: null }).coverAttachmentId).toBe('att-1');
+    expect(applyCardUpdate(withImage, { coverAttachmentId: null }).coverAttachmentId).toBeNull();
+    expect(applyCardUpdate(withImage, { coverColor: null, coverAttachmentId: null })).toMatchObject({
+      coverColor: null,
+      coverAttachmentId: null,
+    });
+  });
+});
+
 describe('setMemberAssigned', () => {
   it('adds a member once and removes them', () => {
     const added = setMemberAssigned(setMemberAssigned(CARD, 'u1', true), 'u1', true);

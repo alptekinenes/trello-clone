@@ -17,6 +17,7 @@ import { useFocusArchiveAfterRestore } from '../hooks/use-focus-archive-after-re
 import { useCardDetailStore } from '../store/card-detail-store';
 import { ArchivedCardBanner } from './archived-card-banner';
 import { CardCompleteToggle } from './card-complete-toggle';
+import { CardCoverImage } from './card-cover-image';
 import { CardCoverSection } from './card-cover-section';
 import { CardAttachmentsSection } from './card-attachments-section';
 import { CardActivityPanel } from './card-activity-panel';
@@ -56,13 +57,15 @@ export function CardDetailContent({ board, card }: CardDetailContentProps) {
         </div>
       )}
       <div className="flex min-w-0 flex-col gap-4">
-        {card.coverColor !== null && (
+        {card.coverAttachmentId !== null ? (
+          <CardCoverImage boardId={boardId} attachmentId={card.coverAttachmentId} />
+        ) : card.coverColor !== null ? (
           <div
             aria-hidden="true"
             data-testid="card-cover"
             className={`h-8 rounded-md ${LABEL_COLOR_CLASS[card.coverColor]}`}
           />
-        )}
+        ) : null}
         <div className="flex flex-col gap-4 empty:hidden">
           <CardDetailAlert cardId={card.id} />
           {archived && <ArchivedCardBanner boardId={boardId} cardId={card.id} />}

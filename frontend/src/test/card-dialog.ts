@@ -122,7 +122,14 @@ export function recordPatches(state: { card: CardDetailDto }) {
             : edit.isCompleted
               ? (state.card.completedAt ?? new Date().toISOString())
               : null,
-        coverColor: edit.coverColor === undefined ? state.card.coverColor : edit.coverColor,
+        // A color and an image cover exclude each other, like on the server.
+        coverColor:
+          edit.coverAttachmentId ? null : edit.coverColor === undefined ? state.card.coverColor : edit.coverColor,
+        coverAttachmentId: edit.coverColor
+          ? null
+          : edit.coverAttachmentId === undefined
+            ? state.card.coverAttachmentId
+            : edit.coverAttachmentId,
       };
       return HttpResponse.json(summaryOf(state.card));
     }),

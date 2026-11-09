@@ -55,6 +55,7 @@ export function CardAttachmentsSection({ board, card, uploads, onAdd }: CardAtta
             attachment={attachment}
             viewer={viewer}
             hasUploads={hasUploads}
+            isCover={card.coverAttachmentId === attachment.id}
           />
         ))}
       </ul>

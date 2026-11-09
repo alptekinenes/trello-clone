@@ -19,11 +19,13 @@ const SURFACE = 'rounded-md bg-card px-3 py-2 text-sm text-fg shadow-card';
  * does not skew the box used for keyboard moves and collisions.
  */
 export function CardDragPreview({
+  boardId,
   card,
   labels,
   members,
   watched,
 }: {
+  boardId: string;
   card: CardSummaryDto;
   labels: ReadonlyMap<string, LabelDto>;
   members: ReadonlyMap<string, MemberDto>;
@@ -32,7 +34,7 @@ export function CardDragPreview({
   return (
     <div>
       <div className={`${SURFACE} rotate-2 cursor-grabbing shadow-drag`}>
-        <CardTileBody card={card} labels={labels} members={members} watched={watched} />
+        <CardTileBody boardId={boardId} card={card} labels={labels} members={members} watched={watched} />
       </div>
     </div>
   );
@@ -127,6 +129,7 @@ export function CardTile({ boardId, card, labels, members, watched, dropDisabled
         className={`${SURFACE} cursor-grab pr-9 transition-shadow hover:ring-2 hover:ring-card-hover-ring pointer-coarse:min-h-11 pointer-coarse:pr-12`}
       >
         <CardTileBody
+          boardId={boardId}
           card={card}
           labels={labels}
           members={members}

@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import type { CardSummaryDto, LabelDto, MemberDto } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +41,12 @@ async function openBoardWith(
     members: [...base.members, ...(extra.others ?? [])],
     myWatchedCardIds: extra.watched ? ['card-1'] : [],
   };
-  server.use(http.get(`*/api/v1/boards/${BOARD_ID}`, () => HttpResponse.json(detail)));
+  server.use(
+    http.get(`*/api/v1/boards/${BOARD_ID}`, () => HttpResponse.json(detail)),
+    http.get(`*/api/v1/boards/${BOARD_ID}/file-token`, () =>
+      HttpResponse.json({ token: 'tile-key', expiresAt: '2099-01-01T00:00:00.000Z' }),
+    ),
+  );
   renderApp(`/boards/${BOARD_ID}`);
   await screen.findByRole('button', { name: 'Rapor' });
   return screen.getByRole('button', { name: 'Rapor' });
@@ -173,6 +178,39 @@ describe('card tile badges', () => {
     expect(strip).toHaveClass('-mr-9');
     expect(tile).toHaveAccessibleName('Rapor');
     expect(tile).toHaveTextContent(/^Rapor$/);
+  });
+
+  it('shows the attachment count with a spoken text, after the comments and before the checklist', async () => {
+    const tile = await openBoardWith({ attachmentCount: 2, commentCount: 1, checklistTotal: 2, checklistDone: 1 });
+
+    expect(within(tile).getByText('2 ek')).toHaveClass('sr-only');
+    expect(within(tile).getByText('2', { selector: '[aria-hidden="true"]' })).toBeInTheDocument();
+    expect(tile).toHaveAccessibleName('Rapor');
+    expect(tile).toHaveAccessibleDescription(/1 yorum.*2 ek.*Checklist: 2 öğeden 1 tanesi/);
+  });
+
+  it('shows no attachment badge without attachments', async () => {
+    const tile = await openBoardWith({ attachmentCount: 0, hasDescription: true });
+
+    expect(within(tile).queryByText(/ ek$/)).not.toBeInTheDocument();
+  });
+
+  it('shows an image cover, hidden from assistive technology, in place of the color strip', async () => {
+    const tile = await openBoardWith({ coverAttachmentId: 'att-photo', coverColor: 'BLUE' });
+
+    const cover = tile.querySelector('[data-testid="card-cover-image"]');
+    expect(cover).toHaveAttribute('aria-hidden', 'true');
+    expect(cover).toHaveClass('-mr-9');
+    expect(tile.querySelector('.bg-label-blue')).toBeNull();
+    expect(tile).toHaveAccessibleName('Rapor');
+    expect(tile).toHaveTextContent(/^Rapor$/);
+  });
+
+  it('loads the cover picture from the board file key, 128 px high and cropped', async () => {
+    const tile = await openBoardWith({ coverAttachmentId: 'att-photo' });
+
+    await waitFor(() => expect(tile.querySelector('img')).toHaveAttribute('src', '/api/v1/files/att-photo?token=tile-key'));
+    expect(tile.querySelector('img')).toHaveClass('h-32', 'object-cover');
   });
 
   it('marks a completed card without changing its name', async () => {

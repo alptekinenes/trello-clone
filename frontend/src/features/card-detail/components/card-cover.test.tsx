@@ -52,7 +52,7 @@ describe('card cover', () => {
     await user.click(within(dialog).getByRole('radio', { name: 'Kapak yok' }));
 
     expect(within(dialog).getByRole('radio', { name: 'Kapak yok' })).toBeChecked();
-    await waitFor(() => expect(sent).toEqual([{ coverColor: null }]));
+    await waitFor(() => expect(sent).toEqual([{ coverColor: null, coverAttachmentId: null }]));
     expect(within(dialog).queryByTestId('card-cover')).not.toBeInTheDocument();
   });
 
@@ -126,5 +126,44 @@ describe('card cover', () => {
     expect(within(dialog).queryByRole('group', { name: 'Kapak rengi' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Rapor' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Kapak' })).toHaveFocus();
+  });
+
+  it('shows an image cover instead of the strip and checks no option', async () => {
+    const { user } = openCard(CARD_PATH, { coverAttachmentId: 'att-photo' });
+    const dialog = await cardDialog();
+
+    expect(await within(dialog).findByTestId('card-cover-image')).toHaveAttribute('aria-hidden', 'true');
+    expect(within(dialog).queryByTestId('card-cover')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Kapak' }));
+
+    expect(within(dialog).getByText('Kapak olarak bir görsel kullanılıyor.')).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toEqual([]);
+  });
+
+  it('removes an image cover with "Kapak yok": both fields go to the server as null', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { coverAttachmentId: 'att-photo' });
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kapak' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Kapak yok' }));
+
+    await waitFor(() => expect(sent).toEqual([{ coverColor: null, coverAttachmentId: null }]));
+    expect(within(dialog).queryByTestId('card-cover-image')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'Kapak yok' })).toBeChecked();
+    expect(within(dialog).queryByText('Kapak olarak bir görsel kullanılıyor.')).not.toBeInTheDocument();
+  });
+
+  it('replaces an image cover with a color, sending only the color', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { coverAttachmentId: 'att-photo' });
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kapak' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Mavi' }));
+
+    await waitFor(() => expect(sent).toEqual([{ coverColor: 'BLUE' }]));
+    expect(await within(dialog).findByTestId('card-cover')).toBeInTheDocument();
+    expect(within(dialog).queryByTestId('card-cover-image')).not.toBeInTheDocument();
   });
 });

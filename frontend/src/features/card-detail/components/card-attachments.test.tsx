@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { ErrorCode, type AttachmentDto, type CardDetailDto } from '@trello/contracts';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CARD_PATH, FILE_TOKEN, cardDialog, openCard } from '../../../test/card-dialog';
+import { CARD_PATH, CARD_URL, FILE_TOKEN, cardDialog, openCard, recordPatches } from '../../../test/card-dialog';
 import { FakeXhr, installFakeXhr, restoreXhr } from '../../../test/fake-xhr';
 import { apiError, testUser } from '../../../test/fixtures';
 import { gate } from '../../../test/gate';
@@ -45,7 +45,8 @@ function deleteEndpoint(state: { card: CardDetailDto }) {
       const id = String(params.attachmentId);
       deleted.push(id);
       const attachments = state.card.attachments.filter((item) => item.id !== id);
-      state.card = { ...state.card, attachments, attachmentCount: attachments.length };
+      const coverAttachmentId = state.card.coverAttachmentId === id ? null : state.card.coverAttachmentId;
+      state.card = { ...state.card, attachments, attachmentCount: attachments.length, coverAttachmentId };
       return new HttpResponse(null, { status: 204 });
     }),
   );
@@ -374,6 +375,73 @@ describe('attachments: delete', () => {
     const dialog = await cardDialog();
 
     expect(within(dialog).getByRole('button', { name: '“can.pdf” ekini sil' })).toBeVisible();
+  });
+});
+
+describe('attachments: cover', () => {
+  it('offers "Kapak yap" for images only', async () => {
+    openCard(CARD_PATH, withAttachments(REPORT, PHOTO));
+    const dialog = await cardDialog();
+
+    expect(within(dialog).getByRole('button', { name: '“foto.png” görselini kapak yap' })).toHaveTextContent(
+      'Kapak yap',
+    );
+    expect(within(dialog).getAllByRole('button', { name: /kapak yap/ })).toHaveLength(1);
+  });
+
+  it('makes the image the cover at once: the cover shows on top and the button flips', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { ...withAttachments(PHOTO), coverColor: 'RED' });
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+    expect(await within(dialog).findByTestId('card-cover')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: '“foto.png” görselini kapak yap' }));
+
+    expect(await within(dialog).findByTestId('card-cover-image')).toBeInTheDocument();
+    expect(within(dialog).queryByTestId('card-cover')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Kapağı kaldır: “foto.png”' })).toHaveTextContent(
+      'Kapağı kaldır',
+    );
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Kapak olarak ayarlandı.');
+    await waitFor(() => expect(sent).toEqual([{ coverAttachmentId: 'att-photo' }]));
+  });
+
+  it('removes the cover with "Kapağı kaldır"', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { ...withAttachments(PHOTO), coverAttachmentId: 'att-photo' });
+    const sent = recordPatches(serverCard);
+    const dialog = await cardDialog();
+
+    await user.click(await within(dialog).findByRole('button', { name: 'Kapağı kaldır: “foto.png”' }));
+
+    await waitFor(() => expect(sent).toEqual([{ coverAttachmentId: null }]));
+    expect(within(dialog).queryByTestId('card-cover-image')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '“foto.png” görselini kapak yap' })).toBeInTheDocument();
+  });
+
+  it('undoes the cover and says why when the server refuses it', async () => {
+    const { user } = openCard(CARD_PATH, withAttachments(PHOTO));
+    server.use(http.patch(CARD_URL, () => apiError(400, ErrorCode.INVALID_COVER)));
+    const dialog = await cardDialog();
+
+    await user.click(within(dialog).getByRole('button', { name: '“foto.png” görselini kapak yap' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu dosya kapak yapılamaz.');
+    expect(within(dialog).queryByTestId('card-cover-image')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '“foto.png” görselini kapak yap' })).toBeInTheDocument();
+  });
+
+  it('drops the cover with the file when the cover image is deleted', async () => {
+    const { user, serverCard } = openCard(CARD_PATH, { ...withAttachments(PHOTO), coverAttachmentId: 'att-photo' });
+    deleteEndpoint(serverCard);
+    const dialog = await cardDialog();
+    expect(await within(dialog).findByTestId('card-cover-image')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: '“foto.png” ekini sil' }));
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Ek silinsin mi?' })).getByRole('button', { name: 'Sil' }),
+    );
+
+    await waitFor(() => expect(within(dialog).queryByTestId('card-cover-image')).not.toBeInTheDocument());
   });
 });
 

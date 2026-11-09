@@ -14,8 +14,17 @@ import { useCardMutation } from './use-card-mutation';
 /** Title is checked before this: the server rejects an empty one. */
 export type CardEdit = Pick<
   UpdateCardRequest,
-  'title' | 'description' | 'dueDate' | 'dueComplete' | 'isCompleted' | 'coverColor'
+  | 'title'
+  | 'description'
+  | 'dueDate'
+  | 'dueComplete'
+  | 'isCompleted'
+  | 'coverColor'
+  | 'coverAttachmentId'
 >;
+
+const changesCover = (edit: CardEdit): boolean =>
+  edit.coverColor !== undefined || edit.coverAttachmentId !== undefined;
 
 /** Parts of the card an edit sets; setting a date also settles its completion. */
 function editParts(edit: CardEdit): string[] {
@@ -25,7 +34,8 @@ function editParts(edit: CardEdit): string[] {
     ...(edit.dueDate !== undefined ? ['dueDate', 'dueComplete'] : []),
     ...(edit.dueComplete !== undefined ? ['dueComplete'] : []),
     ...(edit.isCompleted !== undefined ? ['completedAt'] : []),
-    ...(edit.coverColor !== undefined ? ['coverColor'] : []),
+    // One part for both: a color and an image cover exclude each other.
+    ...(changesCover(edit) ? ['cover'] : []),
   ];
 }
 
@@ -41,7 +51,10 @@ function revertEdit(card: CardDetailDto, previous: CardDetailDto, edit: CardEdit
     }),
     ...(edit.dueComplete !== undefined && { dueComplete: previous.dueComplete }),
     ...(edit.isCompleted !== undefined && { completedAt: previous.completedAt }),
-    ...(edit.coverColor !== undefined && { coverColor: previous.coverColor }),
+    ...(changesCover(edit) && {
+      coverColor: previous.coverColor,
+      coverAttachmentId: previous.coverAttachmentId,
+    }),
   };
 }
 
@@ -53,11 +66,14 @@ function applyAnswer(card: CardDetailDto, answer: CardSummaryDto, edit: CardEdit
     ...(edit.dueDate !== undefined && { dueDate: answer.dueDate, dueComplete: answer.dueComplete }),
     ...(edit.dueComplete !== undefined && { dueComplete: answer.dueComplete }),
     ...(edit.isCompleted !== undefined && { completedAt: answer.completedAt }),
-    ...(edit.coverColor !== undefined && { coverColor: answer.coverColor }),
+    ...(changesCover(edit) && {
+      coverColor: answer.coverColor,
+      coverAttachmentId: answer.coverAttachmentId,
+    }),
   };
 }
 
-/** Edits the card's title, description, due date, completion or cover color. */
+/** Edits the card's title, description, due date, completion or cover (a color or an image). */
 export function useUpdateCard(boardId: string, cardId: string) {
   return useCardMutation({
     boardId,
@@ -67,7 +83,10 @@ export function useUpdateCard(boardId: string, cardId: string) {
     touches: editParts,
     revert: revertEdit,
     onSuccessCard: (card, answer: CardSummaryDto, edit) => applyAnswer(card, answer, edit),
-    errorMessage: 'Değişiklik kaydedilemedi. Tekrar dene.',
+    errorMessage: (error) =>
+      error instanceof ApiError && error.code === ErrorCode.INVALID_COVER
+        ? 'Bu dosya kapak yapılamaz.'
+        : 'Değişiklik kaydedilemedi. Tekrar dene.',
   });
 }
 

@@ -1,11 +1,21 @@
 import type { CardSummaryDto, LabelDto, MemberDto } from '@trello/contracts';
 import { LABEL_COLOR_CLASS } from '../../../shared/lib/label-color';
 import { AvatarStack } from '../../../shared/ui/avatar';
-import { CheckIcon, ChecklistIcon, CommentIcon, DescriptionIcon, EyeIcon } from '../../../shared/ui/icons';
+import {
+  CheckIcon,
+  ChecklistIcon,
+  CommentIcon,
+  DescriptionIcon,
+  EyeIcon,
+  PaperclipIcon,
+} from '../../../shared/ui/icons';
 import { DueBadge } from '../../../shared/ui/due-badge';
 import { LabelChip } from '../../../shared/ui/label-chip';
+import { AttachmentImage } from './attachment-image';
 
 interface CardTileBodyProps {
+  /** Board of the card; the image cover is read with this board's file key. */
+  boardId: string;
   card: CardSummaryDto;
   /** Labels of the board by id, in board order. */
   labels: ReadonlyMap<string, LabelDto>;
@@ -39,6 +49,7 @@ function membersOf(card: CardSummaryDto, members: ReadonlyMap<string, MemberDto>
 
 /** What a card looks like in a list and while dragging: cover, labels, title and badges. */
 export function CardTileBody({
+  boardId,
   card,
   labels,
   members,
@@ -59,18 +70,31 @@ export function CardTileBody({
     card.dueDate !== null ||
     card.hasDescription ||
     card.commentCount > 0 ||
+    card.attachmentCount > 0 ||
     hasChecklist ||
     isWatched ||
     cardMembers.length > 0;
 
   return (
     <>
-      {card.coverColor !== null && (
+      {card.coverAttachmentId !== null ? (
+        <div
+          aria-hidden="true"
+          data-testid="card-cover-image"
+          className={`${coverClassName} -mt-2 mb-2 overflow-hidden rounded-t-md`}
+        >
+          <AttachmentImage
+            boardId={boardId}
+            attachmentId={card.coverAttachmentId}
+            className="h-32 w-full object-cover"
+          />
+        </div>
+      ) : card.coverColor !== null ? (
         <div
           aria-hidden="true"
           className={`${coverClassName} -mt-2 mb-2 h-8 rounded-t-md ${LABEL_COLOR_CLASS[card.coverColor]}`}
         />
-      )}
+      ) : null}
       {cardLabels.length > 0 && (
         <ul id={labelsId} aria-label="Etiketler" className="mb-1 flex flex-wrap gap-1">
           {cardLabels.map((label) => (
@@ -112,6 +136,13 @@ export function CardTileBody({
               <CommentIcon className="size-3.5" />
               <span aria-hidden="true">{card.commentCount}</span>
               <span className="sr-only">{`${card.commentCount} yorum`}</span>
+            </span>
+          )}
+          {card.attachmentCount > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <PaperclipIcon className="size-3.5" />
+              <span aria-hidden="true">{card.attachmentCount}</span>
+              <span className="sr-only">{`${card.attachmentCount} ek`}</span>
             </span>
           )}
           {hasChecklist && (

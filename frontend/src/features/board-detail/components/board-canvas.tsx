@@ -76,6 +76,7 @@ export function BoardCanvas({ detail }: { detail: BoardDetailDto }) {
         <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
           {activeList && <ListDragPreview list={activeList} cards={cardsOf(activeList.id)} />}
           {activeCard && <CardDragPreview
+              boardId={boardId}
               card={activeCard}
               labels={labels}
               members={members}
